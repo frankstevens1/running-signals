@@ -1,0 +1,21 @@
+version: 2
+
+sources:
+  - name: garmin_raw
+    catalog: "{{ env_var('DATABRICKS_CATALOG') }}"
+    schema: bronze
+    tables:
+      - name: garmin_activities_raw
+        description: Raw Garmin activity summary payloads.
+        columns:
+          - name: activity_id
+            tests:
+              - not_null
+              - unique
+
+      - name: garmin_activity_details_raw
+        description: Raw Garmin activity detail payloads including laps, samples, heart-rate data, Garmin Recovery HR, and extended metrics where available.
+        columns:
+          - name: activity_id
+            tests:
+              - not_null
