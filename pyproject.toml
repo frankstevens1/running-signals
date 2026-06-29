@@ -2,29 +2,46 @@
 name = "running-signals"
 version = "0.1.0"
 description = "Live analytics engineering portfolio project using Garmin running data, Databricks, dbt, Python, and SQL."
-requires-python = ">=3.11"
+requires-python = ">=3.12,<3.13"
 dependencies = [
   "garminconnect>=0.3.6",
-  "pydantic>=2.13.4",
+  "pydantic>=2.12.0,<2.13.0",
   "python-dotenv>=1.2.2",
-  "pandas>=3.0.4",
+  "pandas>=2.3.0,<2.4.0",
   "pyarrow>=24.0.0",
-  "databricks-sdk>=0.119.0",
-  "dbt-core>=1.11.11",
-  "dbt-databricks>=1.12.1"
+  "databricks-sdk>=0.104.0,<0.105.0",
+  "dbt-core>=1.11.11,<1.12.0",
+  "dbt-databricks>=1.12.1,<1.13.0",
+  "garmin-fit-sdk>=21.208.0",
+  "hatchling>=1.30.1",
 ]
 
 [project.optional-dependencies]
 dev = [
   "ruff>=0.15.20",
   "pytest>=9.1.1",
-  "mypy>=2.1.0"
+  "mypy>=1.18.0,<2.0.0",
+  "jupyter>=1.1.1",
+  "ipykernel>=7.1.0"
+]
+
+[tool.uv]
+environments = [
+  "sys_platform == 'darwin'",
+  "sys_platform == 'linux'"
 ]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ingest"]
