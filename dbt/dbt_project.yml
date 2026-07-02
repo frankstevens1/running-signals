@@ -10,9 +10,7 @@ macro-paths: ["macros"]
 
 models:
   running_signals:
-    bronze:
+    intermediate:
       +materialized: view
-    silver:
-      +materialized: table
     gold:
       +materialized: table

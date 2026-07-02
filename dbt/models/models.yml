@@ -1,0 +1,67 @@
+version: 2
+
+models:
+  - name: int_runs
+    description: Run-level intermediate model derived from bronze Garmin FIT session messages.
+    columns:
+      - name: run_id
+        tests:
+          - not_null
+          - unique
+      - name: activity_id
+        tests:
+          - not_null
+      - name: activity_date
+        tests:
+          - not_null
+
+  - name: signal_consistency
+    description: Weekly consistency signals based on run frequency.
+    columns:
+      - name: week_start_date
+        tests:
+          - not_null
+          - unique
+
+  - name: signal_volume
+    description: Weekly volume signals based on run distance.
+    columns:
+      - name: week_start_date
+        tests:
+          - not_null
+          - unique
+
+  - name: signal_fitness
+    description: Run-level fitness indicators based on pace, heart rate, and derived efficiency.
+    columns:
+      - name: activity_id
+        tests:
+          - not_null
+          - unique
+      - name: activity_date
+        tests:
+          - not_null
+
+  - name: mart_runs
+    description: Presentation-ready run-level metrics.
+    columns:
+      - name: activity_id
+        tests:
+          - not_null
+          - unique
+
+  - name: mart_weeks
+    description: Presentation-ready weekly consistency and volume metrics.
+    columns:
+      - name: week_start_date
+        tests:
+          - not_null
+          - unique
+
+  - name: mart_running_signals
+    description: Presentation-ready run-level signal mart with weekly training context.
+    columns:
+      - name: activity_id
+        tests:
+          - not_null
+          - unique

@@ -2,11 +2,30 @@ from __future__ import annotations
 
 import io
 import zipfile
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 from garminconnect import Garmin
+
+from ingest.garmin.fit_store import FitFileLocation, GarminFitStore, LocalGarminFitStore
+
+
+@dataclass(frozen=True)
+class GarminFitDownloadResult:
+    downloaded_paths: list[FitFileLocation]
+    skipped_existing_paths: list[FitFileLocation]
+    deleted_existing_paths: list[FitFileLocation]
+    inspected_activity_count: int
+
+    @property
+    def local_paths(self) -> list[Path]:
+        return [
+            path
+            for path in [*self.downloaded_paths, *self.skipped_existing_paths]
+            if isinstance(path, Path)
+        ]
 
 
 def parse_since_arg(value: str) -> date | None:
@@ -153,43 +172,218 @@ def filter_activities_since(
     return filtered
 
 
+def filter_activities_in_range(
+    activities: list[dict[str, Any]],
+    start_date: date,
+    end_date: date,
+) -> list[dict[str, Any]]:
+    filtered: list[dict[str, Any]] = []
+
+    for activity in activities:
+        activity_date = get_activity_date(activity)
+
+        if activity_date is None:
+            continue
+
+        if start_date <= activity_date <= end_date:
+            filtered.append(activity)
+
+    return filtered
+
+
+def get_existing_fit_activity_ids(output_dir: Path) -> set[str]:
+    return LocalGarminFitStore(output_dir).list_activity_ids()
+
+
+def delete_existing_fit_files(output_dir: Path) -> list[Path]:
+    return LocalGarminFitStore(output_dir).delete_existing_fit_files()
+
+
+def activity_id_as_str(activity: dict[str, Any]) -> str | None:
+    activity_id = activity.get("activityId")
+
+    if activity_id is None:
+        return None
+
+    return str(activity_id)
+
+
+def download_activity_fit_bytes(api: Garmin, activity_id: str) -> bytes:
+    download_bytes = api.download_activity(
+        activity_id,
+        dl_fmt=api.ActivityDownloadFormat.ORIGINAL,
+    )
+    _, fit_bytes = extract_fit_from_download_bytes(download_bytes)
+    return fit_bytes
+
+
+def download_activity_fit_file(api: Garmin, activity_id: str, output_path: Path) -> Path:
+    fit_bytes = download_activity_fit_bytes(api, activity_id)
+    output_path.write_bytes(fit_bytes)
+    return output_path
+
+
+def download_incremental_running_fit_files_to_store(
+    api: Garmin,
+    store: GarminFitStore,
+    limit: int = 200,
+    page_size: int = 50,
+) -> GarminFitDownloadResult:
+    existing_activity_ids = store.list_activity_ids()
+
+    if not existing_activity_ids:
+        raise FileNotFoundError(
+            "Incremental Garmin FIT refresh requires at least one existing .fit file. "
+            "Run a range overwrite first to establish the baseline."
+        )
+
+    downloaded_paths: list[FitFileLocation] = []
+    skipped_existing_paths: list[FitFileLocation] = []
+    inspected_activity_count = 0
+    start = 0
+
+    while inspected_activity_count < limit:
+        page_limit = min(page_size, limit - inspected_activity_count)
+
+        raw_activities = api.get_activities(
+            start=start,
+            limit=page_limit,
+            activitytype="running",
+        )
+
+        activities = normalize_activities(raw_activities)
+
+        if not activities:
+            break
+
+        for activity in activities:
+            inspected_activity_count += 1
+            activity_id = activity_id_as_str(activity)
+
+            if activity_id is None:
+                continue
+
+            output_path = store.location_for_activity_id(activity_id)
+
+            if activity_id in existing_activity_ids or store.exists(activity_id):
+                skipped_existing_paths.append(output_path)
+                return GarminFitDownloadResult(
+                    downloaded_paths=downloaded_paths,
+                    skipped_existing_paths=skipped_existing_paths,
+                    deleted_existing_paths=[],
+                    inspected_activity_count=inspected_activity_count,
+                )
+
+            fit_bytes = download_activity_fit_bytes(api, activity_id)
+            downloaded_paths.append(store.write(activity_id, fit_bytes))
+            existing_activity_ids.add(activity_id)
+
+            if inspected_activity_count >= limit:
+                break
+
+        if len(activities) < page_limit:
+            break
+
+        start += len(activities)
+
+    return GarminFitDownloadResult(
+        downloaded_paths=downloaded_paths,
+        skipped_existing_paths=skipped_existing_paths,
+        deleted_existing_paths=[],
+        inspected_activity_count=inspected_activity_count,
+    )
+
+
+def download_incremental_running_fit_files(
+    api: Garmin,
+    output_dir: Path,
+    limit: int = 200,
+    page_size: int = 50,
+) -> GarminFitDownloadResult:
+    return download_incremental_running_fit_files_to_store(
+        api=api,
+        store=LocalGarminFitStore(output_dir),
+        limit=limit,
+        page_size=page_size,
+    )
+
+
+def overwrite_running_fit_files_for_range_to_store(
+    api: Garmin,
+    store: GarminFitStore,
+    start_date: date,
+    end_date: date,
+) -> GarminFitDownloadResult:
+    if end_date < start_date:
+        raise ValueError("end_date must be on or after start_date.")
+
+    deleted_existing_paths = store.delete_existing_fit_files()
+
+    raw_activities = api.get_activities_by_date(
+        start_date.isoformat(),
+        end_date.isoformat(),
+        activitytype="running",
+    )
+    activities = filter_activities_in_range(
+        normalize_activities(raw_activities),
+        start_date,
+        end_date,
+    )
+
+    downloaded_paths: list[FitFileLocation] = []
+
+    for activity in activities:
+        activity_id = activity_id_as_str(activity)
+
+        if activity_id is None:
+            continue
+
+        fit_bytes = download_activity_fit_bytes(api, activity_id)
+        downloaded_paths.append(store.write(activity_id, fit_bytes))
+
+    return GarminFitDownloadResult(
+        downloaded_paths=downloaded_paths,
+        skipped_existing_paths=[],
+        deleted_existing_paths=deleted_existing_paths,
+        inspected_activity_count=len(activities),
+    )
+
+
+def overwrite_running_fit_files_for_range(
+    api: Garmin,
+    output_dir: Path,
+    start_date: date,
+    end_date: date,
+) -> GarminFitDownloadResult:
+    return overwrite_running_fit_files_for_range_to_store(
+        api=api,
+        store=LocalGarminFitStore(output_dir),
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+
 def download_running_fit_files(
     api: Garmin,
     output_dir: Path,
     limit: int = 50,
     since: date | None = None,
     overwrite: bool = False,
-) -> list[Path]:
-    output_dir.mkdir(parents=True, exist_ok=True)
+) -> GarminFitDownloadResult:
+    end_date = date.today()
 
-    raw_activities = api.get_activities(
-        start=0,
-        limit=limit,
-        activitytype="running",
+    if since is None and not overwrite:
+        return download_incremental_running_fit_files(
+            api=api,
+            output_dir=output_dir,
+            limit=limit,
+        )
+
+    start_date = since or one_year_ago(end_date)
+
+    return overwrite_running_fit_files_for_range(
+        api=api,
+        output_dir=output_dir,
+        start_date=start_date,
+        end_date=end_date,
     )
-
-    activities = normalize_activities(raw_activities)
-    activities = filter_activities_since(activities, since)
-
-    saved_paths: list[Path] = []
-    download_format = api.ActivityDownloadFormat.ORIGINAL
-
-    for activity in activities:
-        activity_id = activity.get("activityId")
-
-        if activity_id is None:
-            continue
-
-        output_path = output_dir / f"{activity_id}.fit"
-
-        if output_path.exists() and not overwrite:
-            saved_paths.append(output_path)
-            continue
-
-        download_bytes = api.download_activity(str(activity_id), dl_fmt=download_format)
-        _, fit_bytes = extract_fit_from_download_bytes(download_bytes)
-
-        output_path.write_bytes(fit_bytes)
-        saved_paths.append(output_path)
-
-    return saved_paths

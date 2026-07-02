@@ -1,0 +1,23 @@
+bundle:
+  name: running-signals
+
+include:
+  - resources/*.yml
+
+sync:
+  paths:
+    - ../ingest
+    - ../notebooks/jobs/garmin_fit_bronze_ingestion.py
+
+variables:
+  catalog:
+    description: Unity Catalog catalog for Running Signals tables.
+    default: running_signals
+  garmin_fit_source_path:
+    description: External S3-backed Unity Catalog volume path containing Garmin FIT files.
+    default: /Volumes/running_signals/bronze/raw_garmin/fit
+
+targets:
+  dev:
+    mode: development
+    default: true

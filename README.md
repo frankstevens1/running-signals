@@ -31,6 +31,8 @@ Fitness combines pace/heart-rate efficiency, Garmin Recovery HR, and resting hea
 ```txt
 Garmin Connect
   → Python extractor
+  → S3 raw FIT landing zone
+  → Databricks external Unity Catalog volume
   → Databricks bronze Delta tables
   → dbt silver models
   → dbt gold signal marts

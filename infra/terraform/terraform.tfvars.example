@@ -1,0 +1,37 @@
+# Copy this file to terraform.tfvars and edit the values for your machine.
+# terraform.tfvars is ignored by Git.
+
+aws_region  = "eu-central-1"
+
+# Use an AWS IAM Identity Center profile created with:
+# aws configure sso
+# Do not use root user access keys for this project.
+aws_profile = "running-signals-dev"
+
+# Optional. Leave null to use the account-specific default:
+# running-signals-raw-<aws_account_id>
+raw_bucket_name = null
+
+# Separate from garmin/ so Databricks managed catalog storage never overlaps
+# the raw Garmin landing prefix.
+catalog_managed_storage_prefix = "__databricks_managed/running_signals"
+
+# Drop the auto-created running_signals.default schema during apply so only
+# intentional project schemas remain.
+drop_default_schema = true
+
+# Optional. Set this if you use a named Databricks CLI profile.
+databricks_profile = null
+
+# Brand-new setup starts in bootstrap mode. After the first apply, replace
+# "bootstrap" with:
+# terraform output storage_credential_external_id
+databricks_storage_credential_external_id = "bootstrap"
+
+# Set to false after replacing the bootstrap external ID with the real
+# Databricks-generated external ID.
+skip_databricks_validation = true
+
+# Required during the bootstrap transition because the storage credential has
+# dependent external locations by the time validation is turned back on.
+databricks_storage_credential_force_update = true

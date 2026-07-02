@@ -1,0 +1,25 @@
+resources:
+  jobs:
+    garmin_fit_bronze_ingestion:
+      name: running-signals-garmin-fit-bronze-ingestion
+      schedule:
+        quartz_cron_expression: "0 0 6 * * ?"
+        timezone_id: UTC
+        pause_status: PAUSED
+      performance_target: STANDARD
+      environments:
+        - environment_key: garmin_fit_environment
+          spec:
+            client: "2"
+            dependencies:
+              - garmin-fit-sdk==21.208.0
+      tasks:
+        - task_key: ingest_garmin_fit_bronze
+          environment_key: garmin_fit_environment
+          notebook_task:
+            notebook_path: ../../notebooks/jobs/garmin_fit_bronze_ingestion.py
+            base_parameters:
+              source_path: ${var.garmin_fit_source_path}
+              catalog: ${var.catalog}
+              schema: bronze
+              full_refresh: "false"

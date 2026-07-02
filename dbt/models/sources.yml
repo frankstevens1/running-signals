@@ -19,3 +19,40 @@ sources:
           - name: activity_id
             tests:
               - not_null
+
+      - name: garmin_fit_sessions
+        description: Bronze Garmin FIT session messages with one row per running activity.
+        columns:
+          - name: run_id
+            tests:
+              - not_null
+              - unique
+          - name: garmin_activity_id
+            tests:
+              - not_null
+          - name: run_date
+            tests:
+              - not_null
+
+      - name: garmin_fit_events
+        description: Bronze Garmin FIT event messages filtered to timer and recovery-heart-rate events.
+        columns:
+          - name: run_id
+            tests:
+              - not_null
+          - name: run_date
+            tests:
+              - not_null
+
+      - name: garmin_fit_records
+        description: Bronze Garmin FIT record messages with high-frequency activity telemetry.
+        columns:
+          - name: run_id
+            tests:
+              - not_null
+          - name: timestamp
+            tests:
+              - not_null
+          - name: run_date
+            tests:
+              - not_null
