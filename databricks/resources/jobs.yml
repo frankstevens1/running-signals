@@ -23,3 +23,19 @@ resources:
               catalog: ${var.catalog}
               schema: bronze
               full_refresh: "false"
+    garmin_health_bronze_ingestion:
+      name: running-signals-garmin-health-bronze-ingestion
+      schedule:
+        quartz_cron_expression: "0 30 6 * * ?"
+        timezone_id: UTC
+        pause_status: PAUSED
+      performance_target: STANDARD
+      tasks:
+        - task_key: ingest_garmin_health_bronze
+          notebook_task:
+            notebook_path: ../../notebooks/jobs/garmin_health_bronze_ingestion.py
+            base_parameters:
+              source_path: ${var.garmin_health_source_path}
+              catalog: ${var.catalog}
+              schema: bronze
+              full_refresh: "false"

@@ -8,6 +8,7 @@ sync:
   paths:
     - ../ingest
     - ../notebooks/jobs/garmin_fit_bronze_ingestion.py
+    - ../notebooks/jobs/garmin_health_bronze_ingestion.py
 
 variables:
   catalog:
@@ -16,6 +17,9 @@ variables:
   garmin_fit_source_path:
     description: External S3-backed Unity Catalog volume path containing Garmin FIT files.
     default: /Volumes/running_signals/bronze/raw_garmin/fit
+  garmin_health_source_path:
+    description: External S3-backed Unity Catalog volume path containing Garmin health JSON files.
+    default: /Volumes/running_signals/bronze/raw_garmin/health/daily
 
 targets:
   dev:

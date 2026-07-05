@@ -23,6 +23,12 @@ def get_garmin_fit_dir() -> Path:
     return path
 
 
+def get_garmin_health_dir() -> Path:
+    path = get_garmin_raw_dir() / "health" / "daily"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def get_garmin_exploration_dir() -> Path:
     path = get_garmin_raw_dir() / "exploration"
     path.mkdir(parents=True, exist_ok=True)

@@ -1,15 +1,26 @@
 {{ config(materialized='table') }}
 
 select
-    activity_id,
-    activity_date,
-    distance_km,
-    duration_seconds,
-    avg_pace_min_per_km,
-    speed_kmh,
-    avg_heart_rate,
-    max_heart_rate,
-    garmin_recovery_hr,
-    resting_hr_7d_avg,
-    resting_hr_30d_avg
-from {{ ref('int_runs') }}
+    runs.activity_id,
+    runs.activity_date,
+    runs.distance_km,
+    runs.duration_seconds,
+    runs.avg_pace_min_per_km,
+    runs.speed_kmh,
+    runs.avg_heart_rate,
+    runs.max_heart_rate,
+    runs.garmin_recovery_hr,
+    health_days.resting_heart_rate,
+    health_days.hrv_value,
+    health_days.hrv_status,
+    health_days.sleep_score,
+    health_days.sleep_duration_seconds,
+    health_days.sleep_start_time,
+    health_days.sleep_end_time,
+    health_days.has_hrv_payload,
+    health_days.has_rhr_payload,
+    health_days.has_sleep_payload,
+    health_days.has_heart_rates_payload
+from {{ ref('silver_runs') }} as runs
+left join {{ ref('silver_health_days') }} as health_days
+    on runs.activity_date = health_days.calendar_date

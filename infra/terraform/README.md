@@ -359,9 +359,10 @@ apply when:
 
 ```hcl
 drop_default_schema = true
+```
 
-The `bronze` schema remains managed by Terraform as
-`databricks_schema.bronze`.
+The `bronze`, `silver`, and `gold` schemas remain managed by Terraform as
+`databricks_schema.bronze`, `databricks_schema.silver`, and `databricks_schema.gold`.
 
 ## Commands
 

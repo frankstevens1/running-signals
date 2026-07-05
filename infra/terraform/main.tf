@@ -4,6 +4,7 @@ locals {
   raw_bucket_name                = coalesce(var.raw_bucket_name, "running-signals-raw-${data.aws_caller_identity.current.account_id}")
   external_location_prefix       = trimsuffix(trimprefix(var.external_location_prefix, "/"), "/")
   fit_object_prefix              = trimsuffix(trimprefix(var.fit_object_prefix, "/"), "/")
+  health_object_prefix           = trimsuffix(trimprefix(var.health_object_prefix, "/"), "/")
   catalog_managed_storage_prefix = trimsuffix(trimprefix(var.catalog_managed_storage_prefix, "/"), "/")
   databricks_profile_arg         = var.databricks_profile == null ? "" : " --profile ${var.databricks_profile}"
   iam_role_name                  = "running-signals-raw-garmin-uc"
@@ -183,6 +184,26 @@ resource "databricks_schema" "bronze" {
   catalog_name = databricks_catalog.running_signals.name
   name         = var.bronze_schema_name
   comment      = "Bronze layer for raw and source-aligned Running Signals data."
+
+  depends_on = [
+    terraform_data.drop_default_schema,
+  ]
+}
+
+resource "databricks_schema" "silver" {
+  catalog_name = databricks_catalog.running_signals.name
+  name         = var.silver_schema_name
+  comment      = "Silver layer for cleaned and standardized Running Signals dbt models."
+
+  depends_on = [
+    terraform_data.drop_default_schema,
+  ]
+}
+
+resource "databricks_schema" "gold" {
+  catalog_name = databricks_catalog.running_signals.name
+  name         = var.gold_schema_name
+  comment      = "Gold layer for Running Signals analytical signals and presentation marts."
 
   depends_on = [
     terraform_data.drop_default_schema,

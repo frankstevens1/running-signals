@@ -18,4 +18,6 @@ Shows how much work is being accumulated over time.
 
 ### Fitness
 
-Shows whether aerobic performance is improving using pace/heart-rate efficiency, Garmin Recovery HR, and resting heart-rate trends.
+Shows directional aerobic performance using pace/heart-rate efficiency and Garmin Recovery HR when it
+is available in FIT event payloads. Same-day Garmin Connect health context, including resting heart
+rate, HRV, and sleep fields, is modeled as descriptive context rather than readiness scoring.

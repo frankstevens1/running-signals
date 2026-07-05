@@ -3,7 +3,7 @@ version: 2
 sources:
   - name: garmin_raw
     catalog: "{{ env_var('DATABRICKS_CATALOG') }}"
-    schema: bronze
+    schema: "{{ env_var('DATABRICKS_BRONZE_SCHEMA', 'bronze') }}"
     tables:
       - name: garmin_activities_raw
         description: Raw Garmin activity summary payloads.
@@ -56,3 +56,16 @@ sources:
           - name: run_date
             tests:
               - not_null
+
+      - name: garmin_health_daily_payloads
+        description: Bronze Garmin Connect daily health JSON payloads with one row per calendar date and endpoint payload type.
+        columns:
+          - name: calendar_date
+            tests:
+              - not_null
+          - name: payload_type
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ["hrv", "rhr", "sleep", "heart_rates"]

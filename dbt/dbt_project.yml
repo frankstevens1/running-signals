@@ -10,7 +10,9 @@ macro-paths: ["macros"]
 
 models:
   running_signals:
-    intermediate:
+    silver:
       +materialized: view
+      +schema: "{{ env_var('DATABRICKS_SILVER_SCHEMA', 'silver') }}"
     gold:
       +materialized: table
+      +schema: "{{ env_var('DATABRICKS_GOLD_SCHEMA', 'gold') }}"

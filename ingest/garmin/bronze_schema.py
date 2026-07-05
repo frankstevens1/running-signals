@@ -105,3 +105,41 @@ BRONZE_TABLES = {
         required_columns=RECORD_REQUIRED_COLUMNS,
     ),
 }
+
+HEALTH_PAYLOAD_COLUMNS = [
+    "calendar_date",
+    "payload_type",
+    "raw_payload",
+    "source_method",
+    "fetched_at",
+    "source_file_path",
+    "source_file_name",
+    "source_file_size_bytes",
+    "source_file_modification_time",
+    "ingested_at",
+    "ingestion_date",
+    "source_system",
+    "source_format",
+]
+
+HEALTH_PAYLOAD_REQUIRED_COLUMNS = [
+    "calendar_date",
+    "payload_type",
+    "raw_payload",
+    "source_file_path",
+    "source_file_name",
+    "source_file_size_bytes",
+    "source_file_modification_time",
+    "ingested_at",
+    "ingestion_date",
+    "source_system",
+    "source_format",
+]
+
+HEALTH_PAYLOAD_TABLE = BronzeTableSpec(
+    entity="health_payloads",
+    table_name="garmin_health_daily_payloads",
+    columns=HEALTH_PAYLOAD_COLUMNS,
+    required_columns=HEALTH_PAYLOAD_REQUIRED_COLUMNS,
+    partition_column="calendar_date",
+)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, Sequence
 
 FitFileLocation = Path | str
 
@@ -20,7 +20,7 @@ class GarminFitStore(Protocol):
     def write(self, activity_id: str, fit_bytes: bytes) -> FitFileLocation:
         """Write FIT bytes and return the resulting location."""
 
-    def delete_existing_fit_files(self) -> list[FitFileLocation]:
+    def delete_existing_fit_files(self) -> Sequence[FitFileLocation]:
         """Delete existing FIT files in the configured store scope."""
 
 

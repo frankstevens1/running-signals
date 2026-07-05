@@ -3,11 +3,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import pandas as pd
 
 from ingest.garmin.bronze_schema import BRONZE_SCHEMA, BRONZE_TABLES
+from ingest.garmin.bronze_utils import (
+    align_columns,
+    normalize_datetime,
+    normalize_source_path,
+    quote_sql_string,
+    table_exists,
+)
 from ingest.garmin.parser import parse_fit_files
 from ingest.garmin.quality import validate_bronze_frames
 
@@ -113,18 +120,6 @@ def discover_fit_files(source_path: str | Path) -> list[GarminFitSourceFile]:
     return [source_file_from_path(item) for item in paths]
 
 
-def normalize_source_path(source_path: str | Path) -> Path:
-    text = str(source_path)
-
-    if text.startswith("dbfs:/"):
-        return Path("/dbfs") / text.removeprefix("dbfs:/").lstrip("/")
-
-    if text.startswith("file:/"):
-        return Path(text.removeprefix("file:"))
-
-    return Path(text)
-
-
 def source_file_from_path(path: Path) -> GarminFitSourceFile:
     stat = path.stat()
 
@@ -176,20 +171,6 @@ def source_file_changed(
         return True
 
     return existing_time != source_time
-
-
-def normalize_datetime(value: Any) -> datetime | None:
-    if value is None:
-        return None
-
-    timestamp = pd.Timestamp(value)
-
-    if timestamp.tzinfo is None:
-        timestamp = timestamp.tz_localize(UTC)
-    else:
-        timestamp = timestamp.tz_convert(UTC)
-
-    return cast(datetime, timestamp.to_pydatetime())
 
 
 def enrich_bronze_frames(
@@ -257,23 +238,6 @@ def enrich_child_frame(
         enriched["timestamp"] = pd.to_datetime(enriched["timestamp"], errors="coerce", utc=True)
     enriched = enriched.merge(metadata, on="run_id", how="left", validate="many_to_one")
     return enriched.merge(run_dates, on="run_id", how="left", validate="many_to_one")
-
-
-def align_columns(frame: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
-    aligned = frame.copy()
-
-    for column in columns:
-        if column not in aligned.columns:
-            aligned[column] = pd.NA
-
-    return aligned[columns]
-
-
-def table_exists(spark: Any, table_name: str) -> bool:
-    try:
-        return bool(spark.catalog.tableExists(table_name))
-    except Exception:
-        return False
 
 
 def read_existing_run_files(spark: Any, table_name: str) -> dict[str, ExistingGarminFitRun]:
@@ -352,10 +316,6 @@ def write_bronze_tables(
             writer = writer.option("overwriteSchema", "true")
 
         writer.partitionBy(spec.partition_column).saveAsTable(table_name)
-
-
-def quote_sql_string(value: str) -> str:
-    return "'" + value.replace("'", "''") + "'"
 
 
 def result_to_log_lines(result: GarminBronzeIngestionResult) -> list[str]:

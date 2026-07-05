@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any, cast
 
 import pandas as pd
 from garmin_fit_sdk import Decoder, Stream
@@ -11,7 +12,7 @@ from ingest.garmin.transforms import (
 )
 
 
-def decode_fit_file(path: Path) -> dict:
+def decode_fit_file(path: Path) -> dict[str, Any]:
     stream = Stream.from_file(path)
     decoder = Decoder(stream)
     messages, errors = decoder.read()
@@ -20,7 +21,7 @@ def decode_fit_file(path: Path) -> dict:
         # Exploration only: keep going, but make errors visible.
         print(f"Decode warnings for {path.name}: {errors}")
 
-    return messages
+    return cast(dict[str, Any], messages)
 
 
 def parse_fit_file(path: Path) -> dict[str, pd.DataFrame]:
@@ -53,7 +54,7 @@ def parse_fit_files(paths: list[Path]) -> dict[str, pd.DataFrame]:
 
 
 def _message_to_frame(
-    messages: dict,
+    messages: dict[str, Any],
     message_name: str,
     fields: list[str],
     run_id: str,

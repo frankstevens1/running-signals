@@ -317,7 +317,7 @@ def overwrite_running_fit_files_for_range_to_store(
     if end_date < start_date:
         raise ValueError("end_date must be on or after start_date.")
 
-    deleted_existing_paths = store.delete_existing_fit_files()
+    deleted_existing_paths = list(store.delete_existing_fit_files())
 
     raw_activities = api.get_activities_by_date(
         start_date.isoformat(),

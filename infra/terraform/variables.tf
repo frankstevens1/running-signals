@@ -34,6 +34,18 @@ variable "bronze_schema_name" {
   default     = "bronze"
 }
 
+variable "silver_schema_name" {
+  description = "Unity Catalog silver schema name."
+  type        = string
+  default     = "silver"
+}
+
+variable "gold_schema_name" {
+  description = "Unity Catalog gold schema name."
+  type        = string
+  default     = "gold"
+}
+
 variable "drop_default_schema" {
   description = "Drop the auto-created default schema from the Unity Catalog catalog during Terraform apply."
   type        = bool
@@ -56,6 +68,12 @@ variable "fit_object_prefix" {
   description = "S3 object prefix used by the Garmin FIT downloader."
   type        = string
   default     = "garmin/fit"
+}
+
+variable "health_object_prefix" {
+  description = "S3 object prefix used by the Garmin health JSON downloader."
+  type        = string
+  default     = "garmin/health/daily"
 }
 
 variable "catalog_managed_storage_prefix" {

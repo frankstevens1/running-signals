@@ -127,7 +127,7 @@ def test_incremental_download_appends_until_first_existing_fit_file(tmp_path: Pa
     )
 
     assert fake_api.downloaded_activity_ids == ["102", "101"]
-    assert [path.name for path in result.downloaded_paths] == ["102.fit", "101.fit"]
+    assert [Path(path).name for path in result.downloaded_paths] == ["102.fit", "101.fit"]
     assert result.skipped_existing_paths == [fit_path(tmp_path, "100")]
     assert fit_path(tmp_path, "99").exists() is False
 
@@ -151,8 +151,8 @@ def test_range_overwrite_deletes_fit_files_and_downloads_only_range(tmp_path: Pa
     )
 
     assert fake_api.downloaded_activity_ids == ["101"]
-    assert [path.name for path in result.deleted_existing_paths] == ["old.fit"]
-    assert [path.name for path in result.downloaded_paths] == ["101.fit"]
+    assert [Path(path).name for path in result.deleted_existing_paths] == ["old.fit"]
+    assert [Path(path).name for path in result.downloaded_paths] == ["101.fit"]
     assert fit_path(tmp_path, "old").exists() is False
     assert fit_path(tmp_path, "099").exists() is False
     assert fit_path(tmp_path, "102").exists() is False

@@ -3,6 +3,10 @@
 Small operational entrypoints for local project tasks. Keep scripts thin: argument parsing,
 user prompts, and orchestration belong here; reusable logic should live under `ingest/`.
 
+For the full raw-to-bronze-to-silver-to-gold workflow, use
+`docs/layer-runbook.md`. This file documents the script entrypoints; the runbook
+documents the required execution order.
+
 ## `download_garmin_fit.py`
 
 Downloads Garmin running activities as raw `.fit` files.
@@ -42,6 +46,62 @@ S3 configuration is read from CLI arguments first, then from the repository
 - `GARMIN_FIT_S3_PREFIX`, defaulting to `garmin/fit`
 - `AWS_REGION`, defaulting to the AWS SDK/environment default when unset
 - `AWS_PROFILE`, when using an AWS IAM Identity Center profile
+
+## `download_garmin_health.py`
+
+Downloads daily Garmin Connect health JSON payloads for HRV, resting heart rate,
+sleep, and heart-rate summaries.
+
+S3 is the production destination. Files are written as recoverable JSON
+envelopes using this object layout:
+
+```text
+s3://<bucket>/garmin/health/daily/calendar_date=YYYY-MM-DD/{payload_type}.json
+```
+
+Supported `payload_type` values are `hrv`, `rhr`, `sleep`, and `heart_rates`.
+Endpoint failures are reported per day and endpoint without blocking the other
+payloads for that day.
+
+Examples:
+
+```bash
+uv run python scripts/download_garmin_health.py --destination s3 --start-date 2026-06-01 --end-date 2026-06-07
+uv run python scripts/download_garmin_health.py --destination local --start-date 2026-06-01 --end-date 2026-06-07
+```
+
+S3 configuration is read from CLI arguments first, then from the repository
+`.env` file or shell environment:
+
+- `GARMIN_HEALTH_S3_BUCKET`, falling back to `GARMIN_FIT_S3_BUCKET`
+- `GARMIN_HEALTH_S3_PREFIX`, defaulting to `garmin/health/daily`
+- `AWS_REGION`, defaulting to the AWS SDK/environment default when unset
+- `AWS_PROFILE`, when using an AWS IAM Identity Center profile
+
+## AWS Credentials For S3 Downloads
+
+Local smoke tests may use an AWS IAM Identity Center profile:
+
+```bash
+aws sso login --profile running-signals-dev
+AWS_PROFILE=running-signals-dev uv run python scripts/download_garmin_health.py --destination s3 --start-date 2026-06-01 --end-date 2026-06-07
+```
+
+This is intentionally a manual workflow. SSO tokens expire and can fail with:
+
+```text
+botocore.exceptions.TokenRetrievalError: Error when retrieving token from sso: Token has expired and refresh failed
+```
+
+Do not use an SSO-backed `AWS_PROFILE` for unattended Garmin downloads. Automation should use
+short-lived non-interactive credentials, preferably GitHub Actions OIDC assuming a scoped AWS IAM
+role. Running inside AWS with an instance, task, or Lambda role is also acceptable. A dedicated IAM
+user access key is a fallback only if the policy is tightly scoped to the raw Garmin landing prefixes
+and the key is rotated.
+
+Garmin authentication is a separate automation concern. The downloader needs a valid token store or
+non-interactive `GARMIN_EMAIL` and `GARMIN_PASSWORD` values. The token store must remain outside the
+repository.
 
 ## S3 Landing Smoke Test
 
@@ -105,9 +165,10 @@ uv run python scripts/download_garmin_fit.py \
   --mode incremental
 ```
 
-After the S3 landing works, run the Databricks bronze ingestion job:
+After the S3 landing works, run the Databricks bronze ingestion jobs:
 
 ```bash
 cd databricks
 uv run databricks bundle run garmin_fit_bronze_ingestion
+uv run databricks bundle run garmin_health_bronze_ingestion
 ```

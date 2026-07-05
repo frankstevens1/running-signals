@@ -40,6 +40,19 @@ target-version = "py312"
 python_version = "3.12"
 strict = true
 
+[[tool.mypy.overrides]]
+module = [
+  "boto3",
+  "boto3.*",
+  "garminconnect",
+  "garminconnect.*",
+  "garmin_fit_sdk",
+  "garmin_fit_sdk.*",
+  "pandas",
+  "pandas.*",
+]
+ignore_missing_imports = true
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
