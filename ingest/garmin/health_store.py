@@ -8,14 +8,21 @@ from typing import Any, Protocol
 from ingest.garmin.fit_store import normalize_s3_prefix
 
 HealthPayloadLocation = Path | str
+HealthPayloadIdentity = tuple[date, str]
 
 HEALTH_PAYLOAD_TYPES = ("hrv", "rhr", "sleep", "heart_rates")
 DEFAULT_HEALTH_S3_PREFIX = "garmin/health/daily"
 
 
 class GarminHealthStore(Protocol):
+    def list_payloads(self) -> set[HealthPayloadIdentity]:
+        """Return daily health payloads already present in the store."""
+
     def location_for_payload(self, calendar_date: date, payload_type: str) -> HealthPayloadLocation:
         """Return the local path or object URI for a daily health payload."""
+
+    def exists(self, calendar_date: date, payload_type: str) -> bool:
+        """Return whether a daily health payload exists."""
 
     def write(self, calendar_date: date, payload_type: str, payload_json: str) -> HealthPayloadLocation:
         """Write a JSON health payload and return the resulting location."""
@@ -51,12 +58,54 @@ def build_s3_health_key(
     return f"{normalized_prefix}/{relative_path}"
 
 
+def parse_health_payload_relative_path(relative_path: str) -> HealthPayloadIdentity | None:
+    parts = relative_path.split("/")
+
+    if len(parts) != 2:
+        return None
+
+    date_part, filename = parts
+
+    if not date_part.startswith("calendar_date=") or not filename.endswith(".json"):
+        return None
+
+    try:
+        calendar_date = date.fromisoformat(date_part.removeprefix("calendar_date="))
+        payload_type = validate_health_payload_type(filename.removesuffix(".json"))
+    except ValueError:
+        return None
+
+    return calendar_date, payload_type
+
+
 class LocalGarminHealthStore:
     def __init__(self, output_dir: Path) -> None:
         self.output_dir = output_dir
 
+    def list_payloads(self) -> set[HealthPayloadIdentity]:
+        if not self.output_dir.exists():
+            return set()
+
+        payloads: set[HealthPayloadIdentity] = set()
+
+        for path in self.output_dir.glob("calendar_date=*/*.json"):
+            if not path.is_file():
+                continue
+
+            identity = parse_health_payload_relative_path(
+                f"{path.parent.name}/{path.name}"
+            )
+
+            if identity is not None:
+                payloads.add(identity)
+
+        return payloads
+
     def location_for_payload(self, calendar_date: date, payload_type: str) -> Path:
         return self.output_dir / build_health_payload_relative_path(calendar_date, payload_type)
+
+    def exists(self, calendar_date: date, payload_type: str) -> bool:
+        return self.location_for_payload(calendar_date, payload_type).exists()
 
     def write(self, calendar_date: date, payload_type: str, payload_json: str) -> Path:
         output_path = self.location_for_payload(calendar_date, payload_type)
@@ -100,8 +149,24 @@ class S3GarminHealthStore:
             prefix=self.prefix,
         )
 
+    def list_payloads(self) -> set[HealthPayloadIdentity]:
+        payloads: set[HealthPayloadIdentity] = set()
+        prefix = f"{self.prefix}/" if self.prefix else ""
+
+        for key in self._list_health_keys():
+            relative_path = key.removeprefix(prefix)
+            identity = parse_health_payload_relative_path(relative_path)
+
+            if identity is not None:
+                payloads.add(identity)
+
+        return payloads
+
     def location_for_payload(self, calendar_date: date, payload_type: str) -> str:
         return f"s3://{self.bucket}/{self.key_for_payload(calendar_date, payload_type)}"
+
+    def exists(self, calendar_date: date, payload_type: str) -> bool:
+        return self.key_for_payload(calendar_date, payload_type) in set(self._list_health_keys())
 
     def write(self, calendar_date: date, payload_type: str, payload_json: str) -> str:
         key = self.key_for_payload(calendar_date, payload_type)
@@ -112,3 +177,22 @@ class S3GarminHealthStore:
             ContentType="application/json",
         )
         return f"s3://{self.bucket}/{key}"
+
+    def _list_health_keys(self) -> list[str]:
+        paginator = self.client.get_paginator("list_objects_v2")
+        prefix = f"{self.prefix}/" if self.prefix else ""
+        paginate_args: dict[str, str] = {"Bucket": self.bucket}
+
+        if prefix:
+            paginate_args["Prefix"] = prefix
+
+        keys: list[str] = []
+
+        for page in paginator.paginate(**paginate_args):
+            for item in page.get("Contents", []):
+                key = item.get("Key")
+
+                if isinstance(key, str) and key.endswith(".json"):
+                    keys.append(key)
+
+        return keys

@@ -1,12 +1,16 @@
+# Technical Decisions
+
 ## Why Recovery HR belongs under Fitness
 
-Garmin Recovery HR measures the heart-rate drop after stopping an activity, typically over a two-minute window.
+Garmin Recovery HR measures the heart-rate drop after stopping an activity, typically over a
+two-minute window.
 
 For this project, it belongs in the fitness signal group when it is available in the Garmin FIT event
 payload. It helps describe cardiovascular adaptation alongside pace/heart-rate efficiency without
 creating a broader recovery product surface.
 
-It is not modeled as a standalone recovery pillar because that would imply a broader recovery model involving sleep, HRV, fatigue, soreness, and training readiness. That is outside the intended scope.
+It is not modeled as a standalone recovery pillar because that would imply a broader recovery model
+involving sleep, HRV, fatigue, soreness, and training readiness. That is outside the intended scope.
 
 ## Why unattended Garmin downloads should not use AWS SSO
 

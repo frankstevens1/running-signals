@@ -46,7 +46,7 @@ Required values for Databricks and dbt:
 
 ```bash
 DATABRICKS_HOST=dbc-<workspace-id>.cloud.databricks.com
-DATABRICKS_TOKEN=dapi...
+DATABRICKS_TOKEN=<your-databricks-token>
 DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/<warehouse-id>
 DATABRICKS_CATALOG=running_signals
 DATABRICKS_BRONZE_SCHEMA=bronze
@@ -144,12 +144,12 @@ uv run python scripts/download_garmin_fit.py \
 
 uv run python scripts/download_garmin_health.py \
   --destination s3 \
+  --mode range-overwrite \
   --start-date 2026-06-01 \
   --end-date 2026-06-07
 ```
 
-For a routine refresh, use incremental FIT landing and a health date range that covers the days you
-want to refresh:
+For a routine refresh, use incremental landing for both raw inputs:
 
 ```bash
 uv run python scripts/download_garmin_fit.py \
@@ -158,8 +158,7 @@ uv run python scripts/download_garmin_fit.py \
 
 uv run python scripts/download_garmin_health.py \
   --destination s3 \
-  --start-date 2026-06-01 \
-  --end-date 2026-06-07
+  --mode incremental
 ```
 
 Confirm raw files exist in S3:

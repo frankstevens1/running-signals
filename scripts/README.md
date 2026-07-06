@@ -63,11 +63,20 @@ Supported `payload_type` values are `hrv`, `rhr`, `sleep`, and `heart_rates`.
 Endpoint failures are reported per day and endpoint without blocking the other
 payloads for that day.
 
+Modes:
+
+- `incremental`: writes only missing health payloads. When `--start-date` is not
+  provided, the script starts at the latest payload date already present in the
+  destination, or today when the destination is empty.
+- `range-overwrite`: re-fetches every health payload in the requested date range,
+  overwriting any existing files for successful endpoint calls.
+
 Examples:
 
 ```bash
-uv run python scripts/download_garmin_health.py --destination s3 --start-date 2026-06-01 --end-date 2026-06-07
-uv run python scripts/download_garmin_health.py --destination local --start-date 2026-06-01 --end-date 2026-06-07
+uv run python scripts/download_garmin_health.py --destination s3 --mode incremental
+uv run python scripts/download_garmin_health.py --destination s3 --mode range-overwrite --start-date 2026-06-01 --end-date 2026-06-07
+uv run python scripts/download_garmin_health.py --destination local --mode incremental --start-date 2026-06-01 --end-date 2026-06-07
 ```
 
 S3 configuration is read from CLI arguments first, then from the repository
@@ -84,7 +93,7 @@ Local smoke tests may use an AWS IAM Identity Center profile:
 
 ```bash
 aws sso login --profile running-signals-dev
-AWS_PROFILE=running-signals-dev uv run python scripts/download_garmin_health.py --destination s3 --start-date 2026-06-01 --end-date 2026-06-07
+AWS_PROFILE=running-signals-dev uv run python scripts/download_garmin_health.py --destination s3 --mode incremental
 ```
 
 This is intentionally a manual workflow. SSO tokens expire and can fail with:

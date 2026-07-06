@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Callable
 
@@ -34,6 +34,7 @@ class GarminHealthDownloadResult:
     written_paths: list[HealthPayloadLocation]
     endpoint_failures: list[GarminHealthEndpointFailure]
     inspected_day_count: int
+    skipped_existing_paths: list[HealthPayloadLocation] = field(default_factory=list)
 
 
 HEALTH_ENDPOINTS = (
@@ -99,18 +100,98 @@ def serialize_json_value(value: Any) -> str:
     return str(value)
 
 
+def resolve_incremental_health_start_date(
+    store: GarminHealthStore,
+    start_date: date | None,
+    end_date: date,
+) -> date:
+    return resolve_incremental_health_start_date_from_payloads(
+        existing_payloads=store.list_payloads(),
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+
+def resolve_incremental_health_start_date_from_payloads(
+    existing_payloads: set[tuple[date, str]],
+    start_date: date | None,
+    end_date: date,
+) -> date:
+    if start_date is not None:
+        return start_date
+
+    if not existing_payloads:
+        return end_date
+
+    latest_existing_date = max(calendar_date for calendar_date, _ in existing_payloads)
+    return min(latest_existing_date, end_date)
+
+
+def download_incremental_daily_health_payloads_to_store(
+    api: Garmin,
+    store: GarminHealthStore,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> GarminHealthDownloadResult:
+    resolved_end_date = end_date or date.today()
+    existing_payloads = store.list_payloads()
+    resolved_start_date = resolve_incremental_health_start_date_from_payloads(
+        existing_payloads=existing_payloads,
+        start_date=start_date,
+        end_date=resolved_end_date,
+    )
+
+    return _download_daily_health_payloads_to_store(
+        api=api,
+        store=store,
+        start_date=resolved_start_date,
+        end_date=resolved_end_date,
+        skip_existing=True,
+        existing_payloads=existing_payloads,
+    )
+
+
 def download_daily_health_payloads_to_store(
     api: Garmin,
     store: GarminHealthStore,
     start_date: date,
     end_date: date,
 ) -> GarminHealthDownloadResult:
+    return _download_daily_health_payloads_to_store(
+        api=api,
+        store=store,
+        start_date=start_date,
+        end_date=end_date,
+        skip_existing=False,
+    )
+
+
+def _download_daily_health_payloads_to_store(
+    api: Garmin,
+    store: GarminHealthStore,
+    start_date: date,
+    end_date: date,
+    skip_existing: bool,
+    existing_payloads: set[tuple[date, str]] | None = None,
+) -> GarminHealthDownloadResult:
     written_paths: list[HealthPayloadLocation] = []
+    skipped_existing_paths: list[HealthPayloadLocation] = []
     endpoint_failures: list[GarminHealthEndpointFailure] = []
     calendar_dates = iter_calendar_dates(start_date, end_date)
+    if existing_payloads is None:
+        existing_payloads = store.list_payloads() if skip_existing else set()
 
     for calendar_date in calendar_dates:
         for endpoint in HEALTH_ENDPOINTS:
+            payload_identity = (calendar_date, endpoint.payload_type)
+
+            if skip_existing and payload_identity in existing_payloads:
+                skipped_existing_paths.append(
+                    store.location_for_payload(calendar_date, endpoint.payload_type)
+                )
+                existing_payloads.add(payload_identity)
+                continue
+
             try:
                 payload = endpoint.fetch(api, calendar_date)
             except Exception as exc:
@@ -133,9 +214,11 @@ def download_daily_health_payloads_to_store(
             )
             payload_json = health_payload_envelope_to_json(envelope)
             written_paths.append(store.write(calendar_date, endpoint.payload_type, payload_json))
+            existing_payloads.add(payload_identity)
 
     return GarminHealthDownloadResult(
         written_paths=written_paths,
         endpoint_failures=endpoint_failures,
         inspected_day_count=len(calendar_dates),
+        skipped_existing_paths=skipped_existing_paths,
     )

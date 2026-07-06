@@ -211,6 +211,10 @@ models:
         description: Run calendar date.
         tests:
           - not_null
+      - name: hr_drift_pct
+        description: Run-level heart-rate drift, calculated as second-half segment efficiency divided by first-half segment efficiency minus one.
+      - name: rolling_4_run_hr_drift_pct
+        description: Rolling four-run average of heart-rate drift.
 
   - name: mart_runs
     description: Compatibility presentation-ready run-level metrics with same-day health context.

@@ -1,26 +1,146 @@
 @import "tailwindcss";
+@import "maplibre-gl/dist/maplibre-gl.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+:root,
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #06111f;
+  --foreground: #e7eef8;
+  --text: #e7eef8;
+  --text-soft: #9cafc4;
+  --surface: #0b1b2d;
+  --surface-muted: #10263d;
+  --border: #22384f;
+  --accent: #22d3ee;
+  --accent-foreground: #04111d;
+  --accent-strong: #67e8f9;
+  --accent-soft: #102f3d;
+  --signal: #f59e0b;
+  --signal-ok: #22c55e;
+  --signal-warn: #f59e0b;
+  --map-control-bg: rgba(11, 27, 45, 0.88);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+    --background: #f6f8fb;
+    --foreground: #111827;
+    --text: #111827;
+    --text-soft: #526173;
+    --surface: #ffffff;
+    --surface-muted: #eef4f8;
+    --border: #cbd7e3;
+    --accent: #057a8a;
+    --accent-foreground: #f7fdff;
+    --accent-strong: #0e7490;
+    --accent-soft: #dff7fb;
+    --signal: #b45309;
+    --signal-ok: #15803d;
+    --signal-warn: #b45309;
+    --map-control-bg: rgba(255, 255, 255, 0.92);
+  }
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+  --background: #f6f8fb;
+  --foreground: #111827;
+  --text: #111827;
+  --text-soft: #526173;
+  --surface: #ffffff;
+  --surface-muted: #eef4f8;
+  --border: #cbd7e3;
+  --accent: #057a8a;
+  --accent-foreground: #f7fdff;
+  --accent-strong: #0e7490;
+  --accent-soft: #dff7fb;
+  --signal: #b45309;
+  --signal-ok: #15803d;
+  --signal-warn: #b45309;
+  --map-control-bg: rgba(255, 255, 255, 0.92);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-text: var(--text);
+  --color-text-soft: var(--text-soft);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-signal: var(--signal);
+  --color-signal-ok: var(--signal-ok);
+  --color-signal-warn: var(--signal-warn);
+  --font-sans: Arial, Helvetica, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  background-image:
+    linear-gradient(rgba(34, 211, 238, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.04) 1px, transparent 1px),
+    radial-gradient(circle at 78% 8%, rgba(34, 197, 94, 0.12), transparent 28rem);
+  background-size:
+    36px 36px,
+    36px 36px,
+    auto;
+}
+
+.theme-toggle .theme-icon-moon {
+  display: none;
+}
+
+html[data-theme="light"] .theme-toggle .theme-icon-sun {
+  display: none;
+}
+
+html[data-theme="light"] .theme-toggle .theme-icon-moon {
+  display: block;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) .theme-toggle .theme-icon-sun {
+    display: none;
+  }
+
+  :root:not([data-theme]) .theme-toggle .theme-icon-moon {
+    display: block;
+  }
+}
+
+@keyframes nav-progress {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(300%);
+  }
+}
+
+.nav-progress-indicator {
+  width: 35%;
+  animation: nav-progress 1s ease-in-out infinite;
+}
+
+.maplibregl-ctrl button {
+  border-radius: 4px;
+}
+
+.maplibregl-ctrl,
+.maplibregl-ctrl-attrib {
+  background: var(--map-control-bg) !important;
+  color: var(--text-soft) !important;
+}
+
+.maplibregl-ctrl a {
+  color: var(--accent) !important;
 }

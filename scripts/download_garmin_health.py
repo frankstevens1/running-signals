@@ -20,6 +20,7 @@ from ingest.garmin.client import get_garmin_client
 from ingest.garmin.health_download import (
     GarminHealthDownloadResult,
     download_daily_health_payloads_to_store,
+    download_incremental_daily_health_payloads_to_store,
 )
 from ingest.garmin.health_store import (
     DEFAULT_HEALTH_S3_PREFIX,
@@ -30,6 +31,7 @@ from ingest.garmin.health_store import (
 from ingest.garmin.paths import get_garmin_health_dir, get_project_root
 
 T = TypeVar("T")
+DownloadMode = Literal["incremental", "range-overwrite"]
 DownloadDestination = Literal["local", "s3"]
 
 
@@ -44,8 +46,36 @@ def parse_date_arg(value: str) -> date:
         raise ValueError("date must be YYYY-MM-DD.") from exc
 
 
+def parse_optional_date_arg(value: str) -> date | None:
+    normalized = value.strip().lower()
+
+    if normalized in {"auto", "none", "default"}:
+        return None
+
+    return parse_date_arg(value)
+
+
+def format_optional_date(value: date | None) -> str:
+    if value is None:
+        return "auto"
+
+    return value.isoformat()
+
+
 def parse_path(value: str) -> Path:
     return Path(value).expanduser()
+
+
+def parse_download_mode(value: str) -> DownloadMode:
+    normalized = value.strip().lower()
+
+    if normalized in {"1", "incremental", "incremental-refresh", "refresh"}:
+        return "incremental"
+
+    if normalized in {"2", "range", "range-overwrite", "overwrite"}:
+        return "range-overwrite"
+
+    raise ValueError("mode must be incremental or range-overwrite.")
 
 
 def parse_destination(value: str) -> DownloadDestination:
@@ -76,6 +106,25 @@ def prompt_value(
 
         try:
             return parse(value)
+        except ValueError as exc:
+            print(f"Invalid value: {exc}")
+
+
+def prompt_download_mode(current: DownloadMode) -> DownloadMode:
+    current_text = str(current)
+
+    while True:
+        value = input(
+            "Download mode ["
+            f"{current_text}"
+            "] (1 incremental, 2 range-overwrite): "
+        ).strip()
+
+        if not value:
+            return current
+
+        try:
+            return parse_download_mode(value)
         except ValueError as exc:
             print(f"Invalid value: {exc}")
 
@@ -141,11 +190,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--mode",
+        choices=["incremental", "range-overwrite"],
+        default="incremental",
+        help=(
+            "Download mode. incremental writes only missing health payloads. "
+            "range-overwrite re-fetches the requested date range."
+        ),
+    )
+
+    parser.add_argument(
         "--start-date",
-        type=parse_date_arg,
-        default=date.today(),
-        metavar="YYYY-MM-DD",
-        help="Health payload start date. Defaults to today.",
+        type=parse_optional_date_arg,
+        default=None,
+        metavar="YYYY-MM-DD|auto",
+        help=(
+            "Health payload start date. In incremental mode, defaults to the latest "
+            "existing payload date, or today when the destination is empty."
+        ),
     )
 
     parser.add_argument(
@@ -154,6 +216,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=date.today(),
         metavar="YYYY-MM-DD",
         help="Health payload end date. Defaults to today.",
+    )
+
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Legacy alias for --mode range-overwrite.",
     )
 
     parser.add_argument(
@@ -171,12 +239,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
 
     args = parser.parse_args(argv)
+    reconcile_args(args)
 
     if should_prompt(args, argv):
         args = prompt_for_args(args)
 
     validate_args(parser, args)
     return args
+
+
+def reconcile_args(args: argparse.Namespace) -> None:
+    if args.overwrite:
+        args.mode = "range-overwrite"
+
+    if args.mode == "range-overwrite" and args.start_date is None:
+        args.start_date = date.today()
 
 
 def should_prompt(args: argparse.Namespace, argv: list[str] | None) -> bool:
@@ -190,6 +267,7 @@ def should_prompt(args: argparse.Namespace, argv: list[str] | None) -> bool:
 def prompt_for_args(args: argparse.Namespace) -> argparse.Namespace:
     print("Garmin health download options. Press Enter to keep the shown value.")
 
+    args.mode = prompt_download_mode(args.mode)
     args.destination = prompt_destination(args.destination)
     args.tokenstore = prompt_value("Token store", args.tokenstore, str)
 
@@ -199,14 +277,29 @@ def prompt_for_args(args: argparse.Namespace) -> argparse.Namespace:
         args.s3_bucket = prompt_value("S3 bucket", args.s3_bucket or "", str)
         args.s3_prefix = prompt_value("S3 prefix", args.s3_prefix, str)
 
-    args.start_date = prompt_value("Start date", args.start_date, parse_date_arg)
+    if args.mode == "incremental":
+        args.start_date = prompt_value(
+            "Start date",
+            args.start_date,
+            parse_optional_date_arg,
+            format_optional_date,
+        )
+    else:
+        if args.start_date is None:
+            args.start_date = date.today()
+
+        args.start_date = prompt_value("Start date", args.start_date, parse_date_arg)
+
     args.end_date = prompt_value("End date", args.end_date, parse_date_arg)
 
     return args
 
 
 def validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
-    if args.end_date < args.start_date:
+    if args.mode == "range-overwrite" and args.start_date is None:
+        parser.error("--start-date is required when --mode range-overwrite.")
+
+    if args.start_date is not None and args.end_date < args.start_date:
         parser.error("--end-date must be on or after --start-date.")
 
     if args.destination == "s3" and not args.s3_bucket:
@@ -218,9 +311,10 @@ def validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> 
 
 def print_download_options(args: argparse.Namespace) -> None:
     print("Download options:")
+    print(f"  mode: {args.mode}")
     print(f"  destination: {args.destination}")
     print(f"  tokenstore: {args.tokenstore}")
-    print(f"  start_date: {args.start_date.isoformat()}")
+    print(f"  start_date: {format_optional_date(args.start_date)}")
     print(f"  end_date: {args.end_date.isoformat()}")
 
     if args.destination == "local":
@@ -233,6 +327,9 @@ def print_download_options(args: argparse.Namespace) -> None:
 def print_download_result(result: GarminHealthDownloadResult) -> None:
     print(f"Inspected {result.inspected_day_count} Garmin health days.")
     print(f"Wrote {len(result.written_paths)} health JSON payloads.")
+
+    if result.skipped_existing_paths:
+        print(f"Skipped {len(result.skipped_existing_paths)} existing health JSON payloads.")
 
     if result.endpoint_failures:
         print(f"Endpoint failures: {len(result.endpoint_failures)}")
@@ -258,12 +355,21 @@ def main() -> None:
     else:
         store = LocalGarminHealthStore(args.output_dir)
 
-    result = download_daily_health_payloads_to_store(
-        api=api,
-        store=store,
-        start_date=args.start_date,
-        end_date=args.end_date,
-    )
+    if args.mode == "incremental":
+        result = download_incremental_daily_health_payloads_to_store(
+            api=api,
+            store=store,
+            start_date=args.start_date,
+            end_date=args.end_date,
+        )
+    else:
+        result = download_daily_health_payloads_to_store(
+            api=api,
+            store=store,
+            start_date=args.start_date,
+            end_date=args.end_date,
+        )
+
     print_download_result(result)
 
 

@@ -62,3 +62,25 @@ def test_parse_health_args_loads_s3_defaults_from_project_env(
     assert args.destination == "s3"
     assert args.s3_bucket == "env-bucket"
     assert args.s3_prefix == "env-prefix/health"
+    assert args.mode == "incremental"
+    assert args.start_date is None
+
+
+def test_parse_health_args_supports_range_overwrite_mode() -> None:
+    args = parse_health_args(
+        [
+            "--destination",
+            "local",
+            "--mode",
+            "range-overwrite",
+            "--start-date",
+            "2026-01-01",
+            "--end-date",
+            "2026-01-07",
+            "--no-interactive",
+        ]
+    )
+
+    assert args.mode == "range-overwrite"
+    assert args.start_date.isoformat() == "2026-01-01"
+    assert args.end_date.isoformat() == "2026-01-07"

@@ -170,7 +170,8 @@ weekly interface while making `mart_days` the foundation.
 Grain: one row per run.
 
 Purpose: define descriptive aerobic fitness indicators from session pace, speed, heart rate,
-heart-rate bands, Garmin Recovery HR when available, and same-day health context.
+heart-rate bands, first-half versus second-half heart-rate drift, Garmin Recovery HR when available,
+and same-day health context.
 
 ### mart_run_segments
 
@@ -199,7 +200,7 @@ for analytical grouping, not survey-grade GIS.
 
 Grain: one row per run-route observation.
 
-Purpose: provide transparent feature and label columns for future predictive-readiness experiments:
+Purpose: provide transparent feature and label columns for future predictive modeling experiments:
 route characteristics, recent training context, prior route history, and outcome labels such as
 pace, duration, average heart rate, and completion distance. It does not train a model or generate
 forecasts, readiness scores, or coaching recommendations.

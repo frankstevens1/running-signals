@@ -10,6 +10,56 @@ health_days as (
     from {{ ref('silver_health_days') }}
 ),
 
+segments as (
+    select *
+    from {{ ref('mart_run_segments') }}
+    where segment_distance_km > 0
+      and avg_speed_kmh > 0
+      and avg_heart_rate > 0
+),
+
+ranked_segments as (
+    select
+        *,
+        row_number() over (
+            partition by run_id
+            order by segment_index
+        ) as segment_position,
+        count(*) over (
+            partition by run_id
+        ) as segment_count
+    from segments
+),
+
+segment_halves as (
+    select
+        run_id,
+        activity_id,
+        avg(case
+            when segment_position <= segment_count / 2.0
+            then avg_speed_kmh / avg_heart_rate
+        end) as first_half_efficiency,
+        avg(case
+            when segment_position > segment_count / 2.0
+            then avg_speed_kmh / avg_heart_rate
+        end) as second_half_efficiency
+    from ranked_segments
+    group by
+        run_id,
+        activity_id
+),
+
+hr_drift as (
+    select
+        run_id,
+        activity_id,
+        case
+            when first_half_efficiency > 0 and second_half_efficiency is not null
+            then second_half_efficiency / first_half_efficiency - 1
+        end as hr_drift_pct
+    from segment_halves
+),
+
 run_fitness as (
     select
         runs.activity_id,
@@ -44,10 +94,13 @@ run_fitness as (
         health_days.has_hrv_payload,
         health_days.has_rhr_payload,
         health_days.has_sleep_payload,
-        health_days.has_heart_rates_payload
+        health_days.has_heart_rates_payload,
+        hr_drift.hr_drift_pct
     from runs
     left join health_days
         on runs.activity_date = health_days.calendar_date
+    left join hr_drift
+        on runs.run_id = hr_drift.run_id
 )
 
 select
@@ -55,5 +108,9 @@ select
     avg(efficiency_ratio) over (
         order by activity_date, activity_id
         rows between 3 preceding and current row
-    ) as rolling_4_run_efficiency_ratio
+    ) as rolling_4_run_efficiency_ratio,
+    avg(hr_drift_pct) over (
+        order by activity_date, activity_id
+        rows between 3 preceding and current row
+    ) as rolling_4_run_hr_drift_pct
 from run_fitness

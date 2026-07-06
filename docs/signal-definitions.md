@@ -54,6 +54,8 @@ HR when Garmin provides it, and descriptive daily health context.
 | `efficiency_ratio` | Run | `speed_kmh / avg_heart_rate` when heart rate is present and positive. | `signal_fitness` | Implemented |
 | `hr_band` | Run | Bucketed average heart-rate band. | `signal_fitness` | Implemented |
 | `rolling_4_run_efficiency_ratio` | Run | Average efficiency over the current and previous three runs. | `signal_fitness` | Implemented |
+| `hr_drift_pct` | Run | Second-half segment efficiency divided by first-half segment efficiency minus one, where segment efficiency is `avg_speed_kmh / avg_heart_rate`. | `signal_fitness`, `mart_run_segments` | Implemented when segment HR and speed are present |
+| `rolling_4_run_hr_drift_pct` | Run | Average HR drift over the current and previous three runs. | `signal_fitness` | Implemented |
 | `garmin_recovery_hr` | Run | Garmin post-activity heart-rate drop when parsed from FIT events. | `silver_runs` | Nullable |
 | `resting_heart_rate` | Day | Garmin daily resting heart rate. | `silver_health_days`, `mart_days` | Implemented when present |
 | `hrv_value` | Day | Garmin daily HRV value when present. | `silver_health_days`, `mart_days` | Implemented when present |
