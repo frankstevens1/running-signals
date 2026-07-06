@@ -8,7 +8,7 @@ This document describes the implemented analytical model contract for Running Si
   Garmin Connect health JSON payloads.
 - Silver models are cleaned, typed, standardized analytical building blocks.
 - Gold models own signal definitions, rollups, and presentation-ready marts.
-- The primary analytical grain is now the completed calendar day. Weekly, monthly, and yearly
+- The primary analytical grain is the completed calendar day. Weekly, monthly, and yearly
   outputs are rollups from `mart_days`, not the base modeling grain.
 - Session, record, segment, and route grains remain explicit so route and performance analysis does
   not leak raw second-level telemetry into every presentation output.
