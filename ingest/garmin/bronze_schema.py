@@ -72,6 +72,74 @@ RECORD_REQUIRED_COLUMNS = [
     "ingested_at",
 ]
 
+TIMESTAMP_COLUMNS = [
+    "timestamp",
+    "start_time",
+    "source_file_modification_time",
+    "ingested_at",
+    "fetched_at",
+]
+
+DATE_COLUMNS = [
+    "ingestion_date",
+    "run_date",
+    "calendar_date",
+]
+
+LONG_COLUMNS = [
+    "source_file_size_bytes",
+    "position_lat",
+    "position_long",
+    "start_position_lat",
+    "start_position_long",
+    "end_position_lat",
+    "end_position_long",
+]
+
+DOUBLE_COLUMNS = [
+    "total_elapsed_time",
+    "total_timer_time",
+    "total_distance",
+    "enhanced_avg_speed",
+    "enhanced_max_speed",
+    "total_calories",
+    "avg_speed",
+    "max_speed",
+    "total_ascent",
+    "total_descent",
+    "num_laps",
+    "avg_heart_rate",
+    "max_heart_rate",
+    "avg_cadence",
+    "max_cadence",
+    "total_training_effect",
+    "total_anaerobic_training_effect",
+    "avg_temperature",
+    "max_temperature",
+    "min_temperature",
+    "total_strides",
+    "avg_running_cadence",
+    "max_running_cadence",
+    "distance",
+    "enhanced_speed",
+    "enhanced_altitude",
+    "heart_rate",
+    "cadence",
+    "temperature",
+    "fractional_cadence",
+    "stance_time",
+    "vertical_oscillation",
+    "vertical_ratio",
+    "step_length",
+    "cycle_length16",
+    "start_position_lat_deg",
+    "start_position_long_deg",
+    "end_position_lat_deg",
+    "end_position_long_deg",
+    "position_lat_deg",
+    "position_long_deg",
+]
+
 
 @dataclass(frozen=True)
 class BronzeTableSpec:

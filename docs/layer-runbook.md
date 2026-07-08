@@ -29,6 +29,10 @@ Create a local environment file from the example and fill in the values:
 cp .env.example .env
 ```
 
+The root `.env` is for repository operations: Garmin downloaders, AWS/S3 landing, Databricks/dbt,
+and the Supabase read-model sync. The Next.js site has its own runtime example at
+`apps/site/.env.example` because Next reads env files from the app project directory.
+
 Required values for raw S3 landing:
 
 ```bash
@@ -237,6 +241,7 @@ running_signals.gold.mart_months
 running_signals.gold.mart_years
 running_signals.gold.mart_run_sessions
 running_signals.gold.mart_run_segments
+running_signals.gold.mart_route_clusters
 running_signals.gold.mart_routes
 running_signals.gold.mart_route_prediction_features
 running_signals.gold.signal_consistency
@@ -297,9 +302,34 @@ uv run dbt run --project-dir dbt
 uv run dbt test --project-dir dbt
 ```
 
+Reload the Supabase presentation read models after dbt succeeds:
+
+```bash
+uv run python scripts/sync_site_supabase.py
+```
+
+Required values for the sync are:
+
+- `DATABRICKS_HOST`
+- `DATABRICKS_TOKEN`
+- `DATABRICKS_HTTP_PATH`
+- `DATABRICKS_CATALOG`
+- `DATABRICKS_GOLD_SCHEMA`
+
+For local development, `SUPABASE_DB_URL` is not required. The sync script defaults to the Supabase
+CLI database at `postgresql://postgres:postgres@127.0.0.1:54322/postgres`. For hosted Supabase,
+set `SUPABASE_DB_URL` to a direct database connection with write privileges.
+
+Do not put `SUPABASE_DB_URL` in the site deployment environment. The site only needs
+`SUPABASE_URL` and `SUPABASE_ANON_KEY`.
+
+Use `--dry-run` to fetch Databricks row counts without writing to Supabase.
+
 Spot-check Databricks results after a full build:
 
 - Weekly, monthly, and yearly totals reconcile to `mart_days`.
 - `mart_run_segments` distance and duration reconcile approximately to `mart_run_sessions`.
+- `mart_route_clusters` has one row per GPS-backed run and `route_match_similarity` stays between 0
+  and 1.
 - `mart_route_prediction_features` contains labels only from the current run observation and prior
   route/training context in feature columns.

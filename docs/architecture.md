@@ -10,7 +10,8 @@ Garmin Connect
     -> Databricks Unity Catalog external volume
     -> Databricks bronze Delta tables
     -> dbt silver and gold models
-    -> presentation layer
+    -> Supabase site read models
+    -> Next.js presentation layer
 ```
 
 ## Purpose
@@ -24,6 +25,7 @@ The architecture is intentionally simple. Each layer has one job:
 - Databricks parses FIT files and loads health JSON envelopes into bronze Delta tables with source
   metadata.
 - dbt owns analytical modeling, tests, and presentation-ready tables.
+- Supabase serves small read-optimized `site_*` tables for the public Next.js presentation layer.
 
 This keeps extraction, storage, ingestion, transformation, and communication separate
 without introducing unnecessary orchestration.
@@ -111,17 +113,29 @@ silver_dates + silver_runs + silver_health_days -> mart_days
 mart_days -> mart_weeks, mart_months, mart_years
 mart_weeks -> signal_consistency, signal_volume, mart_weekly_training_features
 silver_run_records -> mart_run_segments
-silver_runs + mart_days + mart_run_segments -> mart_run_sessions
+silver_runs + mart_run_segments -> mart_route_clusters
+silver_runs + mart_days + mart_run_segments + mart_route_clusters -> mart_run_sessions
 mart_run_sessions -> mart_routes
 mart_run_sessions + mart_routes -> mart_route_prediction_features
 silver_runs + silver_health_days -> signal_fitness, mart_runs, mart_running_signals
 ```
 
+## Presentation Serving
+
+The Next.js site does not query Databricks during normal page rendering. After dbt builds the gold
+models, `scripts/sync_site_supabase.py` reloads a narrow set of Supabase `site_*` tables from the
+gold outputs. Those tables contain only presentation-safe fields used by the explorers, charts, and
+status panels.
+
+Supabase is a serving cache, not the analytical source of truth. If a metric changes, the definition
+belongs in dbt gold first; the Supabase sync should only project that result into the shape required
+by the website.
+
 Silver models standardize date, run-level, per-record, and daily health context fields. The primary
 analytical foundation is `mart_days`; weekly, monthly, and yearly outputs roll up from that daily
-mart. Weekly signal models remain as compatibility outputs, while route, segment, and run-session
-marts support route and performance analysis. Health fields are descriptive context, not readiness
-or medical scoring.
+mart. Weekly signal models remain as compatibility outputs. Route clustering is a gold transform
+over fixed route segments, and route, segment, and run-session marts support route and performance
+analysis. Health fields are descriptive context, not readiness or medical scoring.
 
 ## Analytics Readiness
 
@@ -130,8 +144,9 @@ product:
 
 - Monitoring: `mart_days`, `mart_weeks`, `mart_months`, and `mart_years` expose daily training
   behavior and calendar rollups.
-- Visual analytics: `mart_runs`, `mart_run_sessions`, `mart_routes`, `mart_run_segments`, and
-  `mart_running_signals` expose run, route, segment, and signal views for portfolio communication.
+- Visual analytics: `mart_runs`, `mart_run_sessions`, `mart_routes`, `mart_route_clusters`,
+  `mart_run_segments`, and `mart_running_signals` expose run, route, segment, and signal views for
+  portfolio communication.
 - Prediction-ready features: `mart_route_prediction_features` and
   `mart_weekly_training_features` provide transparent feature and label columns for later modeling
   experiments, but do not train models or produce forecasts.

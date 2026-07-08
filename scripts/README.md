@@ -87,6 +87,31 @@ S3 configuration is read from CLI arguments first, then from the repository
 - `AWS_REGION`, defaulting to the AWS SDK/environment default when unset
 - `AWS_PROFILE`, when using an AWS IAM Identity Center profile
 
+## `sync_site_supabase.py`
+
+Reloads the Supabase `site_*` presentation read models from Databricks gold tables. Run it only after
+dbt has successfully built and tested the gold layer.
+
+```bash
+uv run python scripts/sync_site_supabase.py --dry-run
+uv run python scripts/sync_site_supabase.py
+```
+
+Configuration is read from the repository `.env` file or shell environment:
+
+- `DATABRICKS_HOST`
+- `DATABRICKS_TOKEN`
+- `DATABRICKS_HTTP_PATH`
+- `DATABRICKS_CATALOG`
+- `DATABRICKS_GOLD_SCHEMA`
+
+For local development, `SUPABASE_DB_URL` is not required. The script defaults to the Supabase CLI
+database at `postgresql://postgres:postgres@127.0.0.1:54322/postgres`. For hosted Supabase, set
+`SUPABASE_DB_URL` to a direct database connection with write privileges.
+
+`SUPABASE_URL` and `SUPABASE_ANON_KEY` are site runtime variables and belong in `apps/site/.env.local`
+or the site deployment environment, not in the root operational `.env`.
+
 ## AWS Credentials For S3 Downloads
 
 Local smoke tests may use an AWS IAM Identity Center profile:

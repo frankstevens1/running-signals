@@ -10,52 +10,9 @@ segments as (
     from {{ ref('mart_run_segments') }}
 ),
 
-route_cells as (
-    select
-        run_id,
-        segment_index,
-        representative_h3_cell_resolution_9 as h3_cell_resolution_9
-    from segments
-    where representative_h3_cell_resolution_9 is not null
-),
-
-route_signatures as (
-    select
-        runs.run_id,
-        min_by(route_cells.h3_cell_resolution_9, route_cells.segment_index) as start_h3_cell_resolution_9,
-        max_by(route_cells.h3_cell_resolution_9, route_cells.segment_index) as end_h3_cell_resolution_9,
-        round(runs.distance_km * 2.0) / 2.0 as route_distance_bucket_km,
-        transform(
-            array_sort(collect_list(named_struct(
-                'segment_index', route_cells.segment_index,
-                'h3_cell', cast(route_cells.h3_cell_resolution_9 as string)
-            ))),
-            cell -> cell.h3_cell
-        ) as route_h3_path
-    from runs
-    inner join route_cells
-        on runs.run_id = route_cells.run_id
-    group by runs.run_id, runs.distance_km
-),
-
-routes as (
-    select
-        *,
-        case
-            when size(route_h3_path) > 0
-            then sha2(concat_ws(
-                '|',
-                cast(start_h3_cell_resolution_9 as string),
-                cast(end_h3_cell_resolution_9 as string),
-                cast(route_distance_bucket_km as string),
-                concat_ws('>', route_h3_path)
-            ), 256)
-        end as route_id,
-        case
-            when size(route_h3_path) > 0
-            then concat_ws('>', route_h3_path)
-        end as route_h3_signature
-    from route_signatures
+route_clusters as (
+    select *
+    from {{ ref('mart_route_clusters') }}
 ),
 
 daily_context as (
@@ -129,11 +86,13 @@ select
     runs.end_record_longitude_deg,
     runs.record_distance_km,
     runs.record_distance_coverage_ratio,
-    routes.route_id,
-    routes.route_distance_bucket_km,
-    routes.start_h3_cell_resolution_9,
-    routes.end_h3_cell_resolution_9,
-    routes.route_h3_signature,
+    route_clusters.route_id,
+    route_clusters.route_representative_run_id,
+    route_clusters.route_match_similarity,
+    route_clusters.route_distance_bucket_km,
+    route_clusters.start_h3_cell_resolution_9,
+    route_clusters.end_h3_cell_resolution_9,
+    route_clusters.route_h3_signature,
     segment_summary.segment_count,
     segment_summary.avg_segment_pace_min_per_km,
     segment_summary.avg_segment_grade,
@@ -152,8 +111,8 @@ select
     prior_training_context.prior_28d_distance_km,
     prior_training_context.prior_28d_avg_resting_heart_rate
 from runs
-left join routes
-    on runs.run_id = routes.run_id
+left join route_clusters
+    on runs.run_id = route_clusters.run_id
 left join segment_summary
     on runs.run_id = segment_summary.run_id
 left join daily_context

@@ -7,7 +7,15 @@ from typing import Any
 
 import pandas as pd
 
-from ingest.garmin.bronze_schema import BRONZE_SCHEMA, BRONZE_TABLES
+from ingest.garmin.bronze_schema import (
+    BRONZE_SCHEMA,
+    BRONZE_TABLES,
+    DATE_COLUMNS,
+    DOUBLE_COLUMNS,
+    LONG_COLUMNS,
+    TIMESTAMP_COLUMNS,
+    BronzeTableSpec,
+)
 from ingest.garmin.bronze_utils import (
     align_columns,
     normalize_datetime,
@@ -310,12 +318,68 @@ def write_bronze_tables(
     for entity, spec in BRONZE_TABLES.items():
         frame = frames[entity]
         table_name = spec.full_name(catalog, schema)
-        writer = spark.createDataFrame(frame).write.format("delta").mode(mode)
+        spark_schema = bronze_spark_schema(spark, spec, table_name, mode)
+        spark_frame = spark.createDataFrame(
+            frame_for_spark_schema(frame, spark_schema), spark_schema
+        )
+        writer = spark_frame.write.format("delta").mode(mode)
 
         if mode == "overwrite":
             writer = writer.option("overwriteSchema", "true")
 
         writer.partitionBy(spec.partition_column).saveAsTable(table_name)
+
+
+def bronze_spark_schema(
+    spark: Any,
+    spec: BronzeTableSpec,
+    table_name: str,
+    mode: str,
+) -> Any:
+    if mode == "append" and table_exists(spark, table_name):
+        return spark.table(table_name).schema
+
+    return declared_bronze_spark_schema(spec)
+
+
+def frame_for_spark_schema(frame: pd.DataFrame, spark_schema: Any) -> pd.DataFrame:
+    aligned = align_columns(frame, spark_schema.fieldNames())
+    return aligned.astype(object).where(pd.notna(aligned), None)
+
+
+def declared_bronze_spark_schema(spec: BronzeTableSpec) -> Any:
+    from pyspark.sql.types import (
+        DateType,
+        DoubleType,
+        LongType,
+        StringType,
+        StructField,
+        StructType,
+        TimestampType,
+    )
+
+    timestamp_columns = set(TIMESTAMP_COLUMNS)
+    date_columns = set(DATE_COLUMNS)
+    long_columns = set(LONG_COLUMNS)
+    double_columns = set(DOUBLE_COLUMNS)
+    required_columns = set(spec.required_columns)
+
+    fields = []
+    for column in spec.columns:
+        if column in timestamp_columns:
+            data_type = TimestampType()
+        elif column in date_columns:
+            data_type = DateType()
+        elif column in long_columns:
+            data_type = LongType()
+        elif column in double_columns:
+            data_type = DoubleType()
+        else:
+            data_type = StringType()
+
+        fields.append(StructField(column, data_type, column not in required_columns))
+
+    return StructType(fields)
 
 
 def result_to_log_lines(result: GarminBronzeIngestionResult) -> list[str]:

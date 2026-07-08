@@ -1,0 +1,2 @@
+-- Local seed data is intentionally empty.
+-- Site read models are loaded by scripts/sync_site_supabase.py after dbt succeeds.

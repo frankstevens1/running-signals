@@ -51,6 +51,7 @@ select
     max_by(position_long_deg, record_timestamp) as segment_end_longitude_deg,
     min_by(h3_cell_resolution_8, record_distance_m) as start_h3_cell_resolution_8,
     max_by(h3_cell_resolution_8, record_distance_m) as end_h3_cell_resolution_8,
+    min_by(h3_cell_resolution_8, record_distance_m) as representative_h3_cell_resolution_8,
     min_by(h3_cell_resolution_9, record_distance_m) as representative_h3_cell_resolution_9,
     count(*) as record_count
 from segment_records

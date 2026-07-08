@@ -13,8 +13,6 @@ import { getFitness } from "@/app/lib/data";
 import { formatHeartRate, formatInteger, formatNumber, formatSignedPercent } from "@/app/lib/format";
 import { explorerPages } from "@/app/lib/page-metadata";
 
-export const dynamic = "force-dynamic";
-
 export default async function FitnessPage() {
   const fitness = await getFitness(180);
 

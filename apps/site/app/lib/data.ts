@@ -2,6 +2,12 @@ import "server-only";
 
 import { goldTable, isDatabricksNotConfigured, queryDatabricks } from "./databricks";
 import {
+  isSupabaseNotConfigured,
+  querySupabase,
+  type SupabaseFilter,
+  type SupabaseOrder,
+} from "./supabase";
+import {
   mapDay,
   mapFitness,
   mapMonth,
@@ -28,15 +34,25 @@ import type {
   WeekRollup,
 } from "./types";
 
+type SiteDataSource = "supabase" | "databricks";
+
+function getSiteDataSource(): SiteDataSource {
+  return process.env.SITE_DATA_SOURCE === "databricks" ? "databricks" : "supabase";
+}
+
+function isDataSourceNotConfigured(error: unknown): boolean {
+  return isDatabricksNotConfigured(error) || isSupabaseNotConfigured(error);
+}
+
 function asResult<T>(promise: Promise<T>): Promise<DataResult<T>> {
   return promise
     .then((data) => ({ status: "ok" as const, data }))
     .catch((error: unknown) => {
-      if (isDatabricksNotConfigured(error)) {
+      if (isDataSourceNotConfigured(error)) {
         return {
           status: "not_configured" as const,
           message:
-            error instanceof Error ? error.message : "Databricks SQL is not configured.",
+            error instanceof Error ? error.message : "Site data source is not configured.",
         };
       }
 
@@ -72,6 +88,79 @@ function optionalWhere(filters: RunFilters): string {
   return clauses.length > 0 ? `where ${clauses.join("\n    and ")}` : "";
 }
 
+function addOptionalNumberFilter(
+  filters: SupabaseFilter[],
+  column: string,
+  operator: "gte" | "lte",
+  value: number | undefined,
+): void {
+  if (value !== undefined) {
+    filters.push({ column, operator, value });
+  }
+}
+
+function supabaseRunFilters(filters: RunFilters): SupabaseFilter[] {
+  const result: SupabaseFilter[] = [];
+
+  if (filters.dateFrom) {
+    result.push({ column: "activity_date", operator: "gte", value: filters.dateFrom });
+  }
+
+  if (filters.dateTo) {
+    result.push({ column: "activity_date", operator: "lte", value: filters.dateTo });
+  }
+
+  addOptionalNumberFilter(result, "distance_km", "gte", filters.minDistanceKm);
+  addOptionalNumberFilter(result, "distance_km", "lte", filters.maxDistanceKm);
+  addOptionalNumberFilter(result, "avg_pace_min_per_km", "gte", filters.minPace);
+  addOptionalNumberFilter(result, "avg_pace_min_per_km", "lte", filters.maxPace);
+  addOptionalNumberFilter(result, "avg_heart_rate", "gte", filters.minAvgHr);
+  addOptionalNumberFilter(result, "avg_heart_rate", "lte", filters.maxAvgHr);
+  addOptionalNumberFilter(
+    result,
+    "record_distance_coverage_ratio",
+    "gte",
+    filters.minGpsCoverage,
+  );
+
+  if (filters.routeId) {
+    result.push({ column: "route_id", operator: "eq", value: filters.routeId });
+  }
+
+  if (filters.hasRecoveryHr === true) {
+    result.push({ column: "garmin_recovery_hr", operator: "not.is", value: null });
+  }
+
+  if (filters.hasRecoveryHr === false) {
+    result.push({ column: "garmin_recovery_hr", operator: "is", value: null });
+  }
+
+  return result;
+}
+
+function supabaseRunOrder(filters: RunFilters): SupabaseOrder[] {
+  const order: SupabaseOrder[] = [
+    { column: filters.sort, direction: filters.direction, nulls: "last" },
+  ];
+
+  if (filters.sort !== "activity_date") {
+    order.push({ column: "activity_date", direction: "desc", nulls: "last" });
+  }
+
+  order.push({ column: "start_time", direction: "desc", nulls: "last" });
+
+  return order;
+}
+
+function metadataString(row: Record<string, unknown> | undefined): string | null {
+  const value = row?.metadata_value;
+
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string") return value;
+
+  return String(value);
+}
+
 const RUN_SELECT = `
   run_id,
   activity_id,
@@ -101,7 +190,7 @@ const RUN_SELECT = `
   prior_28d_distance_km
 `;
 
-async function queryLandingStatus(): Promise<LandingStatus> {
+async function queryLandingStatusFromDatabricks(): Promise<LandingStatus> {
   const rows = await queryDatabricks(`
     select cast(max(calendar_date) as string) as latest_completed_date
     from ${goldTable("mart_days")}
@@ -116,7 +205,24 @@ async function queryLandingStatus(): Promise<LandingStatus> {
   };
 }
 
-async function queryDashboard(): Promise<DashboardSummary> {
+async function queryLandingStatusFromSupabase(): Promise<LandingStatus> {
+  const [summaryResult, schemaResult] = await Promise.all([
+    querySupabase("site_dashboard_summary", { limit: 1 }),
+    querySupabase("site_metadata", {
+      filters: [{ column: "metadata_key", operator: "eq", value: "databricks_gold_schema" }],
+      limit: 1,
+    }),
+  ]);
+  const latestCompletedDate = stringValue(summaryResult.rows[0] ?? {}, "latest_completed_date");
+
+  return {
+    latestCompletedDate,
+    statusLabel: latestCompletedDate ? "Site read model current" : "No completed site day",
+    goldSchema: metadataString(schemaResult.rows[0]),
+  };
+}
+
+async function queryDashboardFromDatabricks(): Promise<DashboardSummary> {
   const [summaryRows, latestRunRows] = await Promise.all([
     queryDatabricks(`
       with latest as (
@@ -188,7 +294,40 @@ async function queryDashboard(): Promise<DashboardSummary> {
   };
 }
 
-async function queryRuns(filters: RunFilters): Promise<PaginatedResult<RunSession>> {
+async function queryDashboardFromSupabase(): Promise<DashboardSummary> {
+  const [summaryResult, latestRunResult] = await Promise.all([
+    querySupabase("site_dashboard_summary", { limit: 1 }),
+    querySupabase("site_runs", {
+      order: [
+        { column: "activity_date", direction: "desc", nulls: "last" },
+        { column: "start_time", direction: "desc", nulls: "last" },
+      ],
+      limit: 1,
+    }),
+  ]);
+  const row = summaryResult.rows[0] ?? {};
+
+  return {
+    latestCompletedDate: stringValue(row, "latest_completed_date"),
+    totalRuns: numberValue(row, "total_runs") ?? 0,
+    totalDistanceKm: numberValue(row, "total_distance_km") ?? 0,
+    recent7dDistanceKm: numberValue(row, "recent_7d_distance_km") ?? 0,
+    recent28dDistanceKm: numberValue(row, "recent_28d_distance_km") ?? 0,
+    activeWeeks: numberValue(row, "active_weeks") ?? 0,
+    activeMonths: numberValue(row, "active_months") ?? 0,
+    healthCoverage: {
+      hrvDays: numberValue(row, "hrv_days") ?? 0,
+      rhrDays: numberValue(row, "rhr_days") ?? 0,
+      sleepDays: numberValue(row, "sleep_days") ?? 0,
+      heartRateDays: numberValue(row, "heart_rate_days") ?? 0,
+    },
+    latestRun: latestRunResult.rows[0] ? mapRun(latestRunResult.rows[0]) : null,
+  };
+}
+
+async function queryRunsFromDatabricks(
+  filters: RunFilters,
+): Promise<PaginatedResult<RunSession>> {
   const where = optionalWhere(filters);
   const [rows, countRows] = await Promise.all([
     queryDatabricks(`
@@ -214,7 +353,26 @@ async function queryRuns(filters: RunFilters): Promise<PaginatedResult<RunSessio
   };
 }
 
-async function queryRoutes(limit = 50): Promise<RouteSummary[]> {
+async function queryRunsFromSupabase(
+  filters: RunFilters,
+): Promise<PaginatedResult<RunSession>> {
+  const result = await querySupabase("site_runs", {
+    filters: supabaseRunFilters(filters),
+    order: supabaseRunOrder(filters),
+    limit: filters.limit,
+    offset: filters.offset,
+    count: "exact",
+  });
+
+  return {
+    items: result.rows.map(mapRun),
+    total: result.count ?? result.rows.length,
+    limit: filters.limit,
+    offset: filters.offset,
+  };
+}
+
+async function queryRoutesFromDatabricks(limit = 50): Promise<RouteSummary[]> {
   const safeLimit = Math.min(Math.max(limit, 1), 100);
   const rows = await queryDatabricks(`
     select
@@ -241,7 +399,23 @@ async function queryRoutes(limit = 50): Promise<RouteSummary[]> {
   return rows.map(mapRoute);
 }
 
-async function queryRouteSegments(routeId?: string, limit = 1200): Promise<RouteSegment[]> {
+async function queryRoutesFromSupabase(limit = 50): Promise<RouteSummary[]> {
+  const safeLimit = Math.min(Math.max(limit, 1), 100);
+  const result = await querySupabase("site_routes", {
+    order: [
+      { column: "run_count", direction: "desc", nulls: "last" },
+      { column: "latest_observed_activity_date", direction: "desc", nulls: "last" },
+    ],
+    limit: safeLimit,
+  });
+
+  return result.rows.map(mapRoute);
+}
+
+async function queryRouteSegmentsFromDatabricks(
+  routeId?: string,
+  limit = 1200,
+): Promise<RouteSegment[]> {
   const safeLimit = Math.min(Math.max(limit, 1), 5000);
   const routeClause = routeId ? `and sessions.route_id = ${sqlString(routeId)}` : "";
   const rows = await queryDatabricks(`
@@ -271,7 +445,40 @@ async function queryRouteSegments(routeId?: string, limit = 1200): Promise<Route
   return rows.map(mapSegment);
 }
 
-async function queryDays(limit = 371): Promise<DayRollup[]> {
+async function queryRouteSegmentsFromSupabase(
+  routeId?: string,
+  limit = 1200,
+): Promise<RouteSegment[]> {
+  const safeLimit = Math.min(Math.max(limit, 1), 5000);
+  const pageSize = 1000;
+  const filters: SupabaseFilter[] = routeId
+    ? [{ column: "route_id", operator: "eq", value: routeId }]
+    : [];
+  const rows: Record<string, unknown>[] = [];
+
+  while (rows.length < safeLimit) {
+    const result = await querySupabase("site_route_segments", {
+      filters,
+      order: [
+        { column: "activity_date", direction: "desc", nulls: "last" },
+        { column: "run_id", direction: "asc", nulls: "last" },
+        { column: "segment_index", direction: "asc", nulls: "last" },
+      ],
+      limit: Math.min(pageSize, safeLimit - rows.length),
+      offset: rows.length,
+    });
+
+    rows.push(...result.rows);
+
+    if (result.rows.length < pageSize) {
+      break;
+    }
+  }
+
+  return rows.map(mapSegment);
+}
+
+async function queryDaysFromDatabricks(limit = 371): Promise<DayRollup[]> {
   const safeLimit = Math.min(Math.max(limit, 1), 1200);
   const rows = await queryDatabricks(`
     select
@@ -295,7 +502,17 @@ async function queryDays(limit = 371): Promise<DayRollup[]> {
   return rows.map(mapDay).reverse();
 }
 
-async function queryWeeksRaw(limit = 104): Promise<WeekRollup[]> {
+async function queryDaysFromSupabase(limit = 371): Promise<DayRollup[]> {
+  const safeLimit = Math.min(Math.max(limit, 1), 1200);
+  const result = await querySupabase("site_days", {
+    order: [{ column: "calendar_date", direction: "desc", nulls: "last" }],
+    limit: safeLimit,
+  });
+
+  return result.rows.map(mapDay).reverse();
+}
+
+async function queryWeeksRawFromDatabricks(limit = 104): Promise<WeekRollup[]> {
   const safeLimit = Math.min(Math.max(limit, 1), 260);
   const rows = await queryDatabricks(`
     select
@@ -322,9 +539,19 @@ async function queryWeeksRaw(limit = 104): Promise<WeekRollup[]> {
   return rows.map(mapWeek).reverse();
 }
 
-async function queryVolume(): Promise<VolumeData> {
+async function queryWeeksRawFromSupabase(limit = 104): Promise<WeekRollup[]> {
+  const safeLimit = Math.min(Math.max(limit, 1), 260);
+  const result = await querySupabase("site_weeks", {
+    order: [{ column: "week_start_date", direction: "desc", nulls: "last" }],
+    limit: safeLimit,
+  });
+
+  return result.rows.map(mapWeek).reverse();
+}
+
+async function queryVolumeFromDatabricks(): Promise<VolumeData> {
   const [weeks, months, years] = await Promise.all([
-    queryWeeksRaw(104),
+    queryWeeksRawFromDatabricks(104),
     queryDatabricks(`
       select
         cast(month_start_date as string) as month_start_date,
@@ -357,7 +584,27 @@ async function queryVolume(): Promise<VolumeData> {
   return { weeks, months, years };
 }
 
-async function queryFitness(limit = 150): Promise<FitnessPoint[]> {
+async function queryVolumeFromSupabase(): Promise<VolumeData> {
+  const [weeks, monthsResult, yearsResult] = await Promise.all([
+    queryWeeksRawFromSupabase(104),
+    querySupabase("site_months", {
+      order: [{ column: "month_start_date", direction: "desc", nulls: "last" }],
+      limit: 36,
+    }),
+    querySupabase("site_years", {
+      order: [{ column: "year_start_date", direction: "desc", nulls: "last" }],
+      limit: 10,
+    }),
+  ]);
+
+  return {
+    weeks,
+    months: monthsResult.rows.map(mapMonth).reverse(),
+    years: yearsResult.rows.map(mapYear).reverse(),
+  };
+}
+
+async function queryFitnessFromDatabricks(limit = 150): Promise<FitnessPoint[]> {
   const safeLimit = Math.min(Math.max(limit, 1), 500);
   const rows = await queryDatabricks(`
     select
@@ -384,6 +631,73 @@ async function queryFitness(limit = 150): Promise<FitnessPoint[]> {
   `);
 
   return rows.map(mapFitness).reverse();
+}
+
+async function queryFitnessFromSupabase(limit = 150): Promise<FitnessPoint[]> {
+  const safeLimit = Math.min(Math.max(limit, 1), 500);
+  const result = await querySupabase("site_fitness", {
+    order: [
+      { column: "activity_date", direction: "desc", nulls: "last" },
+      { column: "activity_id", direction: "desc", nulls: "last" },
+    ],
+    limit: safeLimit,
+  });
+
+  return result.rows.map(mapFitness).reverse();
+}
+
+function queryLandingStatus(): Promise<LandingStatus> {
+  return getSiteDataSource() === "databricks"
+    ? queryLandingStatusFromDatabricks()
+    : queryLandingStatusFromSupabase();
+}
+
+function queryDashboard(): Promise<DashboardSummary> {
+  return getSiteDataSource() === "databricks"
+    ? queryDashboardFromDatabricks()
+    : queryDashboardFromSupabase();
+}
+
+function queryRuns(filters: RunFilters): Promise<PaginatedResult<RunSession>> {
+  return getSiteDataSource() === "databricks"
+    ? queryRunsFromDatabricks(filters)
+    : queryRunsFromSupabase(filters);
+}
+
+function queryRoutes(limit?: number): Promise<RouteSummary[]> {
+  return getSiteDataSource() === "databricks"
+    ? queryRoutesFromDatabricks(limit)
+    : queryRoutesFromSupabase(limit);
+}
+
+function queryRouteSegments(routeId?: string, limit?: number): Promise<RouteSegment[]> {
+  return getSiteDataSource() === "databricks"
+    ? queryRouteSegmentsFromDatabricks(routeId, limit)
+    : queryRouteSegmentsFromSupabase(routeId, limit);
+}
+
+function queryDays(limit?: number): Promise<DayRollup[]> {
+  return getSiteDataSource() === "databricks"
+    ? queryDaysFromDatabricks(limit)
+    : queryDaysFromSupabase(limit);
+}
+
+function queryWeeksRaw(limit?: number): Promise<WeekRollup[]> {
+  return getSiteDataSource() === "databricks"
+    ? queryWeeksRawFromDatabricks(limit)
+    : queryWeeksRawFromSupabase(limit);
+}
+
+function queryVolume(): Promise<VolumeData> {
+  return getSiteDataSource() === "databricks"
+    ? queryVolumeFromDatabricks()
+    : queryVolumeFromSupabase();
+}
+
+function queryFitness(limit?: number): Promise<FitnessPoint[]> {
+  return getSiteDataSource() === "databricks"
+    ? queryFitnessFromDatabricks(limit)
+    : queryFitnessFromSupabase(limit);
 }
 
 export function getDashboardSummary(): Promise<DataResult<DashboardSummary>> {

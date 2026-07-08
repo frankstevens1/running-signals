@@ -8,9 +8,12 @@ with sessions as (
 
 select
     route_id,
+    min(route_representative_run_id) as route_representative_run_id,
     min(activity_date) as first_observed_activity_date,
     max(activity_date) as latest_observed_activity_date,
     count(*) as run_count,
+    min(route_match_similarity) as min_route_match_similarity,
+    avg(route_match_similarity) as avg_route_match_similarity,
     avg(distance_km) as avg_distance_km,
     min(distance_km) as min_distance_km,
     max(distance_km) as max_distance_km,

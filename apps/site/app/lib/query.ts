@@ -5,7 +5,9 @@ export type RunSort =
   | "avg_heart_rate"
   | "total_ascent"
   | "prior_7d_distance_km"
-  | "prior_28d_distance_km";
+  | "prior_28d_distance_km"
+  | "route_id"
+  | "record_distance_coverage_ratio";
 
 export type SortDirection = "asc" | "desc";
 
@@ -35,6 +37,8 @@ const RUN_SORTS = new Set<RunSort>([
   "total_ascent",
   "prior_7d_distance_km",
   "prior_28d_distance_km",
+  "route_id",
+  "record_distance_coverage_ratio",
 ]);
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;

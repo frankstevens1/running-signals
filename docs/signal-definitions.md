@@ -74,7 +74,8 @@ Route and within-run analytics are portfolio-oriented feature marts, not a produ
 | `avg_heart_rate` | Run segment | Average record heart rate within the segment. | `mart_run_segments` | Implemented when present |
 | `elevation_change_m` | Run segment | End altitude minus start altitude within the segment. | `mart_run_segments` | Implemented when present |
 | `segment_grade` | Run segment | Elevation change divided by segment distance in meters. | `mart_run_segments` | Implemented when present |
-| `route_id` | Route | Hash of ordered representative H3 cells plus approximate distance bucket. | `mart_run_sessions`, `mart_routes` | Implemented when GPS exists |
+| `route_id` | Route | Hash of the representative route's resolution-9 H3 signature plus 0.5 km distance bucket after direction-specific 90% ordered-overlap clustering. | `mart_route_clusters`, `mart_run_sessions`, `mart_routes` | Implemented when GPS exists |
+| `route_match_similarity` | Run-route observation | Best ordered resolution-8 H3 segment overlap score used to explain the run's route-cluster assignment. | `mart_route_clusters`, `mart_run_sessions` | Implemented when GPS exists |
 | `prior_7d_distance_km` | Run session | Distance in the seven completed days before the run. | `mart_run_sessions` | Implemented |
 | `prior_route_avg_pace_min_per_km` | Run-route observation | Historical average pace on the same route before the current run. | `mart_route_prediction_features` | Implemented |
 | `label_avg_pace_min_per_km` | Run-route observation | Current run pace label for later prediction experiments. | `mart_route_prediction_features` | Implemented |
@@ -82,8 +83,9 @@ Route and within-run analytics are portfolio-oriented feature marts, not a produ
 ## Known Limitations
 
 - Session-level heart rate is coarse and does not capture within-run effort distribution.
-- Route identity uses H3 path signatures and approximate distance buckets. It is stable enough for
-  portfolio analytics, but not a replacement for precise map matching.
+- Route identity uses ordered H3 segment-path clustering with a 90% similarity threshold and
+  approximate distance buckets. It is stable enough for portfolio analytics, but not a replacement
+  for precise map matching.
 - Heart-rate and pace comparisons remain directional because weather, terrain, fatigue, and device
   behavior vary.
 - Daily health endpoint availability varies by Garmin account, device, and date. Missing values

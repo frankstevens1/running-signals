@@ -21,6 +21,7 @@ This document describes the implemented analytical model contract for Running Si
 | Run session | `silver_runs`, `mart_run_sessions` | `run_id` / `activity_id` |
 | Record telemetry | `silver_run_records` | `run_id`, `record_timestamp` |
 | Fixed segment | `mart_run_segments` | `run_id`, `segment_index` |
+| Route observation | `mart_route_clusters` | `run_id` |
 | Route profile | `mart_routes` | `route_id` |
 | Week | `mart_weeks` | `week_start_date` |
 | Month | `mart_months` | `month_start_date` |
@@ -49,7 +50,9 @@ mart_weeks
     -> mart_weekly_training_features
 silver_run_records
     -> mart_run_segments
-silver_runs + mart_days + mart_run_segments
+silver_runs + mart_run_segments
+    -> mart_route_clusters
+silver_runs + mart_days + mart_run_segments + mart_route_clusters
     -> mart_run_sessions
 mart_run_sessions
     -> mart_routes
@@ -59,11 +62,19 @@ silver_runs + silver_health_days
     -> signal_fitness
     -> mart_runs
     -> mart_running_signals
+gold presentation outputs
+    -> Supabase site_* read models
 ```
 
 `silver_weeks`, `signal_consistency`, `signal_volume`, `mart_weeks`, `mart_running_signals`, and
 `mart_weekly_training_features` remain as compatibility outputs, but their weekly logic is downstream
 of the daily foundation.
+
+## Presentation Read Models
+
+Supabase `site_*` tables mirror the public-facing gold fields used by the Next.js site. They are
+loaded after dbt succeeds and are optimized for low-latency reads, filtering, sorting, charts, and
+route maps. They are intentionally not a replacement for the Databricks/dbt model contracts.
 
 ## Bronze Tables
 
@@ -180,6 +191,16 @@ Grain: one row per run and fixed 250m segment.
 Purpose: expose curated within-run analytics from record telemetry: segment pace, duration, heart
 rate, cadence, elevation change, grade, coordinates, and representative H3 cells.
 
+### mart_route_clusters
+
+Grain: one row per GPS-backed run with route geometry.
+
+Purpose: assign similarity-based, direction-specific route identity before session-level enrichment.
+Routes are compared as ordered resolution-8 H3 segment paths, with a one-segment positional
+tolerance and a 90% minimum overlap score after a 10% distance prefilter. The representative route is
+the earliest directly matching observed run. Its resolution-9 H3 signature and 0.5 km distance
+bucket generate the stable `route_id` used downstream.
+
 ### mart_run_sessions
 
 Grain: one row per run.
@@ -193,8 +214,9 @@ performance analysis.
 Grain: one row per detected route profile.
 
 Purpose: summarize historical outcomes and route characteristics for a stable `route_id`. The route
-identifier is derived from ordered representative H3 cells plus approximate distance. It is intended
-for analytical grouping, not survey-grade GIS.
+identifier is inherited from `mart_route_clusters`, so small GPS jitter and short detours can share a
+route when ordered segment overlap remains at or above 90%. It is intended for analytical grouping,
+not survey-grade GIS.
 
 ### mart_route_prediction_features
 

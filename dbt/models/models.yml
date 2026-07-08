@@ -264,6 +264,36 @@ models:
       - name: segment_start_timestamp
         tests:
           - not_null
+      - name: representative_h3_cell_resolution_8
+        description: Resolution-8 H3 cell used for route similarity matching.
+
+  - name: mart_route_clusters
+    description: One row per GPS-backed run with similarity-based, direction-specific route identity.
+    columns:
+      - name: run_id
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('silver_runs')
+                field: run_id
+      - name: route_id
+        description: Stable route cluster identifier derived from the representative route signature and distance bucket.
+        tests:
+          - not_null
+      - name: route_representative_run_id
+        description: Earliest observed run in the route cluster.
+        tests:
+          - not_null
+      - name: route_match_similarity
+        description: Best route similarity score used to explain the run's cluster assignment.
+        tests:
+          - not_null
+      - name: route_distance_bucket_km
+        description: Representative route distance rounded to the nearest 0.5 km.
+        tests:
+          - not_null
 
   - name: mart_run_sessions
     description: One row per run with session outcomes, daily context, route identity, route summary, and recent training context.
@@ -282,6 +312,12 @@ models:
       - name: activity_date
         tests:
           - not_null
+      - name: route_id
+        description: Similarity-based route cluster identifier when GPS-backed route geometry exists.
+      - name: route_representative_run_id
+        description: Earliest observed run for the assigned route cluster.
+      - name: route_match_similarity
+        description: Best route similarity score used to assign the run to its route cluster.
 
   - name: mart_routes
     description: One row per detected route profile with aggregate historical session outcomes and route characteristics.

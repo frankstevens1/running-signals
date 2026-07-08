@@ -41,6 +41,7 @@ Garmin Connect
   → Databricks bronze Delta tables
   → dbt silver building blocks
   → dbt gold signal and mart models
+  → Supabase site read models
   → portfolio website
 ```
 
@@ -86,6 +87,7 @@ setup and refresh sequence across all layers:
 3. Databricks bronze ingestion
 4. dbt silver and gold builds
 5. dbt tests
+6. Supabase site read-model sync
 
 The order matters. A full dbt run requires both FIT bronze tables and
 `bronze.garmin_health_daily_payloads`.

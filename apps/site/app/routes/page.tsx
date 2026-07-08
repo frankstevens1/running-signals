@@ -6,8 +6,6 @@ import { getRouteSegments, getRoutes } from "@/app/lib/data";
 import { explorerPages } from "@/app/lib/page-metadata";
 import { getSearchParam } from "@/app/lib/query";
 
-export const dynamic = "force-dynamic";
-
 export default async function RoutesPage({
   searchParams,
 }: {

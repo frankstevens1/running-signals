@@ -8,8 +8,6 @@ import { SectionHeading } from "@/app/components/section-heading";
 import { TechLogoGrid } from "@/app/components/tech-logo";
 import { explorerNavItems, explorerPages } from "@/app/lib/page-metadata";
 
-export const dynamic = "force-dynamic";
-
 const pillars = [
   {
     title: "Consistency",
