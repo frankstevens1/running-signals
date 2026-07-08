@@ -7,7 +7,7 @@ import { SectionHeading } from "@/app/components/section-heading";
 import {
   FitnessEfficiencyChart,
   HrDriftChart,
-  PaceHeartRateScatter,
+  PaceHeartRateTrend,
 } from "@/app/components/trend-charts";
 import { getFitness } from "@/app/lib/data";
 import { formatHeartRate, formatInteger, formatNumber, formatSignedPercent } from "@/app/lib/format";
@@ -22,7 +22,7 @@ export default async function FitnessPage() {
         <SectionHeading
           eyebrow="signal_fitness"
           title="Descriptive fitness trends"
-          description="Fitness views stay descriptive: heart-rate drift over time, pace versus heart rate, speed per heartbeat, recovery HR availability, and same-day health context."
+          description="Fitness views stay descriptive: heart-rate drift over time, pace at comparable heart rate, speed per heartbeat, recovery HR availability, and same-day health context."
           icon={explorerPages.fitness.icon}
         />
         <DataState result={fitness}>
@@ -57,7 +57,7 @@ export default async function FitnessPage() {
                   <div className="xl:col-span-2">
                     <HrDriftChart points={data} />
                   </div>
-                  <PaceHeartRateScatter points={data} />
+                  <PaceHeartRateTrend points={data} />
                   <FitnessEfficiencyChart points={data} />
                 </div>
               </div>

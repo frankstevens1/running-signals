@@ -32,6 +32,7 @@ weekly as (
             as has_heart_rates_payload_week
     from days
     group by week_start_date, week_end_date
+    having count(*) = 7
 ),
 
 streak_groups as (

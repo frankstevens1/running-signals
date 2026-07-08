@@ -144,6 +144,12 @@ models:
       - name: active_week_flag
         tests:
           - not_null
+      - name: completed_day_count
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [7]
 
   - name: mart_months
     description: Calendar-month rollup derived strictly from mart_days.

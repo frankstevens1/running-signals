@@ -1,4 +1,4 @@
-import { CalendarDays, Route, TrendingUp } from "lucide-react";
+import { CalendarDays, Route, Ruler, TrendingUp } from "lucide-react";
 
 import { AppShell } from "@/app/components/app-shell";
 import { DataState } from "@/app/components/data-state";
@@ -10,7 +10,7 @@ import {
   WeeklyVolumeChart,
 } from "@/app/components/trend-charts";
 import { getVolume } from "@/app/lib/data";
-import { formatDistance, formatInteger } from "@/app/lib/format";
+import { formatDistance, formatInteger, shortDate } from "@/app/lib/format";
 import { explorerPages } from "@/app/lib/page-metadata";
 
 export default async function VolumePage() {
@@ -30,10 +30,19 @@ export default async function VolumePage() {
             const latestWeek = data.weeks.at(-1);
             const latestMonth = data.months.at(-1);
             const latestYear = data.years.at(-1);
+            const longestRunWeek = data.weeks.reduce(
+              (selected, week) => {
+                if (week.longRunDistanceKm === null) return selected;
+                if (selected === null) return week;
+                if ((selected.longRunDistanceKm ?? 0) >= week.longRunDistanceKm) return selected;
+                return week;
+              },
+              null as (typeof data.weeks)[number] | null,
+            );
 
             return (
               <div className="space-y-6">
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   <MetricCard
                     label="Rolling 4w distance"
                     value={formatDistance(latestWeek?.rolling4wDistanceKm)}
@@ -47,6 +56,12 @@ export default async function VolumePage() {
                     icon={CalendarDays}
                   />
                   <MetricCard
+                    label="Longest run"
+                    value={formatDistance(longestRunWeek?.longRunDistanceKm)}
+                    detail={`Week of ${shortDate(longestRunWeek?.weekStartDate)}`}
+                    icon={Ruler}
+                  />
+                  <MetricCard
                     label="Latest year"
                     value={formatDistance(latestYear?.yearlyDistanceKm)}
                     detail={`${formatInteger(latestYear?.activeDays)} active days`}
@@ -55,9 +70,9 @@ export default async function VolumePage() {
                 </div>
                 <div className="grid gap-6 xl:grid-cols-2">
                   <WeeklyVolumeChart weeks={data.weeks} />
-                  <WeeklyStructureChart weeks={data.weeks} />
+                  <MonthlyVolumeChart months={data.months} />
                   <div className="xl:col-span-2">
-                    <MonthlyVolumeChart months={data.months} />
+                    <WeeklyStructureChart weeks={data.weeks} />
                   </div>
                 </div>
               </div>
