@@ -35,11 +35,11 @@ records_with_run_context as (
             then (1000.0 / records.enhanced_speed) / 60.0
         end as pace_min_per_km,
         records.heart_rate,
-        records.cadence,
+        records.cadence * 2.0 as cadence,
         records.fractional_cadence,
         case
             when records.cadence is not null
-            then records.cadence + coalesce(records.fractional_cadence, 0.0)
+            then (records.cadence + coalesce(records.fractional_cadence, 0.0)) * 2.0
         end as running_cadence,
         records.enhanced_altitude as altitude_m,
         records.temperature,

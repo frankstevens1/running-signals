@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Bar,
   CartesianGrid,
@@ -18,6 +18,10 @@ import {
 
 import { formatPace, formatSignedPercent, shortDate } from "@/app/lib/format";
 import type { FitnessPoint, MonthRollup, WeekRollup } from "@/app/lib/types";
+import {
+  MetricInfoDialog,
+  type MetricInfoContent,
+} from "@/app/components/metric-info-dialog";
 
 type NumericDomain = [number, number];
 type PaceHeartRatePoint = FitnessPoint & {
@@ -399,21 +403,121 @@ function getWeeklyVolumeBreakdown(weeks: WeekRollup[]): WeeklyVolumeDatum[] {
   });
 }
 
+const CHART_INFO = {
+  weeklyVolume: {
+    title: "Weekly distance and rolling volume",
+    definition:
+      "Weekly distance is the total run distance in a completed calendar week. The stacked bars split that week into the longest single run and the remaining distance. Rolling 4w distance is the current completed week plus the previous three completed weeks.",
+    source: "dbt mart_weeks, from mart_days session rollups.",
+    interpretation: [
+      "The total bar height is weekly load. Taller bars mean more distance accumulated that week.",
+      "A large longest-run segment means the week was concentrated in one run; a larger remaining segment means the distance was spread across more sessions.",
+      "The rolling 4w line is the better trend signal because it smooths week-to-week noise.",
+    ],
+    caveats: [
+      "This is load description, not a prescription. Big jumps may matter operationally, but the chart does not label them as good or bad.",
+      "Only completed weeks should be compared directly; partial weeks can understate volume.",
+    ],
+  },
+  monthlyVolume: {
+    title: "Monthly volume",
+    definition:
+      "Monthly distance is the sum of daily run distance in each calendar month. Runs is the count of running activities observed in that same month.",
+    source: "dbt mart_months, rolled up from mart_days.",
+    interpretation: [
+      "Read the bars as accumulated monthly distance and the line as how often runs occurred.",
+      "Rising distance with flat run count usually means longer average runs. Rising run count with flat distance usually means shorter, more frequent runs.",
+      "Use this chart for broad seasonality and training blocks rather than single-week decisions.",
+    ],
+    caveats: [
+      "Calendar months have different lengths, so month-to-month comparisons are directional.",
+      "The current month may be incomplete depending on the loaded data window.",
+    ],
+  },
+  weeklyStructure: {
+    title: "Weekly structure",
+    definition:
+      "Active days are completed calendar days with at least one run. Missed days are completed calendar days with no run. The chart shows completed weeks where the active and missed day counts add to seven.",
+    source: "dbt mart_weeks, from mart_days active_day_flag and missed_day_flag.",
+    interpretation: [
+      "More active days means higher run frequency in that completed week.",
+      "Missed days are non-run days, not failures. Rest days, cross-training, travel, and planned breaks all appear as missed run days.",
+      "Look for consistency patterns across several weeks rather than treating one week as decisive.",
+    ],
+    caveats: [
+      "This chart measures running regularity only. It does not know whether non-run days were planned recovery or other training.",
+    ],
+  },
+  hrDrift: {
+    title: "Heart-rate drift over time",
+    definition:
+      "Heart-rate drift compares second-half run efficiency with first-half run efficiency. Segment efficiency is average speed divided by average heart rate. Drift is second-half efficiency divided by first-half efficiency minus one.",
+    source: "dbt signal_fitness, using mart_run_segments.",
+    interpretation: [
+      "Near 0% means second-half efficiency was similar to first-half efficiency.",
+      "Negative values mean the second half produced less speed per heartbeat. That can reflect fatigue, heat, hills, poor pacing, or harder terrain.",
+      "Positive values mean the second half produced more speed per heartbeat. That can reflect warming up, conservative pacing, a stronger finish, or easier second-half conditions.",
+      "The rolling 4-run line is usually more useful than a single run because per-run drift is noisy.",
+    ],
+    caveats: [
+      "Compare like with like. Route, elevation, weather, workout type, stops, and sensor quality can move this metric.",
+      "Missing values mean the run did not have enough usable segment heart-rate and speed data.",
+    ],
+  },
+  fitnessEfficiency: {
+    title: "Speed per heartbeat",
+    definition:
+      "Efficiency ratio is session speed in kilometers per hour divided by average heart rate. The rolling 4-run line averages the current run and previous three runs.",
+    source: "dbt signal_fitness, from silver_runs speed_kmh and avg_heart_rate.",
+    interpretation: [
+      "Higher values mean more speed for each average heartbeat in that run.",
+      "A rising rolling line can suggest improving aerobic efficiency when runs are otherwise comparable.",
+      "A falling line can reflect fatigue, heat, hills, harder conditions, or less efficient pacing.",
+    ],
+    caveats: [
+      "This is not normalized for route, weather, workout intent, or device behavior.",
+      "Use it with pace-at-heart-rate and HR drift rather than reading it as a standalone fitness score.",
+    ],
+  },
+  paceHeartRate: {
+    title: "Pace at comparable heart rate",
+    definition:
+      "Each point is a run's average pace plotted over time, grouped by average-heart-rate band. Pace is minutes per kilometer, so lower values are faster.",
+    source: "dbt signal_fitness, from silver_runs avg_pace_min_per_km and avg_heart_rate.",
+    interpretation: [
+      "Compare points within the same heart-rate band. Faster paces at similar average heart rate are generally favorable.",
+      "The trend line summarizes the selected visible points. A downward trend means faster pace at comparable heart rate.",
+      "Use the band controls to narrow the comparison when mixed-intensity runs make the chart hard to read.",
+    ],
+    caveats: [
+      "Average heart rate hides within-run effort changes, intervals, stops, and terrain changes.",
+      "The chart is directional. It does not control for weather, route grade, fatigue, or sensor noise.",
+    ],
+  },
+} satisfies Record<string, MetricInfoContent>;
+
 function ChartFrame({
   title,
   description,
+  info,
   controls,
   children,
 }: {
   title: string;
   description?: string;
-  controls?: React.ReactNode;
-  children: React.ReactNode;
+  info: MetricInfoContent;
+  controls?: ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="flex h-full flex-col rounded-md border border-(--border) bg-(--surface) p-4">
-      <h2 className="text-base font-semibold text-(--text)">{title}</h2>
-      {description ? <p className="mt-1 text-sm text-(--text-soft)">{description}</p> : null}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-(--text)">{title}</h2>
+          {description ? <p className="mt-1 text-sm text-(--text-soft)">{description}</p> : null}
+        </div>
+        <MetricInfoDialog content={info} />
+      </div>
       {controls ? <div className="mt-3">{controls}</div> : null}
       <div className="mt-4 h-80 min-h-80 flex-1">{children}</div>
     </div>
@@ -427,6 +531,7 @@ export function WeeklyVolumeChart({ weeks }: { weeks: WeekRollup[] }) {
     <ChartFrame
       title="Weekly distance and rolling volume"
       description="Weekly distance split by longest run and remaining distance."
+      info={CHART_INFO.weeklyVolume}
     >
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={volumeBreakdown}>
@@ -474,7 +579,11 @@ export function WeeklyVolumeChart({ weeks }: { weeks: WeekRollup[] }) {
 
 export function MonthlyVolumeChart({ months }: { months: MonthRollup[] }) {
   return (
-    <ChartFrame title="Monthly volume" description="Calendar-month distance and run frequency.">
+    <ChartFrame
+      title="Monthly volume"
+      description="Calendar-month distance and run frequency."
+      info={CHART_INFO.monthlyVolume}
+    >
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={months} margin={{ top: 16, right: 8, left: 8 }}>
           <CartesianGrid stroke="var(--border)" vertical={false} />
@@ -533,6 +642,7 @@ export function WeeklyStructureChart({ weeks }: { weeks: WeekRollup[] }) {
     <ChartFrame
       title="Weekly structure"
       description="Active and missed days by completed week."
+      info={CHART_INFO.weeklyStructure}
     >
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={completeWeeks}>
@@ -582,6 +692,7 @@ export function HrDriftChart({ points }: { points: FitnessPoint[] }) {
     <ChartFrame
       title="Heart-rate drift over time"
       description="Second-half efficiency versus first-half efficiency."
+      info={CHART_INFO.hrDrift}
     >
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={points}>
@@ -632,6 +743,7 @@ export function FitnessEfficiencyChart({ points }: { points: FitnessPoint[] }) {
     <ChartFrame
       title="Speed per heartbeat"
       description="Session speed divided by average heart rate."
+      info={CHART_INFO.fitnessEfficiency}
     >
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={points}>
@@ -763,6 +875,7 @@ export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
     <ChartFrame
       title="Pace at comparable heart rate"
       description="Run pace over time within selected average-heart-rate bands."
+      info={CHART_INFO.paceHeartRate}
       controls={controls}
     >
       <div className="flex h-full flex-col">

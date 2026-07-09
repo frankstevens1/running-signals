@@ -32,6 +32,8 @@ This document describes the implemented analytical model contract for Running Si
 ```text
 bronze.garmin_fit_sessions
     -> silver_runs
+bronze.garmin_fit_events
+    -> silver_runs
 bronze.garmin_fit_records
     -> silver_run_records
 bronze.garmin_health_daily_payloads
@@ -129,7 +131,11 @@ Grain: one row per Garmin running activity.
 
 Purpose: provide the canonical session-level run building block. It standardizes distance, duration,
 pace, speed, heart rate, cadence, ascent/descent, session endpoints, record counts, GPS coverage, and
-record-derived start/end coverage fields.
+record-derived start/end coverage fields. Garmin Recovery HR is joined from the latest bronze FIT
+`recovery_hr` event for the run when Garmin includes one. The FIT event stores the post-recovery
+heart rate; `silver_runs.garmin_recovery_hr` stores the drop from the latest recorded run heart rate
+to that event value. Session cadence is normalized from Garmin's per-leg cadence to total steps per
+minute.
 
 ### silver_run_records
 
@@ -137,7 +143,8 @@ Grain: one row per `run_id` and `record_timestamp`.
 
 Purpose: provide cleaned per-record telemetry with elapsed seconds, cumulative distance, speed, pace,
 heart rate, cadence, altitude, latitude/longitude, H3 cells, and WKT point text. The model uses
-Databricks-native SQL/H3 functions and does not introduce Python geospatial dependencies.
+Databricks-native SQL/H3 functions and does not introduce Python geospatial dependencies. Record
+cadence is normalized from Garmin's per-leg cadence to total steps per minute.
 
 ### silver_health_days
 
@@ -189,7 +196,10 @@ and same-day health context.
 Grain: one row per run and fixed 250m segment.
 
 Purpose: expose curated within-run analytics from record telemetry: segment pace, duration, heart
-rate, cadence, elevation change, grade, coordinates, and representative H3 cells.
+rate, cadence, elevation change, grade, coordinates, and representative H3 cells. Segment cadence is
+based on the normalized total-steps-per-minute record cadence. Segment metrics remain nullable when
+the underlying FIT records do not include positive distance deltas, heart rate, cadence, or altitude
+telemetry.
 
 ### mart_route_clusters
 

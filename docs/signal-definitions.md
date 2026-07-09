@@ -56,7 +56,7 @@ HR when Garmin provides it, and descriptive daily health context.
 | `rolling_4_run_efficiency_ratio` | Run | Average efficiency over the current and previous three runs. | `signal_fitness` | Implemented |
 | `hr_drift_pct` | Run | Second-half segment efficiency divided by first-half segment efficiency minus one, where segment efficiency is `avg_speed_kmh / avg_heart_rate`. | `signal_fitness`, `mart_run_segments` | Implemented when segment HR and speed are present |
 | `rolling_4_run_hr_drift_pct` | Run | Average HR drift over the current and previous three runs. | `signal_fitness` | Implemented |
-| `garmin_recovery_hr` | Run | Garmin post-activity heart-rate drop when parsed from FIT events. | `silver_runs` | Nullable |
+| `garmin_recovery_hr` | Run | Final recorded run heart rate minus the latest FIT `recovery_hr` event value, reported as bpm recovered. | `silver_runs` | Implemented when present |
 | `resting_heart_rate` | Day | Garmin daily resting heart rate. | `silver_health_days`, `mart_days` | Implemented when present |
 | `hrv_value` | Day | Garmin daily HRV value when present. | `silver_health_days`, `mart_days` | Implemented when present |
 | `sleep_score` | Day | Garmin sleep score when present. | `silver_health_days`, `mart_days` | Implemented when present |
@@ -70,8 +70,9 @@ Route and within-run analytics are portfolio-oriented feature marts, not a produ
 | Metric | Grain | Formula / Definition | Source Model | Status |
 |---|---|---|---|---|
 | `segment_index` | Run segment | Fixed 250m segment number within a run. | `mart_run_segments` | Implemented |
-| `segment_pace_min_per_km` | Run segment | Segment duration divided by segment distance. | `mart_run_segments` | Implemented |
+| `segment_pace_min_per_km` | Run segment | Segment duration divided by positive segment distance. | `mart_run_segments` | Implemented when positive segment distance exists |
 | `avg_heart_rate` | Run segment | Average record heart rate within the segment. | `mart_run_segments` | Implemented when present |
+| `avg_running_cadence` | Run segment | Average record cadence within the segment, normalized to total steps per minute by doubling Garmin FIT cadence. | `mart_run_segments` | Implemented when present |
 | `elevation_change_m` | Run segment | End altitude minus start altitude within the segment. | `mart_run_segments` | Implemented when present |
 | `segment_grade` | Run segment | Elevation change divided by segment distance in meters. | `mart_run_segments` | Implemented when present |
 | `route_id` | Route | Hash of the representative route's resolution-9 H3 signature plus 0.5 km distance bucket after direction-specific 90% ordered-overlap clustering. | `mart_route_clusters`, `mart_run_sessions`, `mart_routes` | Implemented when GPS exists |
@@ -83,6 +84,14 @@ Route and within-run analytics are portfolio-oriented feature marts, not a produ
 ## Known Limitations
 
 - Session-level heart rate is coarse and does not capture within-run effort distribution.
+- Garmin FIT `recovery_hr` events report the heart rate after the recovery interval. Running Signals
+  reports Recovery HR as the bpm drop from the final recorded run heart rate to that event value.
+  Activities without either value remain null.
+- Garmin FIT cadence is reported per leg. Silver models double cadence fields so downstream marts and
+  the site present total steps per minute.
+- Segment detail depends on per-record FIT telemetry. Pace requires positive distance and timestamps;
+  heart rate, cadence, altitude, elevation change, and grade remain null when the source records do
+  not contain the required fields.
 - Route identity uses ordered H3 segment-path clustering with a 90% similarity threshold and
   approximate distance buckets. It is stable enough for portfolio analytics, but not a replacement
   for precise map matching.
@@ -90,3 +99,8 @@ Route and within-run analytics are portfolio-oriented feature marts, not a produ
   behavior vary.
 - Daily health endpoint availability varies by Garmin account, device, and date. Missing values
   remain null with explicit availability flags.
+
+Use `dbt/analyses/run_data_availability.sql` to audit Recovery HR, session heart rate, record
+coverage, GPS coverage, and segment telemetry availability overall and by month. Use
+`supabase/queries/site_route_segments_availability.sql` after applying Supabase migrations and
+running the site sync to verify the presentation read model has populated split columns.

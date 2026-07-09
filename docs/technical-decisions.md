@@ -28,4 +28,4 @@ Long-lived IAM user access keys are a fallback, not the preferred design. If use
 scoped to the raw Garmin prefixes and rotated.
 
 This only covers AWS access. Garmin Connect authentication still needs a separate non-interactive
-strategy using an external token store or explicitly provided credentials.
+strategy using a writable external token store or explicitly provided credentials.

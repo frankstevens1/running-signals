@@ -48,9 +48,31 @@ export function formatHeartRate(value: number | null | undefined): string {
   return `${Math.round(value)} bpm`;
 }
 
+export function formatSpeed(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "n/a";
+  return `${numberFormat.format(value)} km/h`;
+}
+
+export function formatCadence(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "n/a";
+  return `${Math.round(value)} spm`;
+}
+
+export function formatElevation(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "n/a";
+  return `${Math.round(value)} m`;
+}
+
 export function formatPercent(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "n/a";
   return `${Math.round(value * 100)}%`;
+}
+
+export function formatGrade(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "n/a";
+  const percentage = value * 100;
+  const sign = percentage > 0 ? "+" : "";
+  return `${sign}${numberFormat.format(percentage)}%`;
 }
 
 export function formatSignedPercent(value: number | null | undefined): string {

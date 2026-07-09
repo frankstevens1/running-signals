@@ -43,8 +43,20 @@ GARMIN_FIT_S3_PREFIX=garmin/fit
 GARMIN_HEALTH_S3_BUCKET=
 GARMIN_HEALTH_S3_PREFIX=garmin/health/daily
 AWS_REGION=eu-central-1
-AWS_PROFILE=
+# Local development SSO profile.
+# Leave unset in production automation that receives AWS role credentials.
+AWS_PROFILE=running-signals-dev
 ```
+
+Use the `running-signals-dev` AWS IAM Identity Center profile for local S3 landing and bucket checks.
+Configure it once using
+[infra/terraform/README.md](../infra/terraform/README.md#aws-credentials). Production automated
+refreshes should not use this SSO-backed profile or rely on a local SSO token; they should receive
+automatically refreshed AWS credentials from the job runtime, such as GitHub Actions OIDC assuming
+a scoped IAM role or an AWS instance, task, or Lambda role. Garmin authentication is separate:
+scheduled downloaders need a valid, writable Garmin token store passed with `--tokenstore` outside
+the repository, or `GARMIN_EMAIL` and `GARMIN_PASSWORD` supplied through the production secret
+manager.
 
 Required values for Databricks and dbt:
 
@@ -136,6 +148,19 @@ This deploys two paused jobs:
 ## Land Raw Garmin Files
 
 FIT and health JSON are separate raw inputs. Both are required for a full dbt run.
+
+For local runs, refresh the SSO session for the configured `running-signals-dev` profile before
+landing files or listing S3:
+
+```bash
+aws sso login --profile running-signals-dev
+aws sts get-caller-identity --profile running-signals-dev
+```
+
+Skip this step for production scheduled refreshes. They should use automatically refreshed AWS role
+credentials and non-interactive Garmin token handling as described in
+[scripts/README.md](../scripts/README.md#aws-credentials-for-s3-downloads) and
+[docs/technical-decisions.md](technical-decisions.md#why-unattended-garmin-downloads-should-not-use-aws-sso).
 
 For an initial backfill, choose a date range and run both downloaders:
 

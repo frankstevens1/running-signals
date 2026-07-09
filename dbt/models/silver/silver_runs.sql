@@ -5,6 +5,53 @@ with sessions as (
     from {{ source('garmin_raw', 'garmin_fit_sessions') }}
 ),
 
+fit_records as (
+    select *
+    from {{ source('garmin_raw', 'garmin_fit_records') }}
+),
+
+recovery_events as (
+    select
+        run_id,
+        recovery_heart_rate
+    from (
+        select
+            run_id,
+            try_cast(data as double) as recovery_heart_rate,
+            row_number() over (
+                partition by run_id
+                order by
+                    cast(timestamp as timestamp) desc,
+                    source_file_modification_time desc,
+                    ingested_at desc
+            ) as recovery_event_rank
+        from {{ source('garmin_raw', 'garmin_fit_events') }}
+        where event = 'recovery_hr'
+    )
+    where recovery_event_rank = 1
+),
+
+last_record_heart_rates as (
+    select
+        run_id,
+        heart_rate as last_record_heart_rate
+    from (
+        select
+            run_id,
+            heart_rate,
+            row_number() over (
+                partition by run_id
+                order by
+                    cast(timestamp as timestamp) desc,
+                    source_file_modification_time desc,
+                    ingested_at desc
+            ) as heart_rate_rank
+        from fit_records
+        where heart_rate is not null
+    )
+    where heart_rate_rank = 1
+),
+
 record_summary as (
     select
         run_id,
@@ -17,7 +64,7 @@ record_summary as (
         max_by(position_lat_deg, cast(timestamp as timestamp)) as end_record_latitude_deg,
         max_by(position_long_deg, cast(timestamp as timestamp)) as end_record_longitude_deg,
         max(distance) / 1000.0 as record_distance_km
-    from {{ source('garmin_raw', 'garmin_fit_records') }}
+    from fit_records
     group by run_id
 )
 
@@ -41,13 +88,17 @@ select
     end as speed_kmh,
     sessions.avg_heart_rate,
     sessions.max_heart_rate,
-    sessions.avg_cadence,
-    sessions.max_cadence,
+    sessions.avg_cadence * 2.0 as avg_cadence,
+    sessions.max_cadence * 2.0 as max_cadence,
     sessions.total_ascent,
     sessions.total_descent,
     sessions.enhanced_avg_speed,
     sessions.enhanced_max_speed,
-    cast(null as double) as garmin_recovery_hr,
+    case
+        when last_record_heart_rates.last_record_heart_rate is not null
+            and recovery_events.recovery_heart_rate is not null
+        then last_record_heart_rates.last_record_heart_rate - recovery_events.recovery_heart_rate
+    end as garmin_recovery_hr,
     cast(null as double) as resting_hr_7d_avg,
     cast(null as double) as resting_hr_30d_avg,
     sessions.start_position_lat_deg,
@@ -73,5 +124,9 @@ select
     sessions.source_file_modification_time,
     sessions.ingested_at
 from sessions
+left join recovery_events
+    on sessions.run_id = recovery_events.run_id
+left join last_record_heart_rates
+    on sessions.run_id = last_record_heart_rates.run_id
 left join record_summary
     on sessions.run_id = record_summary.run_id

@@ -18,12 +18,14 @@ export function RunFilters({ params, routes }: { params: URLSearchParams; routes
       <input type="hidden" name="limit" value={value("limit") || "25"} />
       <input type="hidden" name="sort" value={value("sort") || "activity_date"} />
       <input type="hidden" name="direction" value={value("direction") || "desc"} />
+      <input type="hidden" name="view" value={value("view") || "timeline"} />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6 xl:grid-cols-12 xl:items-end">
         <label className={`${fieldClass} lg:col-span-1 xl:col-span-2`}>
           <span className={fieldLabelClass}>Date from</span>
           <input
             name="dateFrom"
             type="date"
+            suppressHydrationWarning
             defaultValue={value("dateFrom")}
             max={value("dateTo") || undefined}
             className={controlClass}
@@ -35,6 +37,7 @@ export function RunFilters({ params, routes }: { params: URLSearchParams; routes
           <input
             name="dateTo"
             type="date"
+            suppressHydrationWarning
             defaultValue={value("dateTo")}
             min={value("dateFrom") || undefined}
             className={controlClass}
@@ -43,7 +46,12 @@ export function RunFilters({ params, routes }: { params: URLSearchParams; routes
 
         <label className={`${fieldClass} sm:col-span-2 lg:col-span-2 xl:col-span-4`}>
           <span className={fieldLabelClass}>Route</span>
-          <select name="routeId" defaultValue={selectedRouteId} className={controlClass}>
+          <select
+            name="routeId"
+            suppressHydrationWarning
+            defaultValue={selectedRouteId}
+            className={controlClass}
+          >
             <option value="">Any route</option>
             {selectedRouteId && !hasSelectedRouteOption ? (
               <option value={selectedRouteId}>{formatRouteId(selectedRouteId)} - selected</option>
@@ -61,6 +69,7 @@ export function RunFilters({ params, routes }: { params: URLSearchParams; routes
           <span className={fieldLabelClass}>Recovery HR</span>
           <select
             name="hasRecoveryHr"
+            suppressHydrationWarning
             defaultValue={value("hasRecoveryHr")}
             className={controlClass}
           >
@@ -75,6 +84,7 @@ export function RunFilters({ params, routes }: { params: URLSearchParams; routes
           <input
             name="minGpsCoverage"
             type="number"
+            suppressHydrationWarning
             inputMode="decimal"
             min="0"
             max="1"
@@ -91,6 +101,7 @@ export function RunFilters({ params, routes }: { params: URLSearchParams; routes
             <input
               name="minDistanceKm"
               type="number"
+              suppressHydrationWarning
               inputMode="decimal"
               min="0"
               step="0.1"
@@ -102,6 +113,7 @@ export function RunFilters({ params, routes }: { params: URLSearchParams; routes
             <input
               name="maxDistanceKm"
               type="number"
+              suppressHydrationWarning
               inputMode="decimal"
               min="0"
               step="0.1"
@@ -119,6 +131,7 @@ export function RunFilters({ params, routes }: { params: URLSearchParams; routes
             <input
               name="minPace"
               type="number"
+              suppressHydrationWarning
               inputMode="decimal"
               min="0"
               step="0.01"
@@ -130,6 +143,7 @@ export function RunFilters({ params, routes }: { params: URLSearchParams; routes
             <input
               name="maxPace"
               type="number"
+              suppressHydrationWarning
               inputMode="decimal"
               min="0"
               step="0.01"
@@ -147,6 +161,7 @@ export function RunFilters({ params, routes }: { params: URLSearchParams; routes
             <input
               name="minAvgHr"
               type="number"
+              suppressHydrationWarning
               inputMode="numeric"
               min="40"
               max="220"
@@ -159,6 +174,7 @@ export function RunFilters({ params, routes }: { params: URLSearchParams; routes
             <input
               name="maxAvgHr"
               type="number"
+              suppressHydrationWarning
               inputMode="numeric"
               min="40"
               max="220"

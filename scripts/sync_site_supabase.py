@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
 import sys
@@ -22,6 +23,8 @@ from psycopg.types.json import Jsonb
 JsonRow = dict[str, object | None]
 StatementFactory = Callable[["DatabricksConfig"], str]
 LOCAL_SUPABASE_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+DATABRICKS_REQUEST_ATTEMPTS = 3
+DATABRICKS_REQUEST_BACKOFF_SECONDS = 1.0
 
 
 @dataclass(frozen=True)
@@ -116,15 +119,35 @@ def databricks_request(
             "Content-Type": "application/json",
         },
     )
+    last_error: BaseException | None = None
 
-    try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            return cast(dict[str, Any], json.loads(response.read().decode("utf-8")))
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(
-            f"Databricks request failed with HTTP {exc.code}: {detail}"
-        ) from exc
+    for attempt in range(1, DATABRICKS_REQUEST_ATTEMPTS + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                response_body = response.read().decode("utf-8")
+                return cast(dict[str, Any], json.loads(response_body))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(
+                f"Databricks request failed with HTTP {exc.code}: {detail}"
+            ) from exc
+        except (
+            http.client.IncompleteRead,
+            json.JSONDecodeError,
+            TimeoutError,
+            urllib.error.URLError,
+        ) as exc:
+            last_error = exc
+            if attempt == DATABRICKS_REQUEST_ATTEMPTS:
+                break
+
+            time.sleep(DATABRICKS_REQUEST_BACKOFF_SECONDS * attempt)
+
+    assert last_error is not None
+    raise RuntimeError(
+        "Databricks request failed after "
+        f"{DATABRICKS_REQUEST_ATTEMPTS} attempts: {last_error}"
+    ) from last_error
 
 
 def submit_statement(config: DatabricksConfig, statement: str) -> dict[str, Any]:
@@ -404,7 +427,18 @@ EXPORTS: tuple[TableExport, ...] = (
             "activity_date",
             "segment_index",
             "segment_distance_km",
+            "segment_duration_seconds",
+            "segment_pace_min_per_km",
+            "avg_speed_kmh",
             "avg_heart_rate",
+            "max_heart_rate",
+            "avg_running_cadence",
+            "min_altitude_m",
+            "max_altitude_m",
+            "elevation_change_m",
+            "segment_grade",
+            "segment_start_distance_km",
+            "segment_end_distance_km",
             "segment_start_latitude_deg",
             "segment_start_longitude_deg",
             "segment_end_latitude_deg",
@@ -417,7 +451,18 @@ EXPORTS: tuple[TableExport, ...] = (
               cast(segments.activity_date as string) as activity_date,
               segments.segment_index,
               segments.segment_distance_km,
+              segments.segment_duration_seconds,
+              segments.segment_pace_min_per_km,
+              segments.avg_speed_kmh,
               segments.avg_heart_rate,
+              segments.max_heart_rate,
+              segments.avg_running_cadence,
+              segments.min_altitude_m,
+              segments.max_altitude_m,
+              segments.elevation_change_m,
+              segments.segment_grade,
+              segments.segment_start_distance_m / 1000.0 as segment_start_distance_km,
+              segments.segment_end_distance_m / 1000.0 as segment_end_distance_km,
               segments.segment_start_latitude_deg,
               segments.segment_start_longitude_deg,
               segments.segment_end_latitude_deg,
@@ -425,10 +470,6 @@ EXPORTS: tuple[TableExport, ...] = (
             from {gold_table(config, "mart_run_segments")} as segments
             inner join {gold_table(config, "mart_run_sessions")} as sessions
               on segments.run_id = sessions.run_id
-            where segments.segment_start_latitude_deg is not null
-              and segments.segment_start_longitude_deg is not null
-              and segments.segment_end_latitude_deg is not null
-              and segments.segment_end_longitude_deg is not null
         """,
     ),
     TableExport(

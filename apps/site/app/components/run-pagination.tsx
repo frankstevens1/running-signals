@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+import type { RunView } from "@/app/lib/query";
+
 const pageSizes = [25, 50, 100];
+const views: RunView[] = ["timeline", "table"];
 
 function hrefWith(params: URLSearchParams, updates: Record<string, string | number | null>) {
   const next = new URLSearchParams(params);
@@ -19,11 +22,13 @@ function hrefWith(params: URLSearchParams, updates: Record<string, string | numb
 
 export function RunPagination({
   params,
+  view,
   total,
   limit,
   offset,
 }: {
   params: URLSearchParams;
+  view: RunView;
   total: number;
   limit: number;
   offset: number;
@@ -44,14 +49,31 @@ export function RunPagination({
 
   return (
     <div className="flex flex-col gap-3 rounded-md border border-(--border) bg-(--surface) p-3 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-sm text-(--text-soft)">
-        Showing <span className="font-semibold text-(--text)">{start.toLocaleString()}</span>-
-        <span className="font-semibold text-(--text)">{end.toLocaleString()}</span> of{" "}
-        <span className="font-semibold text-(--text)">{total.toLocaleString()}</span> runs
-        <span className="ml-2 text-(--text-soft)">
-          Page {currentPage.toLocaleString()} of {pageCount.toLocaleString()}
-        </span>
-      </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="inline-flex w-fit items-center rounded-md border border-(--border) bg-(--surface-muted) p-1">
+          {views.map((option) => (
+            <Link
+              key={option}
+              href={hrefWith(params, { view: option, offset: 0 })}
+              className={`inline-flex h-7 items-center rounded px-2.5 text-xs font-semibold capitalize ${
+                view === option
+                  ? "bg-(--accent) text-(--accent-foreground)"
+                  : "text-(--text-soft) hover:bg-(--surface) hover:text-(--text)"
+              }`}
+            >
+              {option}
+            </Link>
+          ))}
+        </div>
+        <p className="text-sm text-(--text-soft)">
+          Showing <span className="font-semibold text-(--text)">{start.toLocaleString()}</span>-
+          <span className="font-semibold text-(--text)">{end.toLocaleString()}</span> of{" "}
+          <span className="font-semibold text-(--text)">{total.toLocaleString()}</span> runs
+          <span className="ml-2 text-(--text-soft)">
+            Page {currentPage.toLocaleString()} of {pageCount.toLocaleString()}
+          </span>
+        </p>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1 rounded-md border border-(--border) bg-(--surface-muted) p-1">
           {pageSizes.map((size) => (

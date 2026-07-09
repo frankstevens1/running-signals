@@ -86,7 +86,18 @@ export type RouteSegment = {
   activityDate: string;
   segmentIndex: number;
   segmentDistanceKm: number | null;
+  segmentDurationSeconds: number | null;
+  segmentPaceMinPerKm: number | null;
+  avgSpeedKmh: number | null;
   avgHeartRate: number | null;
+  maxHeartRate: number | null;
+  avgRunningCadence: number | null;
+  minAltitudeM: number | null;
+  maxAltitudeM: number | null;
+  elevationChangeM: number | null;
+  segmentGrade: number | null;
+  segmentStartDistanceKm: number | null;
+  segmentEndDistanceKm: number | null;
   segmentStartLatitudeDeg: number | null;
   segmentStartLongitudeDeg: number | null;
   segmentEndLatitudeDeg: number | null;

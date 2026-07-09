@@ -128,14 +128,15 @@ botocore.exceptions.TokenRetrievalError: Error when retrieving token from sso: T
 ```
 
 Do not use an SSO-backed `AWS_PROFILE` for unattended Garmin downloads. Automation should use
-short-lived non-interactive credentials, preferably GitHub Actions OIDC assuming a scoped AWS IAM
-role. Running inside AWS with an instance, task, or Lambda role is also acceptable. A dedicated IAM
-user access key is a fallback only if the policy is tightly scoped to the raw Garmin landing prefixes
-and the key is rotated.
+short-lived, automatically refreshed, non-interactive credentials, preferably GitHub Actions OIDC
+assuming a scoped AWS IAM role. Running inside AWS with an instance, task, or Lambda role is also
+acceptable. A dedicated IAM user access key is a fallback only if the policy is tightly scoped to the
+raw Garmin landing prefixes and the key is rotated.
 
-Garmin authentication is a separate automation concern. The downloader needs a valid token store or
-non-interactive `GARMIN_EMAIL` and `GARMIN_PASSWORD` values. The token store must remain outside the
-repository.
+Garmin authentication is a separate automation concern. For production refresh jobs, pass a valid,
+writable token store with `--tokenstore` from a secret-backed path outside the repository so refreshed
+tokens can be persisted. Alternatively, provide non-interactive `GARMIN_EMAIL` and `GARMIN_PASSWORD`
+values through the runtime secret manager.
 
 ## S3 Landing Smoke Test
 

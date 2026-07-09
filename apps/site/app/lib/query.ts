@@ -10,6 +10,7 @@ export type RunSort =
   | "record_distance_coverage_ratio";
 
 export type SortDirection = "asc" | "desc";
+export type RunView = "timeline" | "table";
 
 export type RunFilters = {
   limit: number;
@@ -91,6 +92,10 @@ export function parseRunFilters(params: URLSearchParams): RunFilters {
     hasRecoveryHr: parseOptionalBoolean(params.get("hasRecoveryHr")),
     minGpsCoverage: parseOptionalNumber(params.get("minGpsCoverage")),
   };
+}
+
+export function parseRunView(params: URLSearchParams): RunView {
+  return params.get("view") === "table" ? "table" : "timeline";
 }
 
 export function getSearchParam(

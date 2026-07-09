@@ -32,6 +32,16 @@ models:
       - name: activity_date
         tests:
           - not_null
+      - name: garmin_recovery_hr
+        description: Heart-rate recovery drop in bpm, calculated as the latest recorded run heart rate minus the latest bronze FIT `recovery_hr` event value. Nullable when either value is absent or the recovery event payload is not numeric.
+      - name: avg_cadence
+        description: Average running cadence normalized to total steps per minute. Garmin FIT cadence is reported per leg and doubled in silver.
+      - name: max_cadence
+        description: Maximum running cadence normalized to total steps per minute. Garmin FIT cadence is reported per leg and doubled in silver.
+      - name: record_distance_coverage_ratio
+        description: Ratio of record-derived cumulative distance to session distance, used to evaluate whether per-record telemetry covers the run.
+      - name: gps_record_count
+        description: Count of per-record telemetry rows with latitude values, used to identify GPS-backed runs.
 
   - name: silver_run_records
     description: Cleaned per-record Garmin FIT telemetry with timestamps, elapsed seconds, pace, heart rate, cadence, altitude, coordinates, and H3 cells.
@@ -56,6 +66,10 @@ models:
       - name: record_index
         tests:
           - not_null
+      - name: cadence
+        description: Record cadence normalized to total steps per minute. Garmin FIT cadence is reported per leg and doubled in silver.
+      - name: running_cadence
+        description: Record cadence including fractional cadence, normalized to total steps per minute. Nullable when source cadence is absent.
 
   - name: silver_health_days
     description: Canonical daily Garmin health context derived from raw Garmin Connect API JSON payloads.
@@ -270,6 +284,24 @@ models:
       - name: segment_start_timestamp
         tests:
           - not_null
+      - name: segment_distance_km
+        description: Distance covered between the first and last record in the fixed segment.
+      - name: segment_duration_seconds
+        description: Time between the first and last record in the fixed segment. Present when timestamps exist.
+      - name: segment_pace_min_per_km
+        description: Segment duration divided by positive segment distance. Nullable for zero-distance segments.
+      - name: avg_heart_rate
+        description: Average record heart rate within the segment. Nullable when FIT records do not include heart-rate telemetry.
+      - name: avg_running_cadence
+        description: Average record cadence within the segment, normalized to total steps per minute. Nullable when FIT records do not include cadence telemetry.
+      - name: min_altitude_m
+        description: Minimum enhanced altitude observed within the segment. Nullable when altitude telemetry is absent.
+      - name: max_altitude_m
+        description: Maximum enhanced altitude observed within the segment. Nullable when altitude telemetry is absent.
+      - name: elevation_change_m
+        description: End altitude minus start altitude within the segment. Nullable when altitude telemetry is absent.
+      - name: segment_grade
+        description: Elevation change divided by positive segment distance in meters. Nullable when altitude telemetry or positive distance is absent.
       - name: representative_h3_cell_resolution_8
         description: Resolution-8 H3 cell used for route similarity matching.
 
