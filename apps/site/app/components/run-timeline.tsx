@@ -61,7 +61,7 @@ function TimelineRouteMap({ runId }: { runId: string }) {
   return (
     <div
       ref={containerRef}
-      className="h-56 overflow-hidden rounded-l-md rounded-r-none lg:h-full lg:min-h-56"
+      className="h-56 overflow-hidden lg:h-full lg:min-h-56"
     >
       {!isMapActive ? (
         <div className="h-full bg-(--surface-muted)" />
@@ -77,7 +77,7 @@ function TimelineRouteMap({ runId }: { runId: string }) {
           interactive={false}
           compact
           className="h-56 lg:h-full lg:min-h-56 bg-(--surface-muted)"
-          radiusClassName="rounded-l-md rounded-r-none"
+          radiusClassName="rounded-none"
         />
       )}
     </div>
@@ -95,11 +95,11 @@ function MetricItem({
 }) {
   return (
     <div className="min-w-0">
-      <dt className="whitespace-nowrap text-[11px] font-medium uppercase tracking-[0.12em] text-(--text-soft)">
+      <dt className="whitespace-nowrap font-mono text-[9px] uppercase tracking-[0.12em] text-(--text-soft)">
         {label}
       </dt>
       <dd
-        className={`mt-1 truncate font-semibold text-(--text) ${emphasis ? "text-base" : "text-sm"}`}
+        className={`mt-1 truncate font-mono text-(--text) ${emphasis ? "text-sm" : "text-xs"}`}
       >
         {value}
       </dd>
@@ -112,7 +112,7 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
 
   if (runs.length === 0) {
     return (
-      <div className="rounded-md border border-dashed border-(--border) bg-(--surface) p-8 text-sm text-(--text-soft)">
+      <div className="border border-dashed border-(--border) bg-(--surface) p-8 font-mono text-xs text-(--text-soft)">
         No runs match the current filters.
       </div>
     );
@@ -120,11 +120,11 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
 
   return (
     <>
-      <div className="space-y-3">
-        {runs.map((run) => (
+      <div>
+        {runs.map((run, index) => (
           <article
             key={run.runId}
-            className="overflow-hidden rounded-md border border-(--border) bg-(--surface)"
+            className="group relative -mt-px overflow-hidden border border-(--border) bg-(--surface) transition-colors first:mt-0 hover:z-10 hover:border-(--text-soft)"
           >
             <div className="grid lg:grid-cols-[20rem_1fr]">
               <div className="border-b border-(--border) lg:border-r lg:border-b-0">
@@ -134,10 +134,10 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
               <div className="min-w-0 lg:grid lg:grid-rows-[auto_minmax(0,1fr)]">
                 <div className="grid gap-4 border-b border-(--border) p-4 md:grid-cols-[12rem_minmax(0,1fr)_auto] md:items-start xl:grid-cols-[14rem_minmax(0,1fr)_auto]">
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-(--text-soft)">
-                      {formatDate(run.activityDate)}
+                    <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-(--text-soft)">
+                      row::{String(index + 1).padStart(2, "0")} · {formatDate(run.activityDate)}
                     </p>
-                    <h3 className="mt-1 text-2xl font-semibold leading-tight text-(--text)">
+                    <h3 className="mt-1 font-mono text-2xl leading-tight text-(--text)">
                       {formatDistance(run.distanceKm)}
                     </h3>
                     <div className="mt-2 text-sm text-(--text-soft)">
@@ -168,7 +168,7 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
                   <button
                     type="button"
                     onClick={() => setSelectedRun(run)}
-                    className="inline-flex h-9 shrink-0 items-center gap-2 justify-self-start rounded-md border border-(--border) px-3 text-sm font-medium text-(--text) hover:bg-(--surface-muted) md:justify-self-end"
+                    className="inline-flex h-9 shrink-0 items-center gap-2 justify-self-start border border-(--border) px-3 font-mono text-[10px] uppercase tracking-[0.08em] text-(--text) transition-colors hover:border-(--accent) hover:bg-(--accent-soft) md:justify-self-end"
                   >
                     Detail
                     <ArrowUpRight className="h-4 w-4" aria-hidden="true" />

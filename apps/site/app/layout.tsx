@@ -4,8 +4,14 @@ import Script from "next/script";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Running Signals",
-  description: "Live analytics engineering project for Garmin running data modeled into signal marts.",
+  title: {
+    default: "Running Signals",
+    template: "%s | Running Signals",
+  },
+  applicationName: "Running Signals",
+  description:
+    "An analytics engineering project that models personal Garmin data into explainable consistency, volume, and fitness signals.",
+  keywords: ["analytics engineering", "Databricks", "dbt", "Garmin", "running data"],
 };
 
 const themeStorageKey = "running-signals-theme";
@@ -63,7 +69,7 @@ export default async function RootLayout({
       data-theme={initialTheme}
       suppressHydrationWarning
     >
-      <body className="min-h-full">
+      <body className="min-h-full bg-(--background) font-sans text-(--text)">
         <Script
           id="running-signals-theme"
           strategy="beforeInteractive"

@@ -40,10 +40,10 @@ export function ThemeToggle() {
   return (
     <button
       type="button"
-      aria-label="Toggle color theme"
-      title="Toggle theme"
+      aria-label="Switch between light and dark color themes"
+      title="Switch color theme"
       onClick={toggleTheme}
-      className="theme-toggle inline-flex min-h-11 w-11 shrink-0 items-center justify-center rounded-md border border-(--border) bg-(--surface-muted) text-(--text-soft) transition hover:bg-(--surface) hover:text-(--text)"
+      className="theme-toggle inline-flex h-10 w-10 shrink-0 items-center justify-center border border-(--border) bg-(--surface-muted) text-(--text-soft) transition-colors hover:border-(--border-strong) hover:bg-(--surface-raised) hover:text-(--accent)"
     >
       <Sun className="theme-icon-sun h-4 w-4" aria-hidden="true" />
       <Moon className="theme-icon-moon h-4 w-4" aria-hidden="true" />

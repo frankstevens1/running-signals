@@ -58,10 +58,10 @@ function SortableHeader({
   const ariaSort = active ? (direction === "asc" ? "ascending" : "descending") : "none";
 
   return (
-    <th className="px-3 py-3 font-medium" aria-sort={ariaSort}>
+    <th className="px-3 py-2.5 font-normal" aria-sort={ariaSort}>
       <Link
         href={sortHref(params, sort, nextDirection)}
-        className="inline-flex h-7 items-center gap-1.5 rounded-md px-1.5 text-(--text-soft) hover:bg-(--surface) hover:text-(--text)"
+        className="inline-flex h-7 items-center gap-1.5 px-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-(--text-soft) hover:bg-(--surface) hover:text-(--text)"
       >
         <span>{label}</span>
         <SortIcon active={active} direction={direction} />
@@ -73,17 +73,17 @@ function SortableHeader({
 export function RunTable({ runs, params }: { runs: RunSession[]; params: URLSearchParams }) {
   if (runs.length === 0) {
     return (
-      <div className="rounded-md border border-dashed border-(--border) bg-(--surface) p-8 text-sm text-(--text-soft)">
+      <div className="border border-dashed border-(--border) bg-(--surface) p-8 font-mono text-xs text-(--text-soft)">
         No runs match the current filters.
       </div>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-md border border-(--border) bg-(--surface)">
+    <div className="overflow-hidden border border-(--border) bg-(--surface)">
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-(--border) text-sm">
-          <thead className="bg-(--surface-muted) text-left text-(--text-soft)">
+          <thead className="border-b border-(--border) bg-(--surface-muted) text-left text-(--text-soft)">
             <tr>
               {sortableColumns.map((column) => (
                 <SortableHeader key={column.sort} params={params} {...column} />
@@ -92,8 +92,8 @@ export function RunTable({ runs, params }: { runs: RunSession[]; params: URLSear
           </thead>
           <tbody className="divide-y divide-(--border)">
             {runs.map((run) => (
-              <tr key={run.runId} className="hover:bg-(--surface-muted)">
-                <td className="whitespace-nowrap px-4 py-3 font-medium text-(--text)">
+              <tr key={run.runId} className="font-mono text-xs transition-colors hover:bg-(--accent-soft)">
+                <td className="whitespace-nowrap px-4 py-3 text-(--text)">
                   {formatDate(run.activityDate)}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3">{formatDistance(run.distanceKm)}</td>

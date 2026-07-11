@@ -3,6 +3,7 @@ import { Activity, Gauge, HeartPulse } from "lucide-react";
 import { AppShell } from "@/app/components/app-shell";
 import { DataState } from "@/app/components/data-state";
 import { MetricCard } from "@/app/components/metric-card";
+import { ScrollReveal } from "@/app/components/motion-reveal";
 import { SectionHeading } from "@/app/components/section-heading";
 import {
   FitnessEfficiencyChart,
@@ -18,7 +19,7 @@ export default async function FitnessPage() {
 
   return (
     <AppShell>
-      <div className="space-y-6">
+      <div className="space-y-10">
         <SectionHeading
           eyebrow="signal_fitness"
           title="Descriptive fitness trends"
@@ -32,7 +33,7 @@ export default async function FitnessPage() {
             const driftCount = data.filter((point) => point.hrDriftPct !== null).length;
 
             return (
-              <div className="space-y-6">
+              <div className="space-y-10">
                 <div className="grid gap-4 md:grid-cols-3">
                   <MetricCard
                     label="Latest HR drift"
@@ -54,11 +55,15 @@ export default async function FitnessPage() {
                   />
                 </div>
                 <div className="grid gap-6 xl:grid-cols-2">
-                  <div className="xl:col-span-2">
+                  <ScrollReveal className="xl:col-span-2">
                     <HrDriftChart points={data} />
-                  </div>
-                  <PaceHeartRateTrend points={data} />
-                  <FitnessEfficiencyChart points={data} />
+                  </ScrollReveal>
+                  <ScrollReveal className="h-full" delayMs={80}>
+                    <PaceHeartRateTrend points={data} />
+                  </ScrollReveal>
+                  <ScrollReveal className="h-full" delayMs={120}>
+                    <FitnessEfficiencyChart points={data} />
+                  </ScrollReveal>
                 </div>
               </div>
             );

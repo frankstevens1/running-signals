@@ -3,6 +3,7 @@ import { CalendarDays, Route, Ruler, TrendingUp } from "lucide-react";
 import { AppShell } from "@/app/components/app-shell";
 import { DataState } from "@/app/components/data-state";
 import { MetricCard } from "@/app/components/metric-card";
+import { ScrollReveal } from "@/app/components/motion-reveal";
 import { SectionHeading } from "@/app/components/section-heading";
 import {
   MonthlyVolumeChart,
@@ -18,7 +19,7 @@ export default async function VolumePage() {
 
   return (
     <AppShell>
-      <div className="space-y-6">
+      <div className="space-y-10">
         <SectionHeading
           eyebrow="mart_weeks, mart_months, mart_years"
           title="Volume trends"
@@ -41,7 +42,7 @@ export default async function VolumePage() {
             );
 
             return (
-              <div className="space-y-6">
+              <div className="space-y-10">
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   <MetricCard
                     label="Rolling 4w distance"
@@ -69,11 +70,15 @@ export default async function VolumePage() {
                   />
                 </div>
                 <div className="grid gap-6 xl:grid-cols-2">
-                  <WeeklyVolumeChart weeks={data.weeks} />
-                  <MonthlyVolumeChart months={data.months} />
-                  <div className="xl:col-span-2">
+                  <ScrollReveal className="h-full">
+                    <WeeklyVolumeChart weeks={data.weeks} />
+                  </ScrollReveal>
+                  <ScrollReveal className="h-full" delayMs={80}>
+                    <MonthlyVolumeChart months={data.months} />
+                  </ScrollReveal>
+                  <ScrollReveal className="xl:col-span-2" delayMs={120}>
                     <WeeklyStructureChart weeks={data.weeks} />
-                  </div>
+                  </ScrollReveal>
                 </div>
               </div>
             );

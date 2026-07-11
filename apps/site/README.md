@@ -2,6 +2,13 @@
 
 Next.js presentation layer for the Running Signals portfolio project.
 
+## Experience
+
+The interface is designed as an approachable analytical console: familiar navigation and controls
+remain primary, while monospace metadata, explicit status output, and model lineage give technical
+readers more detail to inspect. The site supports light and dark themes, keyboard navigation, a
+`Cmd/Ctrl+K` page index, and reduced-motion preferences.
+
 ## Data Source
 
 The site reads from Supabase `site_*` tables by default. Those tables are refreshed by

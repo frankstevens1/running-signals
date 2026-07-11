@@ -4,6 +4,7 @@ import { ActivityCalendar } from "@/app/components/activity-calendar";
 import { AppShell } from "@/app/components/app-shell";
 import { DataState } from "@/app/components/data-state";
 import { MetricCard } from "@/app/components/metric-card";
+import { ScrollReveal } from "@/app/components/motion-reveal";
 import { SectionHeading } from "@/app/components/section-heading";
 import { getDays, getWeeks } from "@/app/lib/data";
 import { formatDistance, formatInteger, formatNumber } from "@/app/lib/format";
@@ -73,14 +74,20 @@ export default async function ConsistencyPage() {
 
   return (
     <AppShell>
-      <div className="space-y-6">
+      <div className="space-y-10">
         <SectionHeading
           eyebrow="mart_days and mart_weeks"
           title="Consistency signals"
           description="Daily and weekly rollups describe training regularity through active days, active weeks, streak context, and missed weeks."
           icon={explorerPages.consistency.icon}
         />
-        <DataState result={days}>{(data) => <ActivityCalendar days={data} />}</DataState>
+        <DataState result={days}>
+          {(data) => (
+            <ScrollReveal>
+              <ActivityCalendar days={data} />
+            </ScrollReveal>
+          )}
+        </DataState>
         <DataState result={weeks}>
           {(data) => {
             const latest = data.at(-1);

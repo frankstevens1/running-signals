@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, Database } from "lucide-react";
 
+import { ConsoleStatusPanel } from "@/app/components/console-primitives";
 import type { DataResult } from "@/app/lib/types";
 
 export function DataState<T>({
@@ -13,33 +14,34 @@ export function DataState<T>({
   if (result.status === "ok") return children(result.data);
 
   const Icon = result.status === "not_configured" ? Database : AlertTriangle;
+  const isNotConfigured = result.status === "not_configured";
 
   return (
-    <div className="rounded-md border border-(--border) bg-(--surface) p-6">
-      <div className="flex items-start gap-3">
-        <div className="rounded-md bg-(--surface-muted) p-2 text-(--accent)">
-          <Icon className="h-5 w-5" aria-hidden="true" />
-        </div>
-        <div className="space-y-2">
-          <h2 className="text-base font-semibold text-(--text)">
-            {result.status === "not_configured"
-              ? "Databricks is not configured"
-              : "Live data query failed"}
-          </h2>
-          <p className="max-w-2xl text-sm leading-6 text-(--text-soft)">{result.message}</p>
-          <p className="text-sm text-(--text-soft)">
-            The presentation layer still builds without credentials. Configure the server-side
-            variables from <code className="font-mono text-(--text)">.env.example</code> to load
-            live gold marts.
-          </p>
-          <Link
-            href="/#methodology"
-            className="inline-flex h-9 items-center rounded-md border border-(--border) px-3 text-sm font-medium text-(--text) hover:bg-(--surface-muted)"
-          >
-            View methodology
-          </Link>
-        </div>
+    <ConsoleStatusPanel
+      label="data_source"
+      statusLabel={isNotConfigured ? "configuration required" : "query failed"}
+      tone={isNotConfigured ? "warning" : "error"}
+      icon={<Icon className="h-4 w-4" aria-hidden="true" />}
+      title={isNotConfigured ? "Databricks is not configured" : "Live data query failed"}
+      description={result.message}
+      className="max-w-3xl"
+    >
+      <div className="mt-4 border-t border-(--border) pt-4">
+        <p className="font-mono text-xs uppercase tracking-wide text-(--text-soft)">
+          Recovery path
+        </p>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-(--text-soft)">
+          The presentation layer still builds without credentials. Configure the server-side
+          variables from <code className="font-mono text-(--text)">.env.example</code> to load live
+          gold marts.
+        </p>
+        <Link
+          href="/#methodology"
+          className="mt-3 inline-flex h-9 items-center border border-(--border) px-3 font-mono text-xs font-medium uppercase tracking-wide text-(--text) transition-colors hover:border-(--accent) hover:bg-(--surface-muted) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--accent)"
+        >
+          View methodology
+        </Link>
       </div>
-    </div>
+    </ConsoleStatusPanel>
   );
 }

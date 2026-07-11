@@ -51,13 +51,24 @@ const HEART_RATE_BAND_SIZE_BPM = 10;
 const PACE_DOMAIN_PADDING_MIN_PER_KM = 0.25;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const BAND_SERIES_COLORS = [
-  "var(--accent)",
-  "var(--signal)",
-  "var(--signal-ok)",
-  "#a78bfa",
-  "#f43f5e",
-  "#38bdf8",
+  "var(--chart-3)",
+  "var(--chart-blue)",
+  "var(--chart-4)",
+  "var(--chart-magenta)",
+  "var(--chart-2)",
+  "var(--chart-5)",
 ];
+const PRIMARY_SERIES_COLOR = "var(--chart-1)";
+const SECONDARY_SERIES_COLOR = "var(--chart-3)";
+const MUTED_SERIES_COLOR =
+  "color-mix(in srgb, var(--accent) 18%, var(--surface-muted))";
+const CHART_GRID_COLOR =
+  "color-mix(in srgb, var(--border) 68%, transparent)";
+const axisTick = {
+  fill: "var(--text-soft)",
+  fontFamily: "var(--font-mono)",
+  fontSize: 10,
+};
 const timestampTickFormat = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
@@ -70,14 +81,15 @@ const timestampLabelFormat = new Intl.DateTimeFormat("en-US", {
 
 const tooltipStyle = {
   contentStyle: {
-    backgroundColor: "var(--surface-muted)",
+    backgroundColor: "var(--surface)",
     border: "1px solid var(--border)",
-    borderRadius: 4,
+    borderRadius: 2,
     color: "var(--text)",
-    boxShadow: "0 10px 24px rgba(0, 0, 0, 0.22)",
+    boxShadow: "0 12px 32px color-mix(in srgb, var(--background) 34%, transparent)",
+    fontFamily: "var(--font-mono)",
     fontSize: 11,
     lineHeight: 1.35,
-    padding: "6px 8px",
+    padding: "8px 10px",
   },
   labelStyle: {
     color: "var(--text)",
@@ -95,13 +107,14 @@ const tooltipStyle = {
 const legendProps = {
   iconSize: 8,
   formatter: (value: string) => (
-    <span className="text-(--text-soft)">{value}</span>
+    <span className="font-mono text-(--text-soft)">{value}</span>
   ),
   wrapperStyle: {
     color: "var(--text-soft)",
+    fontFamily: "var(--font-mono)",
     fontSize: 11,
     lineHeight: "16px",
-    paddingTop: 2,
+    paddingTop: 4,
   },
 };
 
@@ -203,11 +216,40 @@ function getPaceDomain(points: PaceHeartRatePoint[]): NumericDomain {
 
 function heartRateBandButtonClass(isSelected: boolean) {
   const base =
-    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 text-xs font-semibold transition";
+    "inline-flex h-7 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-sm border px-2 font-mono text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--surface)";
 
   return isSelected
-    ? `${base} border-(--accent) bg-(--accent-soft) text-(--text)`
-    : `${base} border-(--border) text-(--text-soft) hover:bg-(--surface-muted) hover:text-(--text)`;
+    ? `${base} border-(--accent) bg-(--accent-soft) text-(--accent-strong)`
+    : `${base} border-(--border) bg-(--surface) text-(--text-soft) hover:border-(--accent) hover:text-(--text)`;
+}
+
+function FitnessLineLegend({
+  sessionLabel,
+  rollingLabel,
+}: {
+  sessionLabel: string;
+  rollingLabel: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-1 font-mono text-[11px] leading-4 text-(--text-soft)">
+      <span className="inline-flex items-center gap-1.5">
+        <span
+          className="w-5 rounded-full"
+          style={{ backgroundColor: PRIMARY_SERIES_COLOR, height: 1.5 }}
+          aria-hidden="true"
+        />
+        {sessionLabel}
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span
+          className="w-5 rounded-full"
+          style={{ backgroundColor: SECONDARY_SERIES_COLOR, height: 3 }}
+          aria-hidden="true"
+        />
+        {rollingLabel}
+      </span>
+    </div>
+  );
 }
 
 function getBandColor(index: number) {
@@ -510,17 +552,20 @@ function ChartFrame({
   children: ReactNode;
 }) {
   return (
-    <div className="flex h-full flex-col rounded-md border border-(--border) bg-(--surface) p-4">
-      <div className="flex items-start justify-between gap-3">
+    <section className="flex h-full flex-col overflow-hidden rounded-sm border border-(--border) bg-(--surface)">
+      <div className="flex items-start justify-between gap-3 border-b border-(--border) px-4 py-3">
         <div className="min-w-0">
-          <h2 className="text-base font-semibold text-(--text)">{title}</h2>
-          {description ? <p className="mt-1 text-sm text-(--text-soft)">{description}</p> : null}
+          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-(--accent)">
+            analysis.output
+          </p>
+          <h2 className="mt-1 text-base font-semibold text-(--text)">{title}</h2>
+          {description ? <p className="mt-1 max-w-2xl text-sm text-(--text-soft)">{description}</p> : null}
         </div>
         <MetricInfoDialog content={info} />
       </div>
-      {controls ? <div className="mt-3">{controls}</div> : null}
-      <div className="mt-4 h-80 min-h-80 flex-1">{children}</div>
-    </div>
+      {controls ? <div className="border-b border-(--border) px-4 py-3">{controls}</div> : null}
+      <div className="h-80 min-h-80 flex-1 px-2 pt-4 pb-3 sm:px-4">{children}</div>
+    </section>
   );
 }
 
@@ -534,15 +579,26 @@ export function WeeklyVolumeChart({ weeks }: { weeks: WeekRollup[] }) {
       info={CHART_INFO.weeklyVolume}
     >
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={volumeBreakdown}>
-          <CartesianGrid stroke="var(--border)" vertical={false} />
+        <ComposedChart data={volumeBreakdown} margin={{ top: 8, right: 8, left: 0 }}>
+          <CartesianGrid
+            stroke={CHART_GRID_COLOR}
+            strokeDasharray="2 5"
+            vertical={false}
+          />
           <XAxis
             dataKey="weekStartDate"
             tickFormatter={shortDate}
             minTickGap={28}
-            tick={{ fill: "var(--text-soft)", fontSize: 12 }}
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
           />
-          <YAxis tick={{ fill: "var(--text-soft)", fontSize: 12 }} tickFormatter={formatKm} />
+          <YAxis
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
+            tickFormatter={formatKm}
+          />
           <Tooltip
             {...tooltipStyle}
             labelFormatter={(value) => shortDate(String(value))}
@@ -553,21 +609,21 @@ export function WeeklyVolumeChart({ weeks }: { weeks: WeekRollup[] }) {
             dataKey="longestRunDistanceKm"
             name="Longest run"
             stackId="distance"
-            fill="var(--accent)"
+            fill={PRIMARY_SERIES_COLOR}
             radius={[0, 0, 0, 0]}
           />
           <Bar
             dataKey="otherWeeklyDistanceKm"
             name="Other distance"
             stackId="distance"
-            fill="var(--border)"
-            radius={[3, 3, 0, 0]}
+            fill={MUTED_SERIES_COLOR}
+            radius={[2, 2, 0, 0]}
           />
           <Line
             type="monotone"
             dataKey="rolling4wDistanceKm"
             name="Rolling 4w distance"
-            stroke="var(--signal)"
+            stroke={SECONDARY_SERIES_COLOR}
             strokeWidth={2}
             dot={false}
           />
@@ -586,22 +642,32 @@ export function MonthlyVolumeChart({ months }: { months: MonthRollup[] }) {
     >
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={months} margin={{ top: 16, right: 8, left: 8 }}>
-          <CartesianGrid stroke="var(--border)" vertical={false} />
+          <CartesianGrid
+            stroke={CHART_GRID_COLOR}
+            strokeDasharray="2 5"
+            vertical={false}
+          />
           <XAxis
             dataKey="monthStartDate"
             tickFormatter={formatMonthTick}
             minTickGap={28}
-            tick={{ fill: "var(--text-soft)", fontSize: 12 }}
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
           />
           <YAxis
             yAxisId="left"
-            tick={{ fill: "var(--text-soft)", fontSize: 12 }}
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
             tickFormatter={formatKm}
           />
           <YAxis
             yAxisId="right"
             orientation="right"
-            tick={{ fill: "var(--text-soft)", fontSize: 12 }}
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
             tickFormatter={formatRuns}
           />
           <Tooltip
@@ -617,15 +683,15 @@ export function MonthlyVolumeChart({ months }: { months: MonthRollup[] }) {
             yAxisId="left"
             dataKey="monthlyDistanceKm"
             name="Monthly distance"
-            fill="var(--accent)"
-            radius={[3, 3, 0, 0]}
+            fill={PRIMARY_SERIES_COLOR}
+            radius={[2, 2, 0, 0]}
           />
           <Line
             yAxisId="right"
             type="monotone"
             dataKey="runsPerMonth"
             name="Runs"
-            stroke="var(--signal)"
+            stroke={SECONDARY_SERIES_COLOR}
             strokeWidth={2}
             dot={false}
           />
@@ -645,18 +711,26 @@ export function WeeklyStructureChart({ weeks }: { weeks: WeekRollup[] }) {
       info={CHART_INFO.weeklyStructure}
     >
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={completeWeeks}>
-          <CartesianGrid stroke="var(--border)" vertical={false} />
+        <ComposedChart data={completeWeeks} margin={{ top: 8, right: 8, left: 0 }}>
+          <CartesianGrid
+            stroke={CHART_GRID_COLOR}
+            strokeDasharray="2 5"
+            vertical={false}
+          />
           <XAxis
             dataKey="weekStartDate"
             tickFormatter={shortDate}
             minTickGap={28}
-            tick={{ fill: "var(--text-soft)", fontSize: 12 }}
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
           />
           <YAxis
             yAxisId="left"
             domain={[0, 7]}
-            tick={{ fill: "var(--text-soft)", fontSize: 12 }}
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
             tickFormatter={formatDays}
           />
           <Tooltip
@@ -670,7 +744,7 @@ export function WeeklyStructureChart({ weeks }: { weeks: WeekRollup[] }) {
             dataKey="activeDays"
             name="Active days"
             stackId="days"
-            fill="var(--accent)"
+            fill={PRIMARY_SERIES_COLOR}
             radius={[0, 0, 0, 0]}
           />
           <Bar
@@ -678,8 +752,8 @@ export function WeeklyStructureChart({ weeks }: { weeks: WeekRollup[] }) {
             dataKey="missedDays"
             name="Missed days"
             stackId="days"
-            fill="var(--border)"
-            radius={[3, 3, 0, 0]}
+            fill={MUTED_SERIES_COLOR}
+            radius={[2, 2, 0, 0]}
           />
         </ComposedChart>
       </ResponsiveContainer>
@@ -695,16 +769,24 @@ export function HrDriftChart({ points }: { points: FitnessPoint[] }) {
       info={CHART_INFO.hrDrift}
     >
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={points}>
-          <CartesianGrid stroke="var(--border)" vertical={false} />
+        <LineChart data={points} margin={{ top: 8, right: 8, left: 0 }}>
+          <CartesianGrid
+            stroke={CHART_GRID_COLOR}
+            strokeDasharray="2 5"
+            vertical={false}
+          />
           <XAxis
             dataKey="activityDate"
             tickFormatter={shortDate}
             minTickGap={28}
-            tick={{ fill: "var(--text-soft)", fontSize: 12 }}
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
           />
           <YAxis
-            tick={{ fill: "var(--text-soft)", fontSize: 12 }}
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
             tickFormatter={formatSignedPercentValue}
           />
           <Tooltip
@@ -712,22 +794,29 @@ export function HrDriftChart({ points }: { points: FitnessPoint[] }) {
             labelFormatter={(value) => shortDate(String(value))}
             formatter={(value, name) => [formatSignedPercentValue(value), name]}
           />
-          <Legend {...legendProps} />
-          <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="4 4" />
+          <Legend
+            content={
+              <FitnessLineLegend
+                sessionLabel="Session HR drift (thin)"
+                rollingLabel="Rolling 4-run HR drift (thick)"
+              />
+            }
+          />
+          <ReferenceLine y={0} stroke={CHART_GRID_COLOR} strokeDasharray="3 4" />
           <Line
             type="monotone"
             dataKey="hrDriftPct"
-            name="HR drift"
-            stroke="var(--accent)"
+            name="Session HR drift"
+            stroke={PRIMARY_SERIES_COLOR}
             strokeWidth={1.5}
             dot={false}
           />
           <Line
             type="monotone"
             dataKey="rolling4RunHrDriftPct"
-            name="Rolling 4-run drift"
-            stroke="var(--signal)"
-            strokeWidth={2}
+            name="Rolling 4-run HR drift"
+            stroke={SECONDARY_SERIES_COLOR}
+            strokeWidth={3}
             dot={false}
           />
         </LineChart>
@@ -746,17 +835,25 @@ export function FitnessEfficiencyChart({ points }: { points: FitnessPoint[] }) {
       info={CHART_INFO.fitnessEfficiency}
     >
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={points}>
-          <CartesianGrid stroke="var(--border)" vertical={false} />
+        <LineChart data={points} margin={{ top: 8, right: 8, left: 0 }}>
+          <CartesianGrid
+            stroke={CHART_GRID_COLOR}
+            strokeDasharray="2 5"
+            vertical={false}
+          />
           <XAxis
             dataKey="activityDate"
             tickFormatter={shortDate}
             minTickGap={28}
-            tick={{ fill: "var(--text-soft)", fontSize: 12 }}
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
           />
           <YAxis
             domain={efficiencyDomain}
-            tick={{ fill: "var(--text-soft)", fontSize: 12 }}
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
             tickFormatter={(value) => Number(value).toFixed(3)}
           />
           <Tooltip
@@ -767,20 +864,28 @@ export function FitnessEfficiencyChart({ points }: { points: FitnessPoint[] }) {
               name,
             ]}
           />
-          <Legend {...legendProps} />
+          <Legend
+            content={
+              <FitnessLineLegend
+                sessionLabel="Session efficiency (thin)"
+                rollingLabel="Rolling 4-run efficiency (thick)"
+              />
+            }
+          />
           <Line
             type="monotone"
             dataKey="efficiencyRatio"
-            name="Efficiency"
-            stroke="var(--accent)"
+            name="Session efficiency"
+            stroke={PRIMARY_SERIES_COLOR}
+            strokeWidth={1.5}
             dot={false}
           />
           <Line
             type="monotone"
             dataKey="rolling4RunEfficiencyRatio"
             name="Rolling 4-run efficiency"
-            stroke="var(--signal)"
-            strokeWidth={2}
+            stroke={SECONDARY_SERIES_COLOR}
+            strokeWidth={3}
             dot={false}
           />
         </LineChart>
@@ -847,27 +952,29 @@ export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
     });
   };
   const controls = heartRateBands.length > 1 && (
-    <div
-      className="flex flex-wrap items-center justify-center gap-2"
-      role="group"
-      aria-label="Average heart rate range"
-    >
-      {heartRateBands.map((band) => (
-        <button
-          key={band.id}
-          type="button"
-          aria-pressed={selectedHeartRateBandIdSet.has(band.id)}
-          className={heartRateBandButtonClass(selectedHeartRateBandIdSet.has(band.id))}
-          onClick={() => toggleHeartRateBand(band.id)}
-        >
-          <span
-            className="size-2 shrink-0 rounded-full"
-            style={{ backgroundColor: bandColorById.get(band.id) ?? getBandColor(0) }}
-            aria-hidden="true"
-          />
-          {band.label}
-        </button>
-      ))}
+    <div className="overflow-x-auto">
+      <div
+        className="flex w-max min-w-full items-center justify-center gap-1.5"
+        role="group"
+        aria-label="Average heart rate range"
+      >
+        {heartRateBands.map((band) => (
+          <button
+            key={band.id}
+            type="button"
+            aria-pressed={selectedHeartRateBandIdSet.has(band.id)}
+            className={heartRateBandButtonClass(selectedHeartRateBandIdSet.has(band.id))}
+            onClick={() => toggleHeartRateBand(band.id)}
+          >
+            <span
+              className="size-1.5 shrink-0 rounded-full"
+              style={{ backgroundColor: bandColorById.get(band.id) ?? getBandColor(0) }}
+              aria-hidden="true"
+            />
+            {band.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 
@@ -881,8 +988,12 @@ export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
       <div className="flex h-full flex-col">
         <div className="min-h-0 flex-1">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={visibleData}>
-              <CartesianGrid stroke="var(--border)" vertical={false} />
+            <ComposedChart data={visibleData} margin={{ top: 8, right: 8, left: 0 }}>
+              <CartesianGrid
+                stroke={CHART_GRID_COLOR}
+                strokeDasharray="2 5"
+                vertical={false}
+              />
               <XAxis
                 dataKey="activityDateTimestamp"
                 name="Date"
@@ -892,7 +1003,9 @@ export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
                 ticks={dateTicks}
                 tickFormatter={formatTimestampTick}
                 minTickGap={28}
-                tick={{ fill: "var(--text-soft)", fontSize: 12 }}
+                axisLine={false}
+                tickLine={false}
+                tick={axisTick}
               />
               <YAxis
                 type="number"
@@ -900,7 +1013,9 @@ export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
                 dataKey="avgPaceMinPerKm"
                 name="Pace"
                 reversed
-                tick={{ fill: "var(--text-soft)", fontSize: 12 }}
+                axisLine={false}
+                tickLine={false}
+                tick={axisTick}
                 tickFormatter={formatPaceValue}
               />
               <Tooltip

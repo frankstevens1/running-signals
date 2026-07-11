@@ -35,6 +35,43 @@ type RouteAccumulator = {
   coordinateCount: number;
 };
 
+type MapTheme = {
+  accent: string;
+  accentStrong: string;
+  accentForeground: string;
+  background: string;
+  signalOk: string;
+  signalWarn: string;
+  isLight: boolean;
+};
+
+function cssToken(styles: CSSStyleDeclaration, name: string, fallback: string) {
+  return styles.getPropertyValue(name).trim() || fallback;
+}
+
+function readMapTheme(): MapTheme {
+  const styles = window.getComputedStyle(document.documentElement);
+
+  return {
+    accent: cssToken(styles, "--accent", "#22c55e"),
+    accentStrong: cssToken(styles, "--accent-strong", "#4ade80"),
+    accentForeground: cssToken(styles, "--accent-foreground", "#04110a"),
+    background: cssToken(styles, "--background", "#06110a"),
+    signalOk: cssToken(styles, "--signal-ok", "#22c55e"),
+    signalWarn: cssToken(styles, "--signal-warn", "#f59e0b"),
+    isLight: styles.colorScheme.includes("light"),
+  };
+}
+
+function rasterPaint(theme: MapTheme) {
+  return {
+    "raster-saturation": -0.82,
+    "raster-contrast": theme.isLight ? 0.02 : 0.1,
+    "raster-brightness-min": theme.isLight ? 0.58 : 0.12,
+    "raster-brightness-max": theme.isLight ? 0.98 : 0.68,
+  } as const;
+}
+
 function validSegments(segments: RouteSegment[]) {
   return segments.filter(
     (segment) =>
@@ -68,7 +105,10 @@ function fitSegments(map: maplibregl.Map, segments: RouteSegment[], duration = 5
   }
 }
 
-function routePointPaint(selectedRouteId: string | null): CircleLayerSpecification["paint"] {
+function routePointPaint(
+  selectedRouteId: string | null,
+  theme: MapTheme,
+): CircleLayerSpecification["paint"] {
   return {
     "circle-radius": [
       "interpolate",
@@ -84,13 +124,65 @@ function routePointPaint(selectedRouteId: string | null): CircleLayerSpecificati
     "circle-color": [
       "case",
       ["==", ["get", "routeId"], selectedRouteId ?? ""],
-      "#fbbf24",
-      "#22d3ee",
+      theme.signalWarn,
+      theme.accent,
     ] as const,
-    "circle-opacity": 0.86,
-    "circle-stroke-color": "#07111f",
+    "circle-opacity": 0.9,
+    "circle-stroke-color": theme.background,
     "circle-stroke-width": 2,
   };
+}
+
+function applyMapTheme(
+  map: maplibregl.Map,
+  theme: MapTheme,
+  selectedRouteId: string | null,
+) {
+  if (map.getLayer("osm")) {
+    const paint = rasterPaint(theme);
+    map.setPaintProperty("osm", "raster-saturation", paint["raster-saturation"]);
+    map.setPaintProperty("osm", "raster-contrast", paint["raster-contrast"]);
+    map.setPaintProperty(
+      "osm",
+      "raster-brightness-min",
+      paint["raster-brightness-min"],
+    );
+    map.setPaintProperty(
+      "osm",
+      "raster-brightness-max",
+      paint["raster-brightness-max"],
+    );
+  }
+
+  if (map.getLayer("route-lines")) {
+    map.setPaintProperty("route-lines", "line-color", theme.accent);
+  }
+
+  if (map.getLayer("selected-route-lines")) {
+    map.setPaintProperty("selected-route-lines", "line-color", theme.signalWarn);
+  }
+
+  if (map.getLayer("route-clusters")) {
+    map.setPaintProperty("route-clusters", "circle-color", theme.signalOk);
+    map.setPaintProperty("route-clusters", "circle-stroke-color", theme.background);
+  }
+
+  if (map.getLayer("cluster-count")) {
+    map.setPaintProperty("cluster-count", "text-color", theme.accentForeground);
+  }
+
+  if (map.getLayer("route-points")) {
+    const paint = routePointPaint(selectedRouteId, theme);
+    const circleColor = paint?.["circle-color"];
+    if (circleColor) {
+      map.setPaintProperty("route-points", "circle-color", circleColor);
+    }
+    map.setPaintProperty("route-points", "circle-stroke-color", theme.background);
+  }
+
+  if (map.getLayer("route-point-count")) {
+    map.setPaintProperty("route-point-count", "text-color", theme.accentForeground);
+  }
 }
 
 export function RouteMap({
@@ -106,12 +198,17 @@ export function RouteMap({
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const selectedRouteIdRef = useRef(selectedRouteId);
   const [ready, setReady] = useState(false);
   const usableSegments = useMemo(() => validSegments(segments), [segments]);
   const routeRunCounts = useMemo(
     () => new Map(routes.map((route) => [route.routeId, route.runCount])),
     [routes],
   );
+
+  useEffect(() => {
+    selectedRouteIdRef.current = selectedRouteId;
+  }, [selectedRouteId]);
 
   const lineCollection = useMemo<LineCollection>(
     () => ({
@@ -176,7 +273,8 @@ export function RouteMap({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    mapRef.current = new maplibregl.Map({
+    const initialTheme = readMapTheme();
+    const map = new maplibregl.Map({
       container: containerRef.current,
       style: {
         version: 8,
@@ -194,12 +292,7 @@ export function RouteMap({
             id: "osm",
             type: "raster",
             source: "osm",
-            paint: {
-              "raster-saturation": -0.65,
-              "raster-contrast": 0.08,
-              "raster-brightness-min": 0.18,
-              "raster-brightness-max": 0.75,
-            },
+            paint: rasterPaint(initialTheme),
           },
         ],
       },
@@ -208,18 +301,46 @@ export function RouteMap({
       attributionControl: { compact: true },
     });
 
-    mapRef.current.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
-    mapRef.current.on("load", () => setReady(true));
+    mapRef.current = map;
+    map.addControl(
+      new maplibregl.NavigationControl({ showCompass: false }),
+      "top-right",
+    );
+
+    const syncTheme = () => {
+      if (map.isStyleLoaded()) {
+        applyMapTheme(map, readMapTheme(), selectedRouteIdRef.current);
+      }
+    };
+    const handleLoad = () => {
+      syncTheme();
+      setReady(true);
+    };
+    const themeObserver = new MutationObserver(syncTheme);
+    const colorScheme = window.matchMedia("(prefers-color-scheme: light)");
+
+    map.on("load", handleLoad);
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    colorScheme.addEventListener("change", syncTheme);
 
     return () => {
-      mapRef.current?.remove();
-      mapRef.current = null;
+      themeObserver.disconnect();
+      colorScheme.removeEventListener("change", syncTheme);
+      map.off("load", handleLoad);
+      map.remove();
+      if (mapRef.current === map) {
+        mapRef.current = null;
+      }
     };
   }, []);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
+    const theme = readMapTheme();
 
     if (!map.getSource("route-lines")) {
       map.addSource("route-lines", { type: "geojson", data: lineCollection as never });
@@ -228,9 +349,9 @@ export function RouteMap({
         type: "line",
         source: "route-lines",
         paint: {
-          "line-color": "#22d3ee",
-          "line-opacity": 0.28,
-          "line-width": 2,
+          "line-color": theme.accent,
+          "line-opacity": 0.34,
+          "line-width": 1.75,
         },
       });
       map.addLayer({
@@ -239,9 +360,9 @@ export function RouteMap({
         source: "route-lines",
         filter: ["==", ["get", "routeId"], selectedRouteId ?? ""],
         paint: {
-          "line-color": "#fbbf24",
+          "line-color": theme.signalWarn,
           "line-opacity": 0.95,
-          "line-width": 4,
+          "line-width": 3.5,
         },
       });
     } else {
@@ -265,8 +386,8 @@ export function RouteMap({
         source: "route-centroids",
         filter: ["has", "point_count"],
         paint: {
-          "circle-color": "#16a34a",
-          "circle-opacity": 0.82,
+          "circle-color": theme.signalOk,
+          "circle-opacity": 0.88,
           "circle-radius": [
             "step",
             ["get", "run_count_sum"],
@@ -276,7 +397,7 @@ export function RouteMap({
             30,
             32,
           ],
-          "circle-stroke-color": "#07111f",
+          "circle-stroke-color": theme.background,
           "circle-stroke-width": 2,
         },
       });
@@ -291,7 +412,7 @@ export function RouteMap({
           "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
         },
         paint: {
-          "text-color": "#f8fafc",
+          "text-color": theme.accentForeground,
         },
       });
       map.addLayer({
@@ -299,7 +420,7 @@ export function RouteMap({
         type: "circle",
         source: "route-centroids",
         filter: ["!", ["has", "point_count"]],
-        paint: routePointPaint(selectedRouteId),
+        paint: routePointPaint(selectedRouteId, theme),
       });
       map.addLayer({
         id: "route-point-count",
@@ -312,7 +433,7 @@ export function RouteMap({
           "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
         },
         paint: {
-          "text-color": "#07111f",
+          "text-color": theme.accentForeground,
         },
       });
     } else {
@@ -320,10 +441,11 @@ export function RouteMap({
     }
 
     map.setFilter("selected-route-lines", ["==", ["get", "routeId"], selectedRouteId ?? ""]);
-    const selectedPointColor = routePointPaint(selectedRouteId)?.["circle-color"];
+    const selectedPointColor = routePointPaint(selectedRouteId, theme)?.["circle-color"];
     if (selectedPointColor) {
       map.setPaintProperty("route-points", "circle-color", selectedPointColor);
     }
+    applyMapTheme(map, theme, selectedRouteId);
 
     if (selectedRouteId) {
       fitSegments(
@@ -385,15 +507,44 @@ export function RouteMap({
 
   if (usableSegments.length === 0) {
     return (
-      <div className="flex h-[520px] items-center justify-center rounded-md border border-dashed border-(--border) bg-(--surface) p-6 text-center text-sm text-(--text-soft)">
-        No GPS route segments are available for clustering.
-      </div>
+      <section className="overflow-hidden rounded-sm border border-(--border) bg-(--surface)">
+        <div className="border-b border-(--border) px-4 py-3">
+          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-(--accent)">
+            spatial.cluster_index
+          </p>
+          <h2 className="mt-1 text-base font-semibold text-(--text)">Route topology</h2>
+        </div>
+        <div className="flex h-[460px] items-center justify-center p-6 text-center font-mono text-sm text-(--text-soft)">
+          No GPS route segments are available for clustering.
+        </div>
+      </section>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-md border border-(--border) bg-(--surface)">
+    <section className="overflow-hidden rounded-sm border border-(--border) bg-(--surface)">
+      <div className="flex flex-col gap-3 border-b border-(--border) px-4 py-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-(--accent)">
+            spatial.cluster_index
+          </p>
+          <h2 className="mt-1 text-base font-semibold text-(--text)">Route topology</h2>
+          <p className="mt-1 text-sm text-(--text-soft)">
+            Select a route node to isolate its observed GPS segments.
+          </p>
+        </div>
+        <div className="flex items-center gap-4 font-mono text-[10px] uppercase tracking-[0.12em] text-(--text-soft)">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-(--accent)" aria-hidden="true" />
+            Route
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-(--signal-warn)" aria-hidden="true" />
+            Selected
+          </span>
+        </div>
+      </div>
       <div ref={containerRef} className="h-[520px] w-full" />
-    </div>
+    </section>
   );
 }

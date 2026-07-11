@@ -17,7 +17,7 @@ export default async function RoutesPage({
 
   return (
     <AppShell>
-      <div className="space-y-6">
+      <div className="space-y-10">
         <SectionHeading
           eyebrow="mart_routes and mart_run_segments"
           title="Route map"

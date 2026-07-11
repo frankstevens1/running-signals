@@ -23,7 +23,7 @@ export default async function RunsPage({
 
   return (
     <AppShell>
-      <div className="space-y-6">
+      <div className="space-y-10">
         <SectionHeading
           eyebrow="mart_run_sessions"
           title="Run explorer"
@@ -33,7 +33,7 @@ export default async function RunsPage({
         <RunFilters params={params} routes={routeOptions} />
         <DataState result={result}>
           {(data) => (
-            <div className="space-y-3">
+            <div className="space-y-4">
               <RunPagination
                 params={params}
                 view={view}
@@ -46,13 +46,6 @@ export default async function RunsPage({
               ) : (
                 <RunTimeline runs={data.items} />
               )}
-              <RunPagination
-                params={params}
-                view={view}
-                total={data.total}
-                limit={data.limit}
-                offset={data.offset}
-              />
             </div>
           )}
         </DataState>

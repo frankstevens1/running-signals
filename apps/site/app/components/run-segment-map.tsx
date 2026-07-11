@@ -19,6 +19,35 @@ type RouteLineCollection = {
   }>;
 };
 
+type MapTheme = {
+  accent: string;
+  background: string;
+  isLight: boolean;
+};
+
+function cssToken(styles: CSSStyleDeclaration, name: string, fallback: string) {
+  return styles.getPropertyValue(name).trim() || fallback;
+}
+
+function readMapTheme(): MapTheme {
+  const styles = window.getComputedStyle(document.documentElement);
+
+  return {
+    accent: cssToken(styles, "--accent", "#22c55e"),
+    background: cssToken(styles, "--background", "#06110a"),
+    isLight: styles.colorScheme.includes("light"),
+  };
+}
+
+function rasterPaint(theme: MapTheme) {
+  return {
+    "raster-saturation": -0.82,
+    "raster-contrast": theme.isLight ? 0.02 : 0.1,
+    "raster-brightness-min": theme.isLight ? 0.58 : 0.12,
+    "raster-brightness-max": theme.isLight ? 0.98 : 0.68,
+  } as const;
+}
+
 function coordinatePairs(segments: RouteSegment[]): Position[] {
   const pairs: Position[] = [];
 
@@ -82,8 +111,35 @@ function routeLineCollection(coordinates: Position[]): RouteLineCollection {
   };
 }
 
+function applyMapTheme(map: maplibregl.Map, theme: MapTheme) {
+  if (map.getLayer("osm")) {
+    const paint = rasterPaint(theme);
+    map.setPaintProperty("osm", "raster-saturation", paint["raster-saturation"]);
+    map.setPaintProperty("osm", "raster-contrast", paint["raster-contrast"]);
+    map.setPaintProperty(
+      "osm",
+      "raster-brightness-min",
+      paint["raster-brightness-min"],
+    );
+    map.setPaintProperty(
+      "osm",
+      "raster-brightness-max",
+      paint["raster-brightness-max"],
+    );
+  }
+
+  if (map.getLayer("route-line-casing")) {
+    map.setPaintProperty("route-line-casing", "line-color", theme.background);
+  }
+
+  if (map.getLayer("route-line")) {
+    map.setPaintProperty("route-line", "line-color", theme.accent);
+  }
+}
+
 function syncRouteLine(map: maplibregl.Map, coordinates: Position[], compact: boolean) {
   const collection = routeLineCollection(coordinates);
+  const theme = readMapTheme();
   map.resize();
 
   if (!map.getSource("route-line")) {
@@ -93,8 +149,8 @@ function syncRouteLine(map: maplibregl.Map, coordinates: Position[], compact: bo
       type: "line",
       source: "route-line",
       paint: {
-        "line-color": "#04111d",
-        "line-opacity": 0.72,
+        "line-color": theme.background,
+        "line-opacity": 0.78,
         "line-width": compact ? 5 : 7,
       },
     });
@@ -103,7 +159,7 @@ function syncRouteLine(map: maplibregl.Map, coordinates: Position[], compact: bo
       type: "line",
       source: "route-line",
       paint: {
-        "line-color": "#22d3ee",
+        "line-color": theme.accent,
         "line-opacity": compact ? 0.98 : 0.92,
         "line-width": compact ? 3 : 4,
       },
@@ -112,6 +168,7 @@ function syncRouteLine(map: maplibregl.Map, coordinates: Position[], compact: bo
     (map.getSource("route-line") as GeoJSONSource).setData(collection as never);
   }
 
+  applyMapTheme(map, theme);
   fitCoordinates(map, coordinates, compact);
 }
 
@@ -120,7 +177,7 @@ export function RunSegmentMap({
   interactive = true,
   compact = false,
   className = "",
-  radiusClassName = "rounded-md",
+  radiusClassName = "rounded-none",
 }: {
   segments: RouteSegment[];
   interactive?: boolean;
@@ -137,6 +194,7 @@ export function RunSegmentMap({
       return;
     }
 
+    const initialTheme = readMapTheme();
     const map = new maplibregl.Map({
       container: containerRef.current,
       interactive,
@@ -157,12 +215,7 @@ export function RunSegmentMap({
             id: "osm",
             type: "raster",
             source: "osm",
-            paint: {
-              "raster-saturation": -0.7,
-              "raster-contrast": 0.04,
-              "raster-brightness-min": 0.15,
-              "raster-brightness-max": 0.78,
-            },
+            paint: rasterPaint(initialTheme),
           },
         ],
       },
@@ -180,9 +233,25 @@ export function RunSegmentMap({
       syncRouteLine(map, coordinates, compact);
     }
 
+    function syncTheme() {
+      if (map.isStyleLoaded()) {
+        applyMapTheme(map, readMapTheme());
+      }
+    }
+
+    const themeObserver = new MutationObserver(syncTheme);
+    const colorScheme = window.matchMedia("(prefers-color-scheme: light)");
+
     map.on("load", renderRoute);
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    colorScheme.addEventListener("change", syncTheme);
 
     return () => {
+      themeObserver.disconnect();
+      colorScheme.removeEventListener("change", syncTheme);
       map.off("load", renderRoute);
       map.remove();
       if (mapRef.current === map) {
@@ -204,12 +273,17 @@ export function RunSegmentMap({
   if (coordinates.length === 0) {
     return (
       <div
-        className={`flex items-center justify-center border border-dashed border-(--border) bg-(--surface-muted) px-4 text-sm text-(--text-soft) ${radiusClassName} ${className}`}
+        className={`flex items-center justify-center border border-dashed border-(--border) bg-(--surface-muted) px-4 font-mono text-sm text-(--text-soft) ${radiusClassName} ${className}`}
       >
         No GPS route
       </div>
     );
   }
 
-  return <div ref={containerRef} className={`${radiusClassName} ${className}`} />;
+  return (
+    <div
+      ref={containerRef}
+      className={`overflow-hidden bg-(--surface-muted) ${radiusClassName} ${className}`}
+    />
+  );
 }

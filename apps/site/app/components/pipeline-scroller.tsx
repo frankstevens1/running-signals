@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Database, FileArchive, Layers3, RadioTower } from "lucide-react";
+import { Check, Database, FileArchive, Layers3, RadioTower } from "lucide-react";
 
 const steps = [
   {
@@ -89,32 +89,31 @@ export function PipelineScroller() {
   }, []);
 
   return (
-    <div className="relative">
-      <div aria-hidden="true" className="absolute inset-y-0 left-0 hidden w-14 lg:block">
-        <div className="absolute bottom-[35vh] left-7 top-[35vh] w-px bg-(--border)" />
-        <div className="grid h-full grid-rows-4">
+    <div className="relative grid gap-8 lg:grid-cols-[12rem_minmax(0,1fr)] lg:gap-12">
+      <aside className="hidden lg:block" aria-label="Pipeline stages">
+        <div className="sticky top-32 border-l border-(--border) py-2">
           {steps.map((step, index) => {
             const active = step.id === activeStep;
 
             return (
-              <div key={step.id} className="flex items-center justify-center">
-                <span
-                  className={`relative z-10 flex h-9 w-9 items-center justify-center rounded-full border text-sm font-semibold transition-colors ${
-                    active
-                      ? "border-(--accent) bg-(--accent) text-(--accent-foreground) shadow-[0_0_22px_rgba(34,211,238,0.28)]"
-                      : "border-(--border) bg-(--background) text-(--text-soft)"
-                  }`}
-                >
-                  {index + 1}
-                </span>
+              <div
+                key={step.id}
+                className={`flex items-center gap-3 border-l py-3 pl-4 font-mono text-xs uppercase tracking-[0.12em] transition-colors ${
+                  active
+                    ? "-ml-px border-(--accent) text-(--accent)"
+                    : "border-transparent text-(--text-soft)"
+                }`}
+              >
+                <span className="w-5 text-right text-[10px] tabular-nums">0{index + 1}</span>
+                <span>{step.label}</span>
               </div>
             );
           })}
         </div>
-      </div>
+      </aside>
 
-      <div className="space-y-5 lg:space-y-0 lg:pl-20">
-        {steps.map((step) => {
+      <div className="border-t border-(--border) lg:border-t-0">
+        {steps.map((step, index) => {
           const active = step.id === activeStep;
           const Icon = step.icon;
 
@@ -126,39 +125,36 @@ export function PipelineScroller() {
                 sectionRefs.current[step.id] = node;
               }}
               data-step={step.id}
-              className="scroll-mt-24 py-3 lg:grid lg:min-h-[64vh] lg:grid-cols-[auto_1fr] lg:items-center lg:gap-8 lg:py-0"
+              className="scroll-mt-28 border-b border-(--border) py-8 lg:flex lg:min-h-[58vh] lg:items-center lg:py-16"
             >
-              <div
-                aria-hidden="true"
-                className={`hidden h-px w-8 lg:block ${
-                  active ? "bg-(--accent)" : "bg-(--border)"
-                }`}
-              />
               <article
-                className={`max-w-3xl rounded-md border p-6 transition-colors lg:p-8 ${
-                  active
-                    ? "border-(--accent) bg-(--surface) shadow-[0_0_38px_rgba(34,211,238,0.14)]"
-                    : "border-(--border) bg-(--surface)/80"
+                className={`w-full max-w-3xl transition-[opacity,transform] duration-500 ${
+                  active ? "translate-x-0 opacity-100" : "lg:translate-x-2 lg:opacity-55"
                 }`}
               >
-                <div
-                  className={`flex h-10 w-10 items-center justify-center rounded-md ${
-                    active
-                      ? "bg-(--accent) text-(--accent-foreground)"
-                      : "bg-(--surface-muted) text-(--accent)"
-                  }`}
-                >
-                  <Icon className="h-5 w-5" aria-hidden="true" />
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-xs text-(--text-soft)">0{index + 1}</span>
+                    <div className="flex h-9 w-9 items-center justify-center border border-(--border) bg-(--surface-muted) text-(--accent)">
+                      <Icon className="h-4 w-4" aria-hidden="true" />
+                    </div>
+                  </div>
+                  <span className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-(--signal-ok)">
+                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                    complete
+                  </span>
                 </div>
                 <p
-                  className={`mt-5 text-xs font-semibold uppercase tracking-normal ${
+                  className={`mt-8 font-mono text-xs uppercase tracking-[0.14em] ${
                     active ? "text-(--accent)" : "text-(--text-soft)"
                   }`}
                 >
-                  {step.label}
+                  pipeline::{step.id}
                 </p>
-                <h3 className="mt-2 text-2xl font-semibold text-(--text)">{step.title}</h3>
-                <p className="mt-4 text-sm leading-6 text-(--text-soft)">{step.copy}</p>
+                <h3 className="mt-3 text-2xl font-medium tracking-[-0.02em] text-(--text) sm:text-3xl">
+                  {step.title}
+                </h3>
+                <p className="mt-4 max-w-2xl text-sm leading-7 text-(--text-soft)">{step.copy}</p>
               </article>
             </section>
           );

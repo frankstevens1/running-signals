@@ -21,52 +21,81 @@ const ACTIVITY_CALENDAR_INFO = {
   ],
 } satisfies MetricInfoContent;
 
-function intensity(day: DayRollup): string {
-  if (day.distanceKm <= 0) return "bg-(--surface-muted)";
-  if (day.distanceKm < 5) return "bg-emerald-200";
-  if (day.distanceKm < 10) return "bg-emerald-400";
-  if (day.distanceKm < 16) return "bg-teal-500";
-  return "bg-cyan-700";
+const calendarColors = [
+  "var(--surface-muted)",
+  "color-mix(in srgb, var(--accent) 20%, var(--surface))",
+  "color-mix(in srgb, var(--accent) 42%, var(--surface))",
+  "color-mix(in srgb, var(--accent) 70%, var(--surface))",
+  "var(--accent)",
+] as const;
+
+function intensityIndex(day: DayRollup): number {
+  if (day.distanceKm <= 0) return 0;
+  if (day.distanceKm < 5) return 1;
+  if (day.distanceKm < 10) return 2;
+  if (day.distanceKm < 16) return 3;
+  return 4;
 }
 
 export function ActivityCalendar({ days }: { days: DayRollup[] }) {
   if (days.length === 0) {
     return (
-      <div className="rounded-md border border-dashed border-(--border) bg-(--surface) p-8 text-sm text-(--text-soft)">
+      <div className="rounded-sm border border-dashed border-(--border) bg-(--surface) p-8 font-mono text-sm text-(--text-soft)">
         No day rows returned from mart_days.
       </div>
     );
   }
 
   return (
-    <div className="rounded-md border border-(--border) bg-(--surface) p-4">
-      <div className="mb-4 flex items-start justify-between gap-3">
+    <section className="overflow-hidden rounded-sm border border-(--border) bg-(--surface)">
+      <div className="flex items-start justify-between gap-3 border-b border-(--border) px-4 py-3">
         <div className="min-w-0">
-          <h2 className="text-base font-semibold text-(--text)">Daily activity calendar</h2>
+          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-(--accent)">
+            analysis.output
+          </p>
+          <h2 className="mt-1 text-base font-semibold text-(--text)">
+            Daily activity calendar
+          </h2>
           <p className="mt-1 text-sm text-(--text-soft)">
             Daily running distance intensity across the loaded window.
           </p>
         </div>
         <MetricInfoDialog content={ACTIVITY_CALENDAR_INFO} />
       </div>
-      <div className="grid grid-flow-col grid-rows-7 gap-1 overflow-x-auto pb-2">
-        {days.map((day) => (
-          <div
-            key={day.calendarDate}
-            title={`${shortDate(day.calendarDate)}: ${formatDistance(day.distanceKm)}`}
-            className={`h-4 w-4 rounded-sm ${intensity(day)}`}
-          />
-        ))}
+      <div className="p-4">
+        <div
+          className="grid grid-flow-col grid-rows-7 gap-1 overflow-x-auto pb-2"
+          role="list"
+          aria-label="Daily running distance"
+        >
+          {days.map((day) => {
+            const label = `${shortDate(day.calendarDate)}: ${formatDistance(day.distanceKm)}`;
+
+            return (
+              <div
+                key={day.calendarDate}
+                title={label}
+                role="listitem"
+                aria-label={label}
+                className="size-4 rounded-[2px] border border-(--border)"
+                style={{ backgroundColor: calendarColors[intensityIndex(day)] }}
+              />
+            );
+          })}
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em] text-(--text-soft)">
+          <span>Less</span>
+          {calendarColors.map((color) => (
+            <span
+              key={color}
+              className="size-3 rounded-[1px] border border-(--border)"
+              style={{ backgroundColor: color }}
+              aria-hidden="true"
+            />
+          ))}
+          <span>More distance</span>
+        </div>
       </div>
-      <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-(--text-soft)">
-        <span>Less</span>
-        <span className="h-3 w-3 rounded-sm bg-(--surface-muted)" />
-        <span className="h-3 w-3 rounded-sm bg-emerald-200" />
-        <span className="h-3 w-3 rounded-sm bg-emerald-400" />
-        <span className="h-3 w-3 rounded-sm bg-teal-500" />
-        <span className="h-3 w-3 rounded-sm bg-cyan-700" />
-        <span>More distance</span>
-      </div>
-    </div>
+    </section>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, useId } from "react";
+import { useEffect, useId, useRef } from "react";
 import {
   CartesianGrid,
   Line,
@@ -110,6 +110,7 @@ export function RunDetailDialog({
 }) {
   const titleId = useId();
   const descriptionId = useId();
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const { segments, isLoading, error } = useRunSegments(run?.runId ?? "", open && run !== null);
   const elevationPoints = segments ? profilePoints(segments) : [];
 
@@ -118,14 +119,51 @@ export function RunDetailDialog({
       return;
     }
 
-    function closeOnEscape(event: KeyboardEvent) {
+    const previousActiveElement = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const dialog = dialogRef.current;
+    const focusableSelector =
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    dialog?.querySelector<HTMLElement>(focusableSelector)?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         onClose();
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialog) {
+        return;
+      }
+
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector));
+      const first = focusable[0];
+      const last = focusable.at(-1);
+
+      if (!first || !last) {
+        event.preventDefault();
+        return;
+      }
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     }
 
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previousActiveElement?.focus();
+    };
   }, [onClose, open]);
 
   if (!open || !run) {
@@ -134,23 +172,24 @@ export function RunDetailDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-3 py-4 backdrop-blur-sm sm:px-4 sm:py-6"
       onMouseDown={onClose}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
-        className="max-h-[calc(100vh-3rem)] w-full max-w-6xl overflow-y-auto rounded-md border border-(--border) bg-(--surface) shadow-2xl"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-6xl overflow-y-auto border border-(--border) bg-(--surface) shadow-2xl sm:max-h-[calc(100vh-3rem)]"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-(--border) bg-(--surface) px-5 py-4">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-(--text-soft)">
-              Run detail
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-(--accent)">
+              inspect::run_session
             </p>
-            <h2 id={titleId} className="mt-1 text-xl font-semibold text-(--text)">
+            <h2 id={titleId} className="mt-1 font-mono text-xl text-(--text)">
               {formatDate(run.activityDate)}
             </h2>
             <p id={descriptionId} className="mt-1 text-sm text-(--text-soft)">
@@ -161,7 +200,7 @@ export function RunDetailDialog({
           <button
             type="button"
             aria-label="Close run detail"
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-(--border) text-(--text-soft) transition hover:bg-(--surface-muted) hover:text-(--text)"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center border border-(--border) text-(--text-soft) transition hover:border-(--text-soft) hover:bg-(--surface-muted) hover:text-(--text)"
             onClick={onClose}
           >
             <X className="h-4 w-4" aria-hidden="true" />
@@ -172,9 +211,9 @@ export function RunDetailDialog({
           <section className="space-y-4">
             <div>
               {isLoading ? (
-                <div className="h-80 animate-pulse rounded-md border border-(--border) bg-(--surface-muted)" />
+                <div className="h-80 animate-pulse border border-(--border) bg-(--surface-muted)" />
               ) : error ? (
-                <div className="flex h-80 items-center justify-center rounded-md border border-dashed border-(--border) bg-(--surface-muted) px-4 text-sm text-(--text-soft)">
+                <div className="flex h-80 items-center justify-center border border-dashed border-(--border) bg-(--surface-muted) px-4 font-mono text-xs text-(--text-soft)">
                   {error}
                 </div>
               ) : (
@@ -186,36 +225,40 @@ export function RunDetailDialog({
             </div>
 
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-(--text)">Summary</h3>
-              <div className="grid gap-3 sm:grid-cols-4 lg:grid-cols-6">
+              <h3 className="font-mono text-xs uppercase tracking-[0.12em] text-(--text)">
+                session_summary
+              </h3>
+              <dl className="grid border-l border-t border-(--border) sm:grid-cols-3 lg:grid-cols-6">
                 {statItems(run).map(([label, value]) => (
                   <div
                     key={label}
-                    className="rounded-md border border-(--border) bg-(--surface-muted) px-3 py-2"
+                    className="border-r border-b border-(--border) bg-(--surface-muted)/60 px-3 py-3"
                   >
-                    <dt className="text-xs font-medium uppercase tracking-[0.12em] text-(--text-soft)">
+                    <dt className="font-mono text-[10px] uppercase tracking-[0.1em] text-(--text-soft)">
                       {label}
                     </dt>
-                    <dd className="mt-1 text-sm font-semibold text-(--text)">{value}</dd>
+                    <dd className="mt-1 font-mono text-sm text-(--text)">{value}</dd>
                   </div>
                 ))}
-              </div>
+              </dl>
             </div>
           </section>
 
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold text-(--text)">Elevation profile</h3>
+              <h3 className="font-mono text-xs uppercase tracking-[0.12em] text-(--text)">
+                elevation_profile
+              </h3>
               <p className="text-xs text-(--text-soft)">
                 Built from cumulative segment distance and segment altitude fields.
               </p>
             </div>
             {elevationPoints.length === 0 ? (
-              <div className="rounded-md border border-dashed border-(--border) bg-(--surface-muted) p-6 text-sm text-(--text-soft)">
+              <div className="border border-dashed border-(--border) bg-(--surface-muted) p-6 font-mono text-xs text-(--text-soft)">
                 No elevation profile is available for this run.
               </div>
             ) : (
-              <div className="h-64 rounded-md border border-(--border) bg-(--surface-muted) p-3">
+              <div className="h-64 border border-(--border) bg-(--surface-muted) p-3">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={elevationPoints}>
                     <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
@@ -258,27 +301,29 @@ export function RunDetailDialog({
 
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold text-(--text)">250 m splits</h3>
+              <h3 className="font-mono text-xs uppercase tracking-[0.12em] text-(--text)">
+                segment_splits::250m
+              </h3>
               <p className="text-xs text-(--text-soft)">
                 Ordered segment rows from <code className="font-mono text-(--text)">mart_run_segments</code>.
               </p>
             </div>
             {isLoading ? (
-              <div className="rounded-md border border-(--border) bg-(--surface-muted) p-6 text-sm text-(--text-soft)">
+              <div className="border border-(--border) bg-(--surface-muted) p-6 font-mono text-xs text-(--text-soft)">
                 Loading segment splits...
               </div>
             ) : error ? (
-              <div className="rounded-md border border-dashed border-(--border) bg-(--surface-muted) p-6 text-sm text-(--text-soft)">
+              <div className="border border-dashed border-(--border) bg-(--surface-muted) p-6 font-mono text-xs text-(--text-soft)">
                 {error}
               </div>
             ) : !segments || segments.length === 0 ? (
-              <div className="rounded-md border border-dashed border-(--border) bg-(--surface-muted) p-6 text-sm text-(--text-soft)">
+              <div className="border border-dashed border-(--border) bg-(--surface-muted) p-6 font-mono text-xs text-(--text-soft)">
                 No segment details are available for this run.
               </div>
             ) : (
-              <div className="overflow-hidden rounded-md border border-(--border)">
+              <div className="overflow-hidden border border-(--border)">
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-(--border) text-sm">
+                  <table className="min-w-full divide-y divide-(--border) font-mono text-xs">
                     <thead className="bg-(--surface-muted) text-left text-(--text-soft)">
                       <tr>
                         <th className="px-3 py-3 font-medium">Split</th>
@@ -293,7 +338,10 @@ export function RunDetailDialog({
                     </thead>
                     <tbody className="divide-y divide-(--border) bg-(--surface)">
                       {segments.map((segment) => (
-                        <tr key={`${segment.runId}-${segment.segmentIndex}`}>
+                        <tr
+                          key={`${segment.runId}-${segment.segmentIndex}`}
+                          className="transition-colors hover:bg-(--accent-soft)"
+                        >
                           <td className="whitespace-nowrap px-4 py-3 font-medium text-(--text)">
                             {splitDistance(segment)}
                           </td>

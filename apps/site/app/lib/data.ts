@@ -224,7 +224,7 @@ async function queryLandingStatusFromDatabricks(): Promise<LandingStatus> {
 
   return {
     latestCompletedDate,
-    statusLabel: latestCompletedDate ? "Gold marts current" : "No completed gold day",
+    statusLabel: latestCompletedDate ? "Modeled data available" : "No modeled data available",
     goldSchema: process.env.DATABRICKS_GOLD_SCHEMA ?? null,
   };
 }
@@ -241,7 +241,7 @@ async function queryLandingStatusFromSupabase(): Promise<LandingStatus> {
 
   return {
     latestCompletedDate,
-    statusLabel: latestCompletedDate ? "Site read model current" : "No completed site day",
+    statusLabel: latestCompletedDate ? "Modeled data available" : "No modeled data available",
     goldSchema: metadataString(schemaResult.rows[0]),
   };
 }

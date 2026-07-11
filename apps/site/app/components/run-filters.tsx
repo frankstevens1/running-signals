@@ -1,4 +1,4 @@
-import { RotateCcw, Search } from "lucide-react";
+import { RotateCcw, Search, SlidersHorizontal } from "lucide-react";
 
 import { formatDistance, formatRouteId } from "@/app/lib/format";
 import type { RouteSummary } from "@/app/lib/types";
@@ -8,18 +8,35 @@ export function RunFilters({ params, routes }: { params: URLSearchParams; routes
   const selectedRouteId = value("routeId");
   const hasSelectedRouteOption = routes.some((route) => route.routeId === selectedRouteId);
   const controlClass =
-    "h-9 w-full rounded-md border border-(--border) bg-(--surface-muted) px-2.5 text-sm text-(--text) outline-none transition placeholder:text-(--text-soft) focus:border-(--accent) focus:bg-(--surface) focus:ring-2 focus:ring-(--accent)";
-  const fieldClass = "space-y-1";
-  const fieldLabelClass = "block text-xs font-medium text-(--text-soft)";
+    "h-10 w-full rounded-none border border-(--border) bg-(--background) px-3 font-mono text-xs text-(--text) outline-none transition placeholder:text-(--text-soft) focus:border-(--accent) focus:bg-(--surface) focus:ring-1 focus:ring-(--accent)";
+  const fieldClass = "space-y-1.5";
+  const fieldLabelClass =
+    "block font-mono text-[10px] uppercase tracking-[0.12em] text-(--text-soft)";
   const pairedFieldClass = `${fieldClass} sm:col-span-2 xl:col-span-3`;
 
   return (
-    <form className="rounded-md border border-(--border) bg-(--surface) p-3">
+    <form className="border border-(--border) bg-(--surface)">
       <input type="hidden" name="limit" value={value("limit") || "25"} />
       <input type="hidden" name="sort" value={value("sort") || "activity_date"} />
       <input type="hidden" name="direction" value={value("direction") || "desc"} />
       <input type="hidden" name="view" value={value("view") || "timeline"} />
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6 xl:grid-cols-12 xl:items-end">
+      <div className="flex items-center justify-between gap-4 border-b border-(--border) px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <SlidersHorizontal className="h-4 w-4 shrink-0 text-(--accent)" aria-hidden="true" />
+          <div>
+            <p className="font-mono text-xs uppercase tracking-[0.12em] text-(--text)">
+              Query parameters
+            </p>
+            <p className="mt-0.5 text-xs text-(--text-soft)">
+              Narrow the session mart without changing the underlying signal definitions.
+            </p>
+          </div>
+        </div>
+        <span className="hidden font-mono text-[10px] uppercase tracking-[0.12em] text-(--signal-ok) sm:block">
+          ready
+        </span>
+      </div>
+      <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-6 xl:grid-cols-12 xl:items-end">
         <label className={`${fieldClass} lg:col-span-1 xl:col-span-2`}>
           <span className={fieldLabelClass}>Date from</span>
           <input
@@ -190,7 +207,7 @@ export function RunFilters({ params, routes }: { params: URLSearchParams; routes
         <div className="grid grid-cols-[minmax(0,1fr)_2.25rem] gap-2 sm:col-span-2 lg:col-span-6 xl:col-span-3">
           <button
             type="submit"
-            className="inline-flex h-9 min-w-0 items-center justify-center gap-2 rounded-md bg-(--accent) px-3 text-sm font-semibold text-(--accent-foreground) hover:bg-(--accent-strong)"
+            className="inline-flex h-10 min-w-0 items-center justify-center gap-2 bg-(--accent) px-3 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-(--accent-foreground) transition-colors hover:bg-(--accent-strong)"
           >
             <Search className="h-4 w-4" aria-hidden="true" />
             Apply
@@ -199,7 +216,7 @@ export function RunFilters({ params, routes }: { params: URLSearchParams; routes
             href="/runs"
             aria-label="Reset run filters"
             title="Reset filters"
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-(--border) text-(--text-soft) hover:bg-(--surface-muted) hover:text-(--text)"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center border border-(--border) text-(--text-soft) transition-colors hover:border-(--text-soft) hover:bg-(--surface-muted) hover:text-(--text)"
           >
             <RotateCcw className="h-4 w-4" aria-hidden="true" />
           </a>

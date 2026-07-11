@@ -80,7 +80,7 @@ const useCases = [
 
 function CodeLabel({ children }: { children: React.ReactNode }) {
   return (
-    <code className="rounded border border-(--border) bg-(--surface-muted) px-2 py-1 font-mono text-xs text-(--text)">
+    <code className="border border-(--border) bg-(--surface-muted) px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em] text-(--text)">
       {children}
     </code>
   );
@@ -89,7 +89,7 @@ function CodeLabel({ children }: { children: React.ReactNode }) {
 export default function MlReadinessPage() {
   return (
     <AppShell>
-      <div className="space-y-6">
+      <div className="space-y-16">
         <SectionHeading
           eyebrow="feature marts"
           title="ML readiness assets"
@@ -97,40 +97,48 @@ export default function MlReadinessPage() {
           icon={explorerPages.mlReadiness.icon}
         />
 
-        <section className="rounded-md border border-(--border) bg-(--surface) p-5">
-          <p className="text-xs font-semibold uppercase tracking-normal text-(--accent)">
-            Readiness boundary
-          </p>
-          <p className="mt-3 max-w-4xl text-sm leading-6 text-(--text-soft)">
+        <section className="grid border border-(--border) bg-(--surface) md:grid-cols-[15rem_1fr]">
+          <div className="border-b border-(--border) bg-(--surface-muted)/60 p-5 md:border-r md:border-b-0">
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-(--accent)">
+              system_boundary
+            </p>
+            <p className="mt-2 font-mono text-xs text-(--signal-ok)">features_only: true</p>
+          </div>
+          <p className="max-w-4xl p-5 text-sm leading-7 text-(--text-soft)">
             These are analytical feature assets. They make model inputs, labels, lineage, and
             missing-data behavior easier to inspect, but this site does not train models, serve
             predictions, or convert the outputs into athlete guidance.
           </p>
         </section>
 
-        <section className="space-y-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-normal text-(--accent)">
-              Feature library
-            </p>
-            <h2 className="mt-2 text-2xl font-semibold text-(--text)">
-              Existing marts already separate features from outcomes.
-            </h2>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            {featureGroups.map((group) => (
+        <section>
+          <SectionHeading
+            eyebrow="01 / Feature library"
+            title="Inputs and outcomes remain explicit."
+            description="Prediction-ready assets expose their grain, source, and intended labels without presenting experimental possibilities as live intelligence."
+            level={2}
+          />
+          <div className="mt-8 border-t border-(--border)">
+            {featureGroups.map((group, index) => (
               <article
                 key={group.title}
-                className="rounded-md border border-(--border) bg-(--surface) p-5"
+                className="grid gap-5 border-x border-b border-(--border) bg-(--surface)/50 p-5 md:grid-cols-[2rem_minmax(12rem,0.75fr)_minmax(0,1.25fr)] md:p-6"
               >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <h3 className="text-lg font-semibold text-(--text)">{group.title}</h3>
-                  <CodeLabel>{group.source}</CodeLabel>
+                <span className="font-mono text-[10px] text-(--text-soft)">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <div>
+                  <h3 className="text-lg font-medium text-(--text)">{group.title}</h3>
+                  <div className="mt-3">
+                    <CodeLabel>{group.source}</CodeLabel>
+                  </div>
                 </div>
-                <ul className="mt-4 space-y-3 text-sm leading-6 text-(--text-soft)">
+                <ul className="space-y-3 text-sm leading-6 text-(--text-soft)">
                   {group.items.map((item) => (
                     <li key={item} className="flex gap-3">
-                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-(--accent)" />
+                      <span className="mt-0.5 font-mono text-(--accent)" aria-hidden="true">
+                        +
+                      </span>
                       <span>{item}</span>
                     </li>
                   ))}
@@ -140,22 +148,23 @@ export default function MlReadinessPage() {
           </div>
         </section>
 
-        <section className="space-y-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-normal text-(--accent)">
-              Potential ML use cases
-            </p>
-            <h2 className="mt-2 text-2xl font-semibold text-(--text)">
-              Future work would start with descriptive, offline experiments.
-            </h2>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {useCases.map((useCase) => (
+        <section>
+          <SectionHeading
+            eyebrow="02 / Potential experiments"
+            title="Future work starts offline."
+            description="These use cases describe technically supported experiments, not shipped predictions, recommendations, or athlete guidance."
+            level={2}
+          />
+          <div className="mt-8 grid border-l border-t border-(--border) md:grid-cols-2 xl:grid-cols-4">
+            {useCases.map((useCase, index) => (
               <article
                 key={useCase.title}
-                className="rounded-md border border-(--border) bg-(--surface) p-5"
+                className="border-r border-b border-(--border) bg-(--surface)/50 p-5"
               >
-                <h3 className="text-base font-semibold text-(--text)">{useCase.title}</h3>
+                <p className="font-mono text-[10px] text-(--accent)">
+                  experiment::{String(index + 1).padStart(2, "0")}
+                </p>
+                <h3 className="mt-3 text-base font-medium text-(--text)">{useCase.title}</h3>
                 <p className="mt-3 text-sm leading-6 text-(--text-soft)">{useCase.copy}</p>
               </article>
             ))}
