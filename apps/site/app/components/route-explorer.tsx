@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { X } from "lucide-react";
 
 import { RouteMap } from "@/app/components/route-map";
+import { useDistanceUnit } from "@/app/components/distance-unit-provider";
 import {
   formatDate,
   formatDistance,
@@ -11,17 +12,18 @@ import {
   formatPace,
   formatRouteId,
 } from "@/app/lib/format";
-import type { RouteSegment, RouteSummary } from "@/app/lib/types";
+import type { RouteGeometryRecord, RouteSummary } from "@/app/lib/types";
 
 export function RouteExplorer({
   routes,
-  segments,
+  records,
   initialSelectedRouteId,
 }: {
   routes: RouteSummary[];
-  segments: RouteSegment[];
+  records: RouteGeometryRecord[];
   initialSelectedRouteId: string | null;
 }) {
+  const { unit } = useDistanceUnit();
   const [selectedRouteId, setSelectedRouteId] = useState(initialSelectedRouteId);
   const selectedRoute = useMemo(
     () => routes.find((route) => route.routeId === selectedRouteId) ?? null,
@@ -48,7 +50,7 @@ export function RouteExplorer({
     <div className="space-y-4">
       <RouteMap
         routes={routes}
-        segments={segments}
+        records={records}
         selectedRouteId={selectedRouteId}
         onSelectRoute={selectRoute}
       />
@@ -114,13 +116,13 @@ export function RouteExplorer({
                       <div>
                         <dt className="uppercase tracking-[0.1em] text-(--text-soft)">Distance</dt>
                         <dd className="mt-1 text-(--text)">
-                          {formatDistance(route.avgDistanceKm)} avg
+                          {formatDistance(route.avgDistanceKm, unit)} avg
                         </dd>
                       </div>
                       <div>
                         <dt className="uppercase tracking-[0.1em] text-(--text-soft)">Pace</dt>
                         <dd className="mt-1 text-(--text)">
-                          {formatPace(route.avgPaceMinPerKm)}
+                          {formatPace(route.avgPaceMinPerKm, unit)}
                         </dd>
                       </div>
                       <div>
@@ -185,10 +187,10 @@ export function RouteExplorer({
                         </td>
                         <td className="whitespace-nowrap px-4 py-3">{route.runCount}</td>
                         <td className="whitespace-nowrap px-4 py-3">
-                          {formatDistance(route.avgDistanceKm)}
+                          {formatDistance(route.avgDistanceKm, unit)}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3">
-                          {formatPace(route.avgPaceMinPerKm)}
+                          {formatPace(route.avgPaceMinPerKm, unit)}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3">
                           {formatHeartRate(route.avgHeartRate)}

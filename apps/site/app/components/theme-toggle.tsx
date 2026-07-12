@@ -43,7 +43,7 @@ export function ThemeToggle() {
       aria-label="Switch between light and dark color themes"
       title="Switch color theme"
       onClick={toggleTheme}
-      className="theme-toggle inline-flex h-10 w-10 shrink-0 items-center justify-center border border-(--border) bg-(--surface-muted) text-(--text-soft) transition-colors hover:border-(--border-strong) hover:bg-(--surface-raised) hover:text-(--accent)"
+      className="theme-toggle inline-flex h-9 w-9 shrink-0 items-center justify-center border border-(--border) bg-(--surface-muted) text-(--text-soft) transition-colors hover:border-(--border-strong) hover:bg-(--surface-raised) hover:text-(--accent)"
     >
       <Sun className="theme-icon-sun h-4 w-4" aria-hidden="true" />
       <Moon className="theme-icon-moon h-4 w-4" aria-hidden="true" />

@@ -112,20 +112,24 @@ silver_runs + silver_health_days -> silver_dates
 silver_dates + silver_runs + silver_health_days -> mart_days
 mart_days -> mart_weeks, mart_months, mart_years
 mart_weeks -> signal_consistency, signal_volume, mart_weekly_training_features
-silver_run_records -> mart_run_segments
-silver_runs + mart_run_segments -> mart_route_clusters
+silver_run_records -> mart_activity_records
+silver_run_records + mart_segment_resolutions -> mart_run_segments
+silver_runs + silver_run_records -> mart_route_clusters
 silver_runs + mart_days + mart_run_segments + mart_route_clusters -> mart_run_sessions
 mart_run_sessions -> mart_routes
 mart_run_sessions + mart_routes -> mart_route_prediction_features
-silver_runs + silver_health_days -> signal_fitness, mart_runs, mart_running_signals
+silver_runs + silver_health_days + mart_run_segments -> signal_fitness
+silver_runs + silver_health_days -> mart_runs
+signal_fitness + mart_weeks -> mart_running_signals
 ```
 
 ## Presentation Serving
 
 The Next.js site does not query Databricks during normal page rendering. After dbt builds the gold
 models, `scripts/sync_site_supabase.py` reloads a narrow set of Supabase `site_*` tables from the
-gold outputs. Those tables contain only presentation-safe fields used by the explorers, charts, and
-status panels.
+gold outputs. Those tables contain only presentation-safe fields used by the explorers, charts,
+status panels, and route maps. Route maps use the ordered telemetry from `mart_activity_records`;
+analytical segments remain split-level aggregates.
 
 Supabase is a serving cache, not the analytical source of truth. If a metric changes, the definition
 belongs in dbt gold first; the Supabase sync should only project that result into the shape required
@@ -133,9 +137,11 @@ by the website.
 
 Silver models standardize date, run-level, per-record, and daily health context fields. The primary
 analytical foundation is `mart_days`; weekly, monthly, and yearly outputs roll up from that daily
-mart. Weekly signal models remain as compatibility outputs. Route clustering is a gold transform
-over fixed route segments, and route, segment, and run-session marts support route and performance
-analysis. Health fields are descriptive context, not readiness or medical scoring.
+mart. Weekly signal models remain as compatibility outputs. Route clustering builds its legacy 250m
+H3 path directly from silver records, so accurate analytical split allocation and additional metric
+or imperial resolutions do not change route identity. Activity records provide full route geometry,
+while route, segment, and run-session marts support route and performance analysis. Health fields are
+descriptive context, not readiness or medical scoring.
 
 ## Analytics Readiness
 
@@ -145,8 +151,8 @@ product:
 - Monitoring: `mart_days`, `mart_weeks`, `mart_months`, and `mart_years` expose daily training
   behavior and calendar rollups.
 - Visual analytics: `mart_runs`, `mart_run_sessions`, `mart_routes`, `mart_route_clusters`,
-  `mart_run_segments`, and `mart_running_signals` expose run, route, segment, and signal views for
-  portfolio communication.
+  `mart_activity_records`, `mart_run_segments`, and `mart_running_signals` expose run, route,
+  record, segment, and signal views for portfolio communication.
 - Prediction-ready features: `mart_route_prediction_features` and
   `mart_weekly_training_features` provide transparent feature and label columns for later modeling
   experiments, but do not train models or produce forecasts.

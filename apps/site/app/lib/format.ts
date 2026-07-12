@@ -1,3 +1,10 @@
+import {
+  distanceFromKm,
+  paceFromMinPerKm,
+  speedFromKmh,
+  type DistanceUnit,
+} from "./distance-unit";
+
 const numberFormat = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 1,
 });
@@ -16,9 +23,12 @@ export function formatInteger(value: number | null | undefined): string {
   return integerFormat.format(value);
 }
 
-export function formatDistance(value: number | null | undefined): string {
+export function formatDistance(
+  value: number | null | undefined,
+  unit: DistanceUnit = "km",
+): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "n/a";
-  return `${numberFormat.format(value)} km`;
+  return `${numberFormat.format(distanceFromKm(value, unit))} ${unit}`;
 }
 
 export function formatDuration(seconds: number | null | undefined): string {
@@ -35,12 +45,15 @@ export function formatDuration(seconds: number | null | undefined): string {
   return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
 }
 
-export function formatPace(value: number | null | undefined): string {
+export function formatPace(
+  value: number | null | undefined,
+  unit: DistanceUnit = "km",
+): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "n/a";
-  const totalSeconds = Math.round(value * 60);
+  const totalSeconds = Math.round(paceFromMinPerKm(value, unit) * 60);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, "0")} /km`;
+  return `${minutes}:${String(seconds).padStart(2, "0")} /${unit}`;
 }
 
 export function formatHeartRate(value: number | null | undefined): string {
@@ -48,9 +61,13 @@ export function formatHeartRate(value: number | null | undefined): string {
   return `${Math.round(value)} bpm`;
 }
 
-export function formatSpeed(value: number | null | undefined): string {
+export function formatSpeed(
+  value: number | null | undefined,
+  unit: DistanceUnit = "km",
+): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "n/a";
-  return `${numberFormat.format(value)} km/h`;
+  const label = unit === "mi" ? "mph" : "km/h";
+  return `${numberFormat.format(speedFromKmh(value, unit))} ${label}`;
 }
 
 export function formatCadence(value: number | null | undefined): string {

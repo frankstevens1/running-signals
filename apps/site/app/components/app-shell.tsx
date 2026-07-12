@@ -4,6 +4,7 @@ import { siGithub } from "simple-icons";
 
 import { AppNav } from "@/app/components/app-nav";
 import { CommandPalette } from "@/app/components/command-palette";
+import { DistanceUnitToggle } from "@/app/components/distance-unit-toggle";
 import { ThemeToggle } from "@/app/components/theme-toggle";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -48,6 +49,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
             <div className="flex shrink-0 items-center gap-2">
               <CommandPalette />
+              <DistanceUnitToggle />
               <ThemeToggle />
             </div>
           </div>

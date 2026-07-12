@@ -20,7 +20,9 @@ This document describes the implemented analytical model contract for Running Si
 | Day | `silver_dates`, `mart_days` | `calendar_date` |
 | Run session | `silver_runs`, `mart_run_sessions` | `run_id` / `activity_id` |
 | Record telemetry | `silver_run_records` | `run_id`, `record_timestamp` |
-| Fixed segment | `mart_run_segments` | `run_id`, `segment_index` |
+| Activity record | `mart_activity_records` | `run_id`, `record_index` |
+| Segment resolution | `mart_segment_resolutions` | `unit_system`, `segment_length_value` |
+| Analytical segment | `mart_run_segments` | `run_id`, `unit_system`, `segment_length_value`, `segment_index` |
 | Route observation | `mart_route_clusters` | `run_id` |
 | Route profile | `mart_routes` | `route_id` |
 | Week | `mart_weeks` | `week_start_date` |
@@ -51,8 +53,10 @@ mart_weeks
     -> signal_volume
     -> mart_weekly_training_features
 silver_run_records
+    -> mart_activity_records
+silver_run_records + mart_segment_resolutions
     -> mart_run_segments
-silver_runs + mart_run_segments
+silver_runs + silver_run_records
     -> mart_route_clusters
 silver_runs + mart_days + mart_run_segments + mart_route_clusters
     -> mart_run_sessions
@@ -60,9 +64,11 @@ mart_run_sessions
     -> mart_routes
 mart_run_sessions + mart_routes
     -> mart_route_prediction_features
-silver_runs + silver_health_days
+silver_runs + silver_health_days + mart_run_segments
     -> signal_fitness
+silver_runs + silver_health_days
     -> mart_runs
+signal_fitness + mart_weeks
     -> mart_running_signals
 gold presentation outputs
     -> Supabase site_* read models
@@ -76,7 +82,9 @@ of the daily foundation.
 
 Supabase `site_*` tables mirror the public-facing gold fields used by the Next.js site. They are
 loaded after dbt succeeds and are optimized for low-latency reads, filtering, sorting, charts, and
-route maps. They are intentionally not a replacement for the Databricks/dbt model contracts.
+route maps. Ordered activity records provide map geometry; analytical segment endpoints are not a
+route reconstruction format. The read tables are not a replacement for the Databricks/dbt model
+contracts.
 
 ## Bronze Tables
 
@@ -191,25 +199,55 @@ Purpose: define descriptive aerobic fitness indicators from session pace, speed,
 heart-rate bands, first-half versus second-half heart-rate drift, Garmin Recovery HR when available,
 and same-day health context.
 
+### mart_segment_resolutions
+
+Grain: one row per `unit_system` and `segment_length_value`.
+
+Purpose: configure the metric and imperial quarter, half, and full split progression. Each row keeps
+an exact canonical `segment_length_m`, a display label, and the canonical marker used to protect
+existing downstream calculations. Additional resolutions require a new row rather than a segment
+model redesign.
+
+### mart_activity_records
+
+Grain: one row per `run_id` and `record_index`.
+
+Purpose: publish the ordered, presentation-safe activity telemetry needed to render complete route
+geometry and within-run charts. It retains every silver record, including rows without coordinates,
+so consumers can preserve ordering and avoid reconnecting separate GPS sequences across gaps.
+
 ### mart_run_segments
 
-Grain: one row per run and fixed 250m segment.
+Grain: one row per run, unit system, configured segment length, and segment index.
 
-Purpose: expose curated within-run analytics from record telemetry: segment pace, duration, heart
-rate, cadence, elevation change, grade, coordinates, and representative H3 cells. Segment cadence is
-based on the normalized total-steps-per-minute record cadence. Segment metrics remain nullable when
-the underlying FIT records do not include positive distance deltas, heart rate, cadence, or altitude
-telemetry.
+Purpose: expose curated within-run analytics from record telemetry at 0.25, 0.5, and 1 kilometre or
+mile resolutions. Cumulative distance is made monotonic with a running maximum. Each record-to-record
+interval is allocated to every crossed segment by distance overlap; elapsed time uses the same
+proportion. Stationary or source-correction intervals contribute zero distance and assign their full
+elapsed time to the segment containing the interval endpoint.
+
+Distance zero belongs to segment 1, and analytical segments use lower-exclusive, upper-inclusive
+boundaries. Exact-boundary finishes therefore complete the preceding segment without creating a
+zero-distance trailing row. Segment speed and pace derive from allocated distance and duration.
+Heart rate and cadence use weighted, linearly interpolated interval values; boundary altitude and
+coordinates are interpolated when both adjacent records provide them.
 
 ### mart_route_clusters
 
 Grain: one row per GPS-backed run with route geometry.
 
 Purpose: assign similarity-based, direction-specific route identity before session-level enrichment.
-Routes are compared as ordered resolution-8 H3 segment paths, with a one-segment positional
-tolerance and a 90% minimum overlap score after a 10% distance prefilter. The representative route is
-the earliest directly matching observed run. Its resolution-9 H3 signature and 0.5 km distance
-bucket generate the stable `route_id` used downstream.
+The model builds its preserved legacy 250m floor-bucketed H3 path directly from
+`silver_run_records`; it does not depend on analytical segment indices. This retains existing route
+hashes, the one-segment positional tolerance, and the 90% minimum overlap score after a 10% distance
+prefilter while allowing split allocation to improve independently. The representative route is the
+earliest directly matching observed run. Its resolution-9 H3 signature and 0.5 km distance bucket
+generate the stable `route_id` used downstream. Presentation maps use `mart_activity_records`, not
+either H3 path.
+
+Representative cells retain the lowest-distance record in each legacy bucket. Equal cumulative
+distances are resolved by `record_index`, replacing the previous undefined `min_by` tie behavior so
+future recomputations remain deterministic.
 
 ### mart_run_sessions
 

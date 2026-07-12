@@ -13,9 +13,10 @@ import {
 import { getVolume } from "@/app/lib/data";
 import { formatDistance, formatInteger, shortDate } from "@/app/lib/format";
 import { explorerPages } from "@/app/lib/page-metadata";
+import { getServerDistanceUnit } from "@/app/lib/server-distance-unit";
 
 export default async function VolumePage() {
-  const volume = await getVolume();
+  const [volume, unit] = await Promise.all([getVolume(), getServerDistanceUnit()]);
 
   return (
     <AppShell>
@@ -46,25 +47,25 @@ export default async function VolumePage() {
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   <MetricCard
                     label="Rolling 4w distance"
-                    value={formatDistance(latestWeek?.rolling4wDistanceKm)}
+                    value={formatDistance(latestWeek?.rolling4wDistanceKm, unit)}
                     detail="Latest completed-week window"
                     icon={TrendingUp}
                   />
                   <MetricCard
                     label="Latest month"
-                    value={formatDistance(latestMonth?.monthlyDistanceKm)}
+                    value={formatDistance(latestMonth?.monthlyDistanceKm, unit)}
                     detail={`${formatInteger(latestMonth?.runsPerMonth)} runs`}
                     icon={CalendarDays}
                   />
                   <MetricCard
                     label="Longest run"
-                    value={formatDistance(longestRunWeek?.longRunDistanceKm)}
+                    value={formatDistance(longestRunWeek?.longRunDistanceKm, unit)}
                     detail={`Week of ${shortDate(longestRunWeek?.weekStartDate)}`}
                     icon={Ruler}
                   />
                   <MetricCard
                     label="Latest year"
-                    value={formatDistance(latestYear?.yearlyDistanceKm)}
+                    value={formatDistance(latestYear?.yearlyDistanceKm, unit)}
                     detail={`${formatInteger(latestYear?.activeDays)} active days`}
                     icon={Route}
                   />

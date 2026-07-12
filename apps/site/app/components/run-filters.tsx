@@ -1,11 +1,32 @@
 import { RotateCcw, Search, SlidersHorizontal } from "lucide-react";
 
+import { distanceFromKm, type DistanceUnit } from "@/app/lib/distance-unit";
 import { formatDistance, formatRouteId } from "@/app/lib/format";
 import type { RouteSummary } from "@/app/lib/types";
 
-export function RunFilters({ params, routes }: { params: URLSearchParams; routes: RouteSummary[] }) {
+export function RunFilters({
+  params,
+  routes,
+  unit,
+}: {
+  params: URLSearchParams;
+  routes: RouteSummary[];
+  unit: DistanceUnit;
+}) {
   const value = (key: string) => params.get(key) ?? "";
   const selectedRouteId = value("routeId");
+  const distanceValue = (key: string, legacyKey: string) => {
+    const current = value(key);
+    if (current) return current;
+
+    const legacyValue = value(legacyKey);
+    if (!legacyValue) return "";
+
+    const legacy = Number(legacyValue);
+    if (!Number.isFinite(legacy)) return "";
+
+    return String(Number(distanceFromKm(legacy, unit).toFixed(4)));
+  };
   const hasSelectedRouteOption = routes.some((route) => route.routeId === selectedRouteId);
   const controlClass =
     "h-10 w-full rounded-none border border-(--border) bg-(--background) px-3 font-mono text-xs text-(--text) outline-none transition placeholder:text-(--text-soft) focus:border-(--accent) focus:bg-(--surface) focus:ring-1 focus:ring-(--accent)";
@@ -15,7 +36,10 @@ export function RunFilters({ params, routes }: { params: URLSearchParams; routes
   const pairedFieldClass = `${fieldClass} sm:col-span-2 xl:col-span-3`;
 
   return (
-    <form className="border border-(--border) bg-(--surface)">
+    <form
+      key={`${unit}:${params.toString()}`}
+      className="border border-(--border) bg-(--surface)"
+    >
       <input type="hidden" name="limit" value={value("limit") || "25"} />
       <input type="hidden" name="sort" value={value("sort") || "activity_date"} />
       <input type="hidden" name="direction" value={value("direction") || "desc"} />
@@ -67,7 +91,7 @@ export function RunFilters({ params, routes }: { params: URLSearchParams; routes
             name="routeId"
             suppressHydrationWarning
             defaultValue={selectedRouteId}
-            className={controlClass}
+            className={controlClass + " rounded-none"}
           >
             <option value="">Any route</option>
             {selectedRouteId && !hasSelectedRouteOption ? (
@@ -76,7 +100,7 @@ export function RunFilters({ params, routes }: { params: URLSearchParams; routes
             {routes.map((route) => (
               <option key={route.routeId} value={route.routeId}>
                 {formatRouteId(route.routeId)} - {route.runCount} runs -{" "}
-                {formatDistance(route.avgDistanceKm)}
+                {formatDistance(route.avgDistanceKm, unit)}
               </option>
             ))}
           </select>
@@ -113,37 +137,37 @@ export function RunFilters({ params, routes }: { params: URLSearchParams; routes
         </label>
 
         <fieldset className={pairedFieldClass}>
-          <legend className={fieldLabelClass}>Distance km</legend>
+          <legend className={fieldLabelClass}>Distance {unit}</legend>
           <div className="grid grid-cols-2 gap-2">
             <input
-              name="minDistanceKm"
+              name="minDistance"
               type="number"
               suppressHydrationWarning
               inputMode="decimal"
               min="0"
               step="0.1"
               placeholder="5.0"
-              aria-label="Minimum distance in kilometers"
-              defaultValue={value("minDistanceKm")}
+              aria-label={`Minimum distance in ${unit === "mi" ? "miles" : "kilometres"}`}
+              defaultValue={distanceValue("minDistance", "minDistanceKm")}
               className={controlClass}
             />
             <input
-              name="maxDistanceKm"
+              name="maxDistance"
               type="number"
               suppressHydrationWarning
               inputMode="decimal"
               min="0"
               step="0.1"
               placeholder="12.0"
-              aria-label="Maximum distance in kilometers"
-              defaultValue={value("maxDistanceKm")}
+              aria-label={`Maximum distance in ${unit === "mi" ? "miles" : "kilometres"}`}
+              defaultValue={distanceValue("maxDistance", "maxDistanceKm")}
               className={controlClass}
             />
           </div>
         </fieldset>
 
         <fieldset className={pairedFieldClass}>
-          <legend className={fieldLabelClass}>Pace min/km</legend>
+          <legend className={fieldLabelClass}>Pace min/{unit}</legend>
           <div className="grid grid-cols-2 gap-2">
             <input
               name="minPace"
@@ -153,7 +177,7 @@ export function RunFilters({ params, routes }: { params: URLSearchParams; routes
               min="0"
               step="0.01"
               placeholder="5.00"
-              aria-label="Minimum pace in decimal minutes per kilometer"
+              aria-label={`Minimum pace in decimal minutes per ${unit === "mi" ? "mile" : "kilometre"}`}
               defaultValue={value("minPace")}
               className={controlClass}
             />
@@ -165,7 +189,7 @@ export function RunFilters({ params, routes }: { params: URLSearchParams; routes
               min="0"
               step="0.01"
               placeholder="6.50"
-              aria-label="Maximum pace in decimal minutes per kilometer"
+              aria-label={`Maximum pace in decimal minutes per ${unit === "mi" ? "mile" : "kilometre"}`}
               defaultValue={value("maxPace")}
               className={controlClass}
             />

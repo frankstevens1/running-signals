@@ -8,6 +8,8 @@ with runs as (
 segments as (
     select *
     from {{ ref('mart_run_segments') }}
+    where unit_system = 'metric'
+        and segment_length_m = 250.000
 ),
 
 route_clusters as (

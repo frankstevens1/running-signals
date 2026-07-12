@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
 
+import type { DistanceUnit } from "@/app/lib/distance-unit";
 import {
   formatDate,
   formatDistance,
@@ -70,7 +71,15 @@ function SortableHeader({
   );
 }
 
-export function RunTable({ runs, params }: { runs: RunSession[]; params: URLSearchParams }) {
+export function RunTable({
+  runs,
+  params,
+  unit,
+}: {
+  runs: RunSession[];
+  params: URLSearchParams;
+  unit: DistanceUnit;
+}) {
   if (runs.length === 0) {
     return (
       <div className="border border-dashed border-(--border) bg-(--surface) p-8 font-mono text-xs text-(--text-soft)">
@@ -96,8 +105,8 @@ export function RunTable({ runs, params }: { runs: RunSession[]; params: URLSear
                 <td className="whitespace-nowrap px-4 py-3 text-(--text)">
                   {formatDate(run.activityDate)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3">{formatDistance(run.distanceKm)}</td>
-                <td className="whitespace-nowrap px-4 py-3">{formatPace(run.avgPaceMinPerKm)}</td>
+                <td className="whitespace-nowrap px-4 py-3">{formatDistance(run.distanceKm, unit)}</td>
+                <td className="whitespace-nowrap px-4 py-3">{formatPace(run.avgPaceMinPerKm, unit)}</td>
                 <td className="whitespace-nowrap px-4 py-3">
                   {formatHeartRate(run.avgHeartRate)}
                 </td>
@@ -105,7 +114,7 @@ export function RunTable({ runs, params }: { runs: RunSession[]; params: URLSear
                   {run.totalAscent === null ? "n/a" : `${Math.round(run.totalAscent)} m`}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3">
-                  {formatDistance(run.prior28dDistanceKm)}
+                  {formatDistance(run.prior28dDistanceKm, unit)}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3">
                   {run.routeId ? (

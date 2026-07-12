@@ -9,6 +9,7 @@ import { SectionHeading } from "@/app/components/section-heading";
 import { getDays, getWeeks } from "@/app/lib/data";
 import { formatDistance, formatInteger, formatNumber } from "@/app/lib/format";
 import { explorerPages } from "@/app/lib/page-metadata";
+import { getServerDistanceUnit } from "@/app/lib/server-distance-unit";
 import type { DayRollup } from "@/app/lib/types";
 
 type DailyConsistencyContext = {
@@ -69,7 +70,11 @@ function getDailyConsistencyContext(days: DayRollup[]): DailyConsistencyContext 
 }
 
 export default async function ConsistencyPage() {
-  const [days, weeks] = await Promise.all([getDays(371), getWeeks(52)]);
+  const [days, weeks, unit] = await Promise.all([
+    getDays(371),
+    getWeeks(52),
+    getServerDistanceUnit(),
+  ]);
   const dailyContext = days.status === "ok" ? getDailyConsistencyContext(days.data) : null;
 
   return (
@@ -84,7 +89,7 @@ export default async function ConsistencyPage() {
         <DataState result={days}>
           {(data) => (
             <ScrollReveal>
-              <ActivityCalendar days={data} />
+              <ActivityCalendar days={data} unit={unit} />
             </ScrollReveal>
           )}
         </DataState>
@@ -113,13 +118,13 @@ export default async function ConsistencyPage() {
                 />
                 <MetricCard
                   label="Latest weekly volume"
-                  value={formatDistance(latest?.weeklyDistanceKm)}
+                  value={formatDistance(latest?.weeklyDistanceKm, unit)}
                   detail={`${formatInteger(latest?.runsPerWeek)} runs in latest completed week`}
                   icon={Activity}
                 />
                 <MetricCard
                   label="Average weekly volume"
-                  value={formatDistance(averageWeeklyVolume)}
+                  value={formatDistance(averageWeeklyVolume, unit)}
                   detail="Mean distance across completed weeks returned"
                   icon={Activity}
                 />

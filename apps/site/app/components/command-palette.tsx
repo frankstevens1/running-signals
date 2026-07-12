@@ -144,7 +144,7 @@ export function CommandPalette() {
         type="button"
         onClick={openPalette}
         aria-haspopup="dialog"
-        className="group inline-flex h-10 items-center gap-2 border border-(--border) bg-(--surface-muted) px-3 font-mono text-xs text-(--text-soft) transition-colors hover:border-(--border-strong) hover:bg-(--surface-raised) hover:text-(--text)"
+        className="group inline-flex h-9 items-center gap-2 border border-(--border) bg-(--surface-muted) px-3 font-mono text-xs text-(--text-soft) transition-colors hover:border-(--border-strong) hover:bg-(--surface-raised) hover:text-(--text)"
       >
         <Search className="h-4 w-4 text-(--accent)" aria-hidden="true" />
         <span className="hidden sm:inline">Find a view</span>

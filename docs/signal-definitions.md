@@ -54,7 +54,7 @@ HR when Garmin provides it, and descriptive daily health context.
 | `efficiency_ratio` | Run | `speed_kmh / avg_heart_rate` when heart rate is present and positive. | `signal_fitness` | Implemented |
 | `hr_band` | Run | Bucketed average heart-rate band. | `signal_fitness` | Implemented |
 | `rolling_4_run_efficiency_ratio` | Run | Average efficiency over the current and previous three runs. | `signal_fitness` | Implemented |
-| `hr_drift_pct` | Run | Second-half segment efficiency divided by first-half segment efficiency minus one, where segment efficiency is `avg_speed_kmh / avg_heart_rate`. | `signal_fitness`, `mart_run_segments` | Implemented when segment HR and speed are present |
+| `hr_drift_pct` | Run | Second-half segment efficiency divided by first-half segment efficiency minus one, where segment efficiency is `avg_speed_kmh / avg_heart_rate`; the established calculation remains pinned to 250m metric segments. | `signal_fitness`, `mart_run_segments` | Implemented when segment HR and speed are present |
 | `rolling_4_run_hr_drift_pct` | Run | Average HR drift over the current and previous three runs. | `signal_fitness` | Implemented |
 | `garmin_recovery_hr` | Run | Final recorded run heart rate minus the latest FIT `recovery_hr` event value, reported as bpm recovered. | `silver_runs` | Implemented when present |
 | `resting_heart_rate` | Day | Garmin daily resting heart rate. | `silver_health_days`, `mart_days` | Implemented when present |
@@ -69,11 +69,13 @@ Route and within-run analytics are portfolio-oriented feature marts, not a produ
 
 | Metric | Grain | Formula / Definition | Source Model | Status |
 |---|---|---|---|---|
-| `segment_index` | Run segment | Fixed 250m segment number within a run. | `mart_run_segments` | Implemented |
-| `segment_pace_min_per_km` | Run segment | Segment duration divided by positive segment distance. | `mart_run_segments` | Implemented when positive segment distance exists |
-| `avg_heart_rate` | Run segment | Average record heart rate within the segment. | `mart_run_segments` | Implemented when present |
-| `avg_running_cadence` | Run segment | Average record cadence within the segment, normalized to total steps per minute by doubling Garmin FIT cadence. | `mart_run_segments` | Implemented when present |
-| `elevation_change_m` | Run segment | End altitude minus start altitude within the segment. | `mart_run_segments` | Implemented when present |
+| `segment_length_value` | Segment resolution | Split length expressed in kilometres for metric rows or miles for imperial rows. Initial progressions are 0.25, 0.5, and 1. | `mart_segment_resolutions`, `mart_run_segments` | Implemented |
+| `segment_length_m` | Segment resolution | Exact canonical metre length used to assign records and calculate boundaries. | `mart_segment_resolutions`, `mart_run_segments` | Implemented |
+| `segment_index` | Run segment | One-based segment number within a run and configured unit-system resolution. | `mart_run_segments` | Implemented |
+| `segment_pace_min_per_km` | Run segment | Allocated record-interval duration divided by allocated positive distance. | `mart_run_segments` | Implemented when positive segment distance exists |
+| `avg_heart_rate` | Run segment | Weighted average of linearly interpolated heart rate across allocated record intervals. | `mart_run_segments` | Implemented when present |
+| `avg_running_cadence` | Run segment | Weighted average of linearly interpolated cadence across allocated record intervals, normalized to total steps per minute. | `mart_run_segments` | Implemented when present |
+| `elevation_change_m` | Run segment | Interpolated end-boundary altitude minus start-boundary altitude. | `mart_run_segments` | Implemented when present |
 | `segment_grade` | Run segment | Elevation change divided by segment distance in meters. | `mart_run_segments` | Implemented when present |
 | `route_id` | Route | Hash of the representative route's resolution-9 H3 signature plus 0.5 km distance bucket after direction-specific 90% ordered-overlap clustering. | `mart_route_clusters`, `mart_run_sessions`, `mart_routes` | Implemented when GPS exists |
 | `route_match_similarity` | Run-route observation | Best ordered resolution-8 H3 segment overlap score used to explain the run's route-cluster assignment. | `mart_route_clusters`, `mart_run_sessions` | Implemented when GPS exists |
@@ -92,6 +94,11 @@ Route and within-run analytics are portfolio-oriented feature marts, not a produ
 - Segment detail depends on per-record FIT telemetry. Pace requires positive distance and timestamps;
   heart rate, cadence, altitude, elevation change, and grade remain null when the source records do
   not contain the required fields.
+- Analytical segment distance and duration are allocated from adjacent record intervals. Cumulative
+  distance corrections are treated as stationary until a new maximum is reached; stationary elapsed
+  time belongs to the interval endpoint's segment.
+- Route rendering uses all ordered coordinate records from `mart_activity_records`; split endpoints
+  are intentionally not used to reconstruct the route.
 - Route identity uses ordered H3 segment-path clustering with a 90% similarity threshold and
   approximate distance buckets. It is stable enough for portfolio analytics, but not a replacement
   for precise map matching.
@@ -102,5 +109,6 @@ Route and within-run analytics are portfolio-oriented feature marts, not a produ
 
 Use `dbt/analyses/run_data_availability.sql` to audit Recovery HR, session heart rate, record
 coverage, GPS coverage, and segment telemetry availability overall and by month. Use
+`supabase/queries/site_activity_records_availability.sql` and
 `supabase/queries/site_route_segments_availability.sql` after applying Supabase migrations and
-running the site sync to verify the presentation read model has populated split columns.
+running the site sync to verify complete route telemetry and populated split resolutions.

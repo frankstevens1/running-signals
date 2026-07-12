@@ -7,12 +7,15 @@ Next.js presentation layer for the Running Signals portfolio project.
 The interface is designed as an approachable analytical console: familiar navigation and controls
 remain primary, while monospace metadata, explicit status output, and model lineage give technical
 readers more detail to inspect. The site supports light and dark themes, keyboard navigation, a
-`Cmd/Ctrl+K` page index, and reduced-motion preferences.
+`Cmd/Ctrl+K` page index, reduced-motion preferences, and a persisted kilometre/mile preference.
+Route maps use complete ordered activity records, while selectable split tables remain analytical
+aggregates at quarter, half, and full metric or imperial resolutions.
 
 ## Data Source
 
 The site reads from Supabase `site_*` tables by default. Those tables are refreshed by
-`scripts/sync_site_supabase.py` after dbt builds the Databricks gold models.
+`scripts/sync_site_supabase.py` after dbt builds the Databricks gold models. Supabase publishes the
+presentation-safe activity telemetry needed for route maps rather than every modeled FIT field.
 
 Use `apps/site/.env.example` for site runtime variables. Local development defaults to the Supabase
 CLI URL and anon key when env vars are not set:
@@ -51,5 +54,6 @@ for hosted Supabase and belongs in the root operational `.env`, not the site run
 ```bash
 pnpm dev
 pnpm lint
+pnpm test
 pnpm build
 ```

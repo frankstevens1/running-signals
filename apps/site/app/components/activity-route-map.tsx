@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import maplibregl, { type GeoJSONSource } from "maplibre-gl";
 
-import type { RouteSegment } from "@/app/lib/types";
+import type { ActivityRecord } from "@/app/lib/types";
 
 type Position = [number, number];
 
@@ -12,10 +12,7 @@ type RouteLineCollection = {
   features: Array<{
     type: "Feature";
     properties: Record<string, never>;
-    geometry: {
-      type: "LineString";
-      coordinates: Position[];
-    };
+    geometry: { type: "LineString"; coordinates: Position[] };
   }>;
 };
 
@@ -31,7 +28,6 @@ function cssToken(styles: CSSStyleDeclaration, name: string, fallback: string) {
 
 function readMapTheme(): MapTheme {
   const styles = window.getComputedStyle(document.documentElement);
-
   return {
     accent: cssToken(styles, "--accent", "#22c55e"),
     background: cssToken(styles, "--background", "#06110a"),
@@ -48,44 +44,57 @@ function rasterPaint(theme: MapTheme) {
   } as const;
 }
 
-function coordinatePairs(segments: RouteSegment[]): Position[] {
-  const pairs: Position[] = [];
-
-  for (const segment of segments) {
-    if (
-      segment.segmentStartLatitudeDeg === null ||
-      segment.segmentStartLongitudeDeg === null ||
-      segment.segmentEndLatitudeDeg === null ||
-      segment.segmentEndLongitudeDeg === null
-    ) {
-      continue;
-    }
-
-    const start: Position = [
-      segment.segmentStartLongitudeDeg,
-      segment.segmentStartLatitudeDeg,
-    ];
-    const end: Position = [segment.segmentEndLongitudeDeg, segment.segmentEndLatitudeDeg];
-
-    const last = pairs.at(-1);
-
-    if (!last || last[0] !== start[0] || last[1] !== start[1]) {
-      pairs.push(start);
-    }
-
-    pairs.push(end);
+function recordPosition(record: ActivityRecord): Position | null {
+  const { latitudeDeg, longitudeDeg } = record;
+  if (
+    latitudeDeg === null ||
+    longitudeDeg === null ||
+    latitudeDeg < -90 ||
+    latitudeDeg > 90 ||
+    longitudeDeg < -180 ||
+    longitudeDeg > 180
+  ) {
+    return null;
   }
-
-  return pairs;
+  return [longitudeDeg, latitudeDeg];
 }
 
-function fitCoordinates(map: maplibregl.Map, coordinates: Position[], compact: boolean) {
-  const bounds = new maplibregl.LngLatBounds();
+function coordinateSequences(records: ActivityRecord[]): Position[][] {
+  const sequences: Position[][] = [];
+  let current: Position[] = [];
 
-  for (const coordinate of coordinates) {
-    bounds.extend(coordinate);
+  const closeSequence = () => {
+    if (current.length >= 2) sequences.push(current);
+    current = [];
+  };
+
+  for (const record of records) {
+    const position = recordPosition(record);
+    if (!position) {
+      closeSequence();
+      continue;
+    }
+    current.push(position);
   }
 
+  closeSequence();
+  return sequences;
+}
+
+function routeLineCollection(sequences: Position[][]): RouteLineCollection {
+  return {
+    type: "FeatureCollection",
+    features: sequences.map((coordinates) => ({
+      type: "Feature",
+      properties: {},
+      geometry: { type: "LineString", coordinates },
+    })),
+  };
+}
+
+function fitCoordinates(map: maplibregl.Map, sequences: Position[][], compact: boolean) {
+  const bounds = new maplibregl.LngLatBounds();
+  sequences.forEach((sequence) => sequence.forEach((position) => bounds.extend(position)));
   if (!bounds.isEmpty()) {
     map.fitBounds(bounds, {
       padding: compact ? 20 : 48,
@@ -95,50 +104,24 @@ function fitCoordinates(map: maplibregl.Map, coordinates: Position[], compact: b
   }
 }
 
-function routeLineCollection(coordinates: Position[]): RouteLineCollection {
-  return {
-    type: "FeatureCollection",
-    features: [
-      {
-        type: "Feature",
-        properties: {},
-        geometry: {
-          type: "LineString",
-          coordinates,
-        },
-      },
-    ],
-  };
-}
-
 function applyMapTheme(map: maplibregl.Map, theme: MapTheme) {
   if (map.getLayer("osm")) {
     const paint = rasterPaint(theme);
     map.setPaintProperty("osm", "raster-saturation", paint["raster-saturation"]);
     map.setPaintProperty("osm", "raster-contrast", paint["raster-contrast"]);
-    map.setPaintProperty(
-      "osm",
-      "raster-brightness-min",
-      paint["raster-brightness-min"],
-    );
-    map.setPaintProperty(
-      "osm",
-      "raster-brightness-max",
-      paint["raster-brightness-max"],
-    );
+    map.setPaintProperty("osm", "raster-brightness-min", paint["raster-brightness-min"]);
+    map.setPaintProperty("osm", "raster-brightness-max", paint["raster-brightness-max"]);
   }
-
   if (map.getLayer("route-line-casing")) {
     map.setPaintProperty("route-line-casing", "line-color", theme.background);
   }
-
   if (map.getLayer("route-line")) {
     map.setPaintProperty("route-line", "line-color", theme.accent);
   }
 }
 
-function syncRouteLine(map: maplibregl.Map, coordinates: Position[], compact: boolean) {
-  const collection = routeLineCollection(coordinates);
+function syncRouteLine(map: maplibregl.Map, sequences: Position[][], compact: boolean) {
+  const collection = routeLineCollection(sequences);
   const theme = readMapTheme();
   map.resize();
 
@@ -169,17 +152,17 @@ function syncRouteLine(map: maplibregl.Map, coordinates: Position[], compact: bo
   }
 
   applyMapTheme(map, theme);
-  fitCoordinates(map, coordinates, compact);
+  fitCoordinates(map, sequences, compact);
 }
 
-export function RunSegmentMap({
-  segments,
+export function ActivityRouteMap({
+  records,
   interactive = true,
   compact = false,
   className = "",
   radiusClassName = "rounded-none",
 }: {
-  segments: RouteSegment[];
+  records: ActivityRecord[];
   interactive?: boolean;
   compact?: boolean;
   className?: string;
@@ -187,14 +170,13 @@ export function RunSegmentMap({
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
-  const coordinates = useMemo(() => coordinatePairs(segments), [segments]);
+  const sequences = useMemo(() => coordinateSequences(records), [records]);
 
   useEffect(() => {
-    if (!containerRef.current || mapRef.current || coordinates.length === 0) {
-      return;
-    }
+    if (!containerRef.current || mapRef.current || sequences.length === 0) return;
 
     const initialTheme = readMapTheme();
+    const firstPosition = sequences[0]?.[0] ?? [0, 0];
     const map = new maplibregl.Map({
       container: containerRef.current,
       interactive,
@@ -210,16 +192,9 @@ export function RunSegmentMap({
               '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
           },
         },
-        layers: [
-          {
-            id: "osm",
-            type: "raster",
-            source: "osm",
-            paint: rasterPaint(initialTheme),
-          },
-        ],
+        layers: [{ id: "osm", type: "raster", source: "osm", paint: rasterPaint(initialTheme) }],
       },
-      center: coordinates[0],
+      center: firstPosition,
       zoom: 12,
     });
 
@@ -228,17 +203,10 @@ export function RunSegmentMap({
     }
 
     mapRef.current = map;
-
-    function renderRoute() {
-      syncRouteLine(map, coordinates, compact);
-    }
-
-    function syncTheme() {
-      if (map.isStyleLoaded()) {
-        applyMapTheme(map, readMapTheme());
-      }
-    }
-
+    const renderRoute = () => syncRouteLine(map, sequences, compact);
+    const syncTheme = () => {
+      if (map.isStyleLoaded()) applyMapTheme(map, readMapTheme());
+    };
     const themeObserver = new MutationObserver(syncTheme);
     const colorScheme = window.matchMedia("(prefers-color-scheme: light)");
 
@@ -254,23 +222,16 @@ export function RunSegmentMap({
       colorScheme.removeEventListener("change", syncTheme);
       map.off("load", renderRoute);
       map.remove();
-      if (mapRef.current === map) {
-        mapRef.current = null;
-      }
+      if (mapRef.current === map) mapRef.current = null;
     };
-  }, [compact, coordinates, interactive]);
+  }, [compact, interactive, sequences]);
 
   useEffect(() => {
     const map = mapRef.current;
+    if (map?.loaded() && sequences.length > 0) syncRouteLine(map, sequences, compact);
+  }, [compact, sequences]);
 
-    if (!map || !map.loaded() || coordinates.length === 0) {
-      return;
-    }
-
-    syncRouteLine(map, coordinates, compact);
-  }, [compact, coordinates]);
-
-  if (coordinates.length === 0) {
+  if (sequences.length === 0) {
     return (
       <div
         className={`flex items-center justify-center border border-dashed border-(--border) bg-(--surface-muted) px-4 font-mono text-sm text-(--text-soft) ${radiusClassName} ${className}`}

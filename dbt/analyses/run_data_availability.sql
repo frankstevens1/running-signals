@@ -1,4 +1,11 @@
-with run_availability as (
+with canonical_segments as (
+    select *
+    from {{ ref('mart_run_segments') }}
+    where unit_system = 'metric'
+        and segment_length_m = 250.000
+),
+
+run_availability as (
     select
         'run' as entity,
         'all' as period_grain,
@@ -112,7 +119,7 @@ segment_availability as (
                 and segment_pace_min_per_km is not null
             then 1 else 0
         end) as available_count
-    from {{ ref('mart_run_segments') }}
+    from canonical_segments
 
     union all
 
@@ -123,7 +130,7 @@ segment_availability as (
         'avg_heart_rate',
         count(*),
         count(avg_heart_rate)
-    from {{ ref('mart_run_segments') }}
+    from canonical_segments
 
     union all
 
@@ -134,7 +141,7 @@ segment_availability as (
         'avg_running_cadence',
         count(*),
         count(avg_running_cadence)
-    from {{ ref('mart_run_segments') }}
+    from canonical_segments
 
     union all
 
@@ -145,7 +152,7 @@ segment_availability as (
         'altitude_range',
         count(*),
         sum(case when min_altitude_m is not null and max_altitude_m is not null then 1 else 0 end)
-    from {{ ref('mart_run_segments') }}
+    from canonical_segments
 
     union all
 
@@ -156,7 +163,7 @@ segment_availability as (
         'elevation_change',
         count(*),
         count(elevation_change_m)
-    from {{ ref('mart_run_segments') }}
+    from canonical_segments
 
     union all
 
@@ -167,7 +174,7 @@ segment_availability as (
         'segment_grade',
         count(*),
         count(segment_grade)
-    from {{ ref('mart_run_segments') }}
+    from canonical_segments
 ),
 
 segment_month_availability as (
@@ -214,7 +221,7 @@ segment_month_availability as (
                     1,
                     case when segment_grade is not null then 1 else 0 end
             ) as (metric_name, denominator_increment, available_increment)
-        from {{ ref('mart_run_segments') }}
+        from canonical_segments
     )
     group by
         entity,

@@ -17,6 +17,7 @@ from typing import Any, Callable, cast
 
 import psycopg
 from dotenv import load_dotenv
+from psycopg import sql as psycopg_sql
 from psycopg.types.json import Jsonb
 
 
@@ -24,7 +25,14 @@ JsonRow = dict[str, object | None]
 StatementFactory = Callable[["DatabricksConfig"], str]
 LOCAL_SUPABASE_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
 DATABRICKS_REQUEST_ATTEMPTS = 3
+DATABRICKS_EXTERNAL_DOWNLOAD_ATTEMPTS = 8
 DATABRICKS_REQUEST_BACKOFF_SECONDS = 1.0
+DATABRICKS_REQUEST_TIMEOUT_SECONDS = 120
+DATABRICKS_EXTERNAL_READ_SIZE_BYTES = 1024 * 1024
+DATABRICKS_POLL_INTERVAL_SECONDS = 1.0
+DATABRICKS_STATEMENT_TIMEOUT_SECONDS = 300.0
+DATABRICKS_TERMINAL_STATES = frozenset({"SUCCEEDED", "FAILED", "CANCELED", "CLOSED"})
+DATABRICKS_RETRYABLE_HTTP_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 
 
 @dataclass(frozen=True)
@@ -103,6 +111,23 @@ def gold_table(config: DatabricksConfig, table_name: str) -> str:
     )
 
 
+def retry_delay_seconds(attempt: int, retry_after: str | None = None) -> float:
+    if retry_after:
+        try:
+            return max(float(retry_after), 0.0)
+        except ValueError:
+            pass
+
+    return DATABRICKS_REQUEST_BACKOFF_SECONDS * attempt
+
+
+def decode_json_payload(payload: bytes, source: str) -> object:
+    try:
+        return json.loads(payload.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"{source} returned invalid JSON.") from exc
+
+
 def databricks_request(
     config: DatabricksConfig,
     method: str,
@@ -110,43 +135,232 @@ def databricks_request(
     payload: dict[str, object] | None = None,
 ) -> dict[str, Any]:
     body = json.dumps(payload).encode("utf-8") if payload is not None else None
-    request = urllib.request.Request(
-        url,
-        data=body,
-        method=method,
-        headers={
-            "Authorization": f"Bearer {config.token}",
-            "Content-Type": "application/json",
-        },
-    )
     last_error: BaseException | None = None
 
     for attempt in range(1, DATABRICKS_REQUEST_ATTEMPTS + 1):
+        request = urllib.request.Request(
+            url,
+            data=body,
+            method=method,
+            headers={
+                "Authorization": f"Bearer {config.token}",
+                "Accept": "application/json",
+                **({"Content-Type": "application/json"} if body is not None else {}),
+            },
+        )
+
         try:
-            with urllib.request.urlopen(request, timeout=60) as response:
-                response_body = response.read().decode("utf-8")
-                return cast(dict[str, Any], json.loads(response_body))
+            with urllib.request.urlopen(
+                request,
+                timeout=DATABRICKS_REQUEST_TIMEOUT_SECONDS,
+            ) as response:
+                parsed = decode_json_payload(
+                    response.read(),
+                    "Databricks API",
+                )
+
+                if not isinstance(parsed, dict):
+                    raise RuntimeError("Databricks API returned a non-object response.")
+
+                return cast(dict[str, Any], parsed)
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
+
+            if (
+                exc.code in DATABRICKS_RETRYABLE_HTTP_STATUS_CODES
+                and attempt < DATABRICKS_REQUEST_ATTEMPTS
+            ):
+                last_error = exc
+                time.sleep(
+                    retry_delay_seconds(attempt, exc.headers.get("Retry-After"))
+                )
+                continue
+
             raise RuntimeError(
                 f"Databricks request failed with HTTP {exc.code}: {detail}"
             ) from exc
         except (
             http.client.IncompleteRead,
-            json.JSONDecodeError,
             TimeoutError,
             urllib.error.URLError,
         ) as exc:
             last_error = exc
+
             if attempt == DATABRICKS_REQUEST_ATTEMPTS:
                 break
 
-            time.sleep(DATABRICKS_REQUEST_BACKOFF_SECONDS * attempt)
+            time.sleep(retry_delay_seconds(attempt))
 
     assert last_error is not None
     raise RuntimeError(
         "Databricks request failed after "
         f"{DATABRICKS_REQUEST_ATTEMPTS} attempts: {last_error}"
+    ) from last_error
+
+
+def parse_content_range(value: str | None) -> tuple[int, int, int | None] | None:
+    """Parse an HTTP Content-Range header such as ``bytes 10-19/100``."""
+    if not value or not value.startswith("bytes "):
+        return None
+
+    try:
+        byte_range, total = value.removeprefix("bytes ").split("/", maxsplit=1)
+        start, end = byte_range.split("-", maxsplit=1)
+        return int(start), int(end), None if total == "*" else int(total)
+    except (TypeError, ValueError):
+        return None
+
+
+def external_json_request(url: str) -> object:
+    """
+    Download a signed Databricks result URL without forwarding credentials.
+
+    External result files can be tens of megabytes. If the storage connection
+    closes early, retain the bytes already received and resume with an HTTP
+    Range request instead of restarting the entire file from byte zero.
+    """
+    downloaded = bytearray()
+    expected_total_bytes: int | None = None
+    etag: str | None = None
+    last_error: BaseException | None = None
+
+    for attempt in range(1, DATABRICKS_EXTERNAL_DOWNLOAD_ATTEMPTS + 1):
+        offset = len(downloaded)
+        headers = {
+            "Accept": "application/json",
+            # Range offsets must apply to the exact bytes being accumulated.
+            "Accept-Encoding": "identity",
+        }
+
+        if offset > 0:
+            headers["Range"] = f"bytes={offset}-"
+            if etag:
+                headers["If-Range"] = etag
+
+        request = urllib.request.Request(url, method="GET", headers=headers)
+
+        try:
+            with urllib.request.urlopen(
+                request,
+                timeout=DATABRICKS_REQUEST_TIMEOUT_SECONDS,
+            ) as response:
+                status = getattr(response, "status", response.getcode())
+                response_etag = response.headers.get("ETag")
+                content_range = parse_content_range(
+                    response.headers.get("Content-Range")
+                )
+
+                if offset > 0 and status == 206:
+                    if content_range is None or content_range[0] != offset:
+                        raise RuntimeError(
+                            "Databricks external result returned an invalid "
+                            "Content-Range while resuming the download."
+                        )
+
+                    if content_range[2] is not None:
+                        expected_total_bytes = content_range[2]
+                elif offset > 0 and status == 200:
+                    # The server ignored Range, or If-Range detected a changed
+                    # object. Restart cleanly from the replacement response.
+                    downloaded.clear()
+                    offset = 0
+                    expected_total_bytes = None
+                elif status not in {200, 206}:
+                    raise RuntimeError(
+                        "Databricks external result returned unexpected HTTP "
+                        f"status {status}."
+                    )
+
+                if offset == 0:
+                    content_length = response.headers.get("Content-Length")
+                    if content_range is not None and content_range[2] is not None:
+                        expected_total_bytes = content_range[2]
+                    elif content_length is not None:
+                        try:
+                            expected_total_bytes = int(content_length)
+                        except ValueError as exc:
+                            raise RuntimeError(
+                                "Databricks external result returned an invalid "
+                                "Content-Length."
+                            ) from exc
+
+                    etag = response_etag
+                elif etag and response_etag and response_etag != etag:
+                    raise RuntimeError(
+                        "Databricks external result changed while downloading."
+                    )
+
+                while True:
+                    try:
+                        chunk = response.read(DATABRICKS_EXTERNAL_READ_SIZE_BYTES)
+                    except http.client.IncompleteRead as exc:
+                        if exc.partial:
+                            downloaded.extend(exc.partial)
+                        raise
+
+                    if not chunk:
+                        break
+
+                    downloaded.extend(chunk)
+
+                if (
+                    expected_total_bytes is not None
+                    and len(downloaded) < expected_total_bytes
+                ):
+                    raise http.client.IncompleteRead(
+                        bytes(downloaded),
+                        expected_total_bytes - len(downloaded),
+                    )
+
+                if (
+                    expected_total_bytes is not None
+                    and len(downloaded) > expected_total_bytes
+                ):
+                    raise RuntimeError(
+                        "Databricks external result exceeded its declared size: "
+                        f"expected {expected_total_bytes} bytes, received "
+                        f"{len(downloaded)}."
+                    )
+
+                return decode_json_payload(
+                    bytes(downloaded),
+                    "Databricks external result",
+                )
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+
+            if (
+                exc.code in DATABRICKS_RETRYABLE_HTTP_STATUS_CODES
+                and attempt < DATABRICKS_EXTERNAL_DOWNLOAD_ATTEMPTS
+            ):
+                last_error = exc
+                time.sleep(
+                    retry_delay_seconds(attempt, exc.headers.get("Retry-After"))
+                )
+                continue
+
+            raise RuntimeError(
+                "Databricks external result download failed with "
+                f"HTTP {exc.code}: {detail}"
+            ) from exc
+        except (
+            http.client.IncompleteRead,
+            TimeoutError,
+            urllib.error.URLError,
+        ) as exc:
+            last_error = exc
+
+            if attempt == DATABRICKS_EXTERNAL_DOWNLOAD_ATTEMPTS:
+                break
+
+            time.sleep(retry_delay_seconds(attempt))
+
+    assert last_error is not None
+    raise RuntimeError(
+        "Databricks external result download failed after "
+        f"{DATABRICKS_EXTERNAL_DOWNLOAD_ATTEMPTS} attempts; "
+        f"received {len(downloaded)} bytes before the final failure: "
+        f"{last_error}"
     ) from last_error
 
 
@@ -161,14 +375,28 @@ def submit_statement(config: DatabricksConfig, statement: str) -> dict[str, Any]
             "catalog": config.catalog,
             "schema": config.schema,
             "wait_timeout": "10s",
-            "disposition": "INLINE",
+            "disposition": "EXTERNAL_LINKS",
             "format": "JSON_ARRAY",
         },
     )
 
 
+def cancel_statement(config: DatabricksConfig, statement_id: str) -> None:
+    databricks_request(
+        config,
+        "POST",
+        f"https://{config.host}/api/2.0/sql/statements/{statement_id}/cancel",
+        {},
+    )
+
+
 def poll_statement(config: DatabricksConfig, statement_id: str) -> dict[str, Any]:
-    for _ in range(20):
+    if not statement_id:
+        raise RuntimeError("Databricks did not return a statement ID.")
+
+    deadline = time.monotonic() + DATABRICKS_STATEMENT_TIMEOUT_SECONDS
+
+    while True:
         response = databricks_request(
             config,
             "GET",
@@ -176,53 +404,224 @@ def poll_statement(config: DatabricksConfig, statement_id: str) -> dict[str, Any
         )
         state = response.get("status", {}).get("state")
 
-        if state in {"SUCCEEDED", "FAILED", "CANCELED"}:
+        if state in DATABRICKS_TERMINAL_STATES:
             return response
 
-        time.sleep(1)
+        if time.monotonic() >= deadline:
+            try:
+                cancel_statement(config, statement_id)
+            except RuntimeError:
+                pass
 
-    raise RuntimeError("Databricks SQL statement timed out.")
+            raise RuntimeError(
+                "Databricks SQL statement timed out after "
+                f"{DATABRICKS_STATEMENT_TIMEOUT_SECONDS:.0f} seconds."
+            )
+
+        time.sleep(DATABRICKS_POLL_INTERVAL_SECONDS)
 
 
-def rows_from_statement(response: dict[str, Any]) -> list[JsonRow]:
-    columns = [
-        str(column["name"])
-        for column in response.get("manifest", {})
-        .get("schema", {})
-        .get("columns", [])
-    ]
-    rows = response.get("result", {}).get("data_array", [])
-    result: list[JsonRow] = []
+def statement_error_message(response: dict[str, Any]) -> str:
+    status = response.get("status", {})
+    error = status.get("error", {}) if isinstance(status, dict) else {}
 
-    for row in rows:
+    if isinstance(error, dict):
+        message = error.get("message")
+        if message:
+            return str(message)
+
+    state = status.get("state") if isinstance(status, dict) else None
+    return f"Databricks SQL statement ended with state {state or 'UNKNOWN'}."
+
+
+def result_payload(response: object) -> dict[str, Any]:
+    if not isinstance(response, dict):
+        raise RuntimeError("Databricks result chunk returned an invalid response.")
+
+    nested_result = response.get("result")
+    payload = nested_result if isinstance(nested_result, dict) else response
+    return cast(dict[str, Any], payload)
+
+
+def rows_from_data_array(data: object, columns: list[str]) -> list[JsonRow]:
+    if isinstance(data, dict):
+        data = data.get("data_array", [])
+
+    if not isinstance(data, list):
+        raise RuntimeError("Databricks result chunk did not contain a JSON array.")
+
+    parsed_rows: list[JsonRow] = []
+
+    for row_index, row in enumerate(data):
         if not isinstance(row, list):
-            continue
+            raise RuntimeError(
+                "Databricks result row is not an array at chunk row "
+                f"{row_index}."
+            )
 
-        result.append(
-            {
-                column: row[index] if index < len(row) else None
-                for index, column in enumerate(columns)
-            }
+        if len(row) != len(columns):
+            raise RuntimeError(
+                "Databricks result row has an unexpected column count: "
+                f"expected {len(columns)}, received {len(row)}."
+            )
+
+        parsed_rows.append(dict(zip(columns, row, strict=True)))
+
+    return parsed_rows
+
+
+def validate_external_link(link: object) -> dict[str, Any]:
+    if not isinstance(link, dict):
+        raise RuntimeError("Databricks returned an invalid external result link.")
+
+    external_url = link.get("external_link")
+    if not isinstance(external_url, str) or not external_url.startswith("https://"):
+        raise RuntimeError("Databricks returned an invalid external result URL.")
+
+    return cast(dict[str, Any], link)
+
+
+def fetch_result_rows(
+    config: DatabricksConfig,
+    first_result: object,
+    columns: list[str],
+) -> list[JsonRow]:
+    rows: list[JsonRow] = []
+    current_result = result_payload(first_result)
+    visited_chunk_links: set[str] = set()
+    visited_chunk_indexes: set[int] = set()
+
+    while True:
+        external_links = current_result.get("external_links")
+        next_chunk_link: object = current_result.get("next_chunk_internal_link")
+
+        if external_links is not None:
+            if not isinstance(external_links, list):
+                raise RuntimeError(
+                    "Databricks external_links field is not an array."
+                )
+
+            for raw_link in external_links:
+                link = validate_external_link(raw_link)
+                chunk_index = link.get("chunk_index")
+
+                if isinstance(chunk_index, int):
+                    if chunk_index in visited_chunk_indexes:
+                        raise RuntimeError(
+                            f"Databricks result chunk {chunk_index} was repeated."
+                        )
+                    visited_chunk_indexes.add(chunk_index)
+
+                chunk_rows = rows_from_data_array(
+                    external_json_request(str(link["external_link"])),
+                    columns,
+                )
+                expected_chunk_rows = link.get("row_count")
+
+                if expected_chunk_rows is not None:
+                    try:
+                        expected = int(expected_chunk_rows)
+                    except (TypeError, ValueError) as exc:
+                        raise RuntimeError(
+                            "Databricks external result row_count is invalid."
+                        ) from exc
+
+                    if len(chunk_rows) != expected:
+                        raise RuntimeError(
+                            "Databricks external result chunk is incomplete: "
+                            f"expected {expected} rows, fetched {len(chunk_rows)}."
+                        )
+
+                rows.extend(chunk_rows)
+
+                candidate_next_link = link.get("next_chunk_internal_link")
+                if candidate_next_link:
+                    next_chunk_link = candidate_next_link
+        elif "data_array" in current_result:
+            # Defensive compatibility if a workspace returns an inline chunk.
+            rows.extend(rows_from_data_array(current_result, columns))
+        elif current_result:
+            raise RuntimeError(
+                "Databricks result contained neither external links nor inline data."
+            )
+
+        if next_chunk_link is None or next_chunk_link == "":
+            return rows
+
+        if not isinstance(next_chunk_link, str) or not next_chunk_link.startswith("/"):
+            raise RuntimeError("Databricks result chunk link must be host-relative.")
+
+        if next_chunk_link in visited_chunk_links:
+            raise RuntimeError("Databricks result chunk link repeated.")
+
+        visited_chunk_links.add(next_chunk_link)
+        chunk_response = databricks_request(
+            config,
+            "GET",
+            f"https://{config.host}{next_chunk_link}",
         )
-
-    return result
+        current_result = result_payload(chunk_response)
 
 
 def query_databricks(config: DatabricksConfig, statement: str) -> list[JsonRow]:
     submitted = submit_statement(config, statement)
     state = submitted.get("status", {}).get("state")
-    final_response = (
-        poll_statement(config, str(submitted.get("statement_id", "")))
-        if state in {"PENDING", "RUNNING"}
-        else submitted
-    )
+
+    if state in {"PENDING", "RUNNING"}:
+        final_response = poll_statement(
+            config,
+            str(submitted.get("statement_id", "")),
+        )
+    else:
+        final_response = submitted
 
     if final_response.get("status", {}).get("state") != "SUCCEEDED":
-        error = final_response.get("status", {}).get("error", {})
-        message = error.get("message") or "Databricks SQL statement failed."
-        raise RuntimeError(str(message))
+        raise RuntimeError(statement_error_message(final_response))
 
-    return rows_from_statement(final_response)
+    manifest = final_response.get("manifest")
+    if not isinstance(manifest, dict):
+        raise RuntimeError("Databricks SQL statement returned no result manifest.")
+
+    if manifest.get("truncated") is True:
+        raise RuntimeError("Databricks SQL statement result was truncated.")
+
+    schema = manifest.get("schema")
+    schema_columns = schema.get("columns", []) if isinstance(schema, dict) else []
+
+    if not isinstance(schema_columns, list):
+        raise RuntimeError("Databricks SQL result schema is invalid.")
+
+    columns = [
+        str(column["name"])
+        for column in schema_columns
+        if isinstance(column, dict) and "name" in column
+    ]
+
+    if len(columns) != len(schema_columns):
+        raise RuntimeError("Databricks SQL result schema contains unnamed columns.")
+
+    rows = fetch_result_rows(
+        config,
+        final_response.get("result", {}),
+        columns,
+    )
+    total_row_count = manifest.get("total_row_count")
+
+    if total_row_count is not None:
+        try:
+            expected_row_count = int(total_row_count)
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError(
+                "Databricks manifest total_row_count is invalid."
+            ) from exc
+
+        if len(rows) != expected_row_count:
+            raise RuntimeError(
+                "Databricks SQL statement result is incomplete: "
+                f"expected {expected_row_count} rows, fetched {len(rows)}."
+            )
+
+    return rows
 
 
 def run_select(config: DatabricksConfig) -> str:
@@ -420,12 +819,80 @@ EXPORTS: tuple[TableExport, ...] = (
         """,
     ),
     TableExport(
+        table_name="site_activity_records",
+        columns=(
+            "run_id",
+            "activity_id",
+            "route_id",
+            "is_route_representative",
+            "activity_date",
+            "record_timestamp",
+            "record_index",
+            "elapsed_seconds",
+            "seconds_since_previous_record",
+            "record_distance_m",
+            "record_distance_km",
+            "distance_delta_m",
+            "speed_mps",
+            "speed_kmh",
+            "pace_min_per_km",
+            "heart_rate",
+            "running_cadence",
+            "altitude_m",
+            "altitude_delta_m",
+            "temperature",
+            "position_lat_deg",
+            "position_long_deg",
+        ),
+        statement=lambda config: f"""
+            select
+              records.run_id,
+              records.activity_id,
+              sessions.route_id,
+              coalesce(records.run_id = sessions.route_representative_run_id, false)
+                as is_route_representative,
+              cast(records.activity_date as string) as activity_date,
+              cast(records.record_timestamp as string) as record_timestamp,
+              records.record_index,
+              records.elapsed_seconds,
+              records.seconds_since_previous_record,
+              records.record_distance_m,
+              records.record_distance_km,
+              records.distance_delta_m,
+              records.speed_mps,
+              records.speed_kmh,
+              records.pace_min_per_km,
+              records.heart_rate,
+              records.running_cadence,
+              records.altitude_m,
+              records.altitude_delta_m,
+              records.temperature,
+              records.position_lat_deg,
+              records.position_long_deg
+            from {gold_table(config, "mart_activity_records")} as records
+            inner join {gold_table(config, "mart_run_sessions")} as sessions
+              on records.run_id = sessions.run_id
+            order by records.run_id, records.record_index
+        """,
+    ),
+    TableExport(
         table_name="site_route_segments",
         columns=(
             "run_id",
             "route_id",
             "activity_date",
+            "unit_system",
+            "segment_length_value",
+            "segment_length_m",
+            "segment_length_label",
+            "is_canonical",
             "segment_index",
+            "segment_start_boundary_m",
+            "segment_end_boundary_m",
+            "segment_start_distance_m",
+            "segment_end_distance_m",
+            "segment_distance_m",
+            "segment_distance_value",
             "segment_distance_km",
             "segment_duration_seconds",
             "segment_pace_min_per_km",
@@ -449,7 +916,18 @@ EXPORTS: tuple[TableExport, ...] = (
               segments.run_id,
               sessions.route_id,
               cast(segments.activity_date as string) as activity_date,
+              segments.unit_system,
+              segments.segment_length_value,
+              segments.segment_length_m,
+              segments.segment_length_label,
+              segments.is_canonical,
               segments.segment_index,
+              segments.segment_start_boundary_m,
+              segments.segment_end_boundary_m,
+              segments.segment_start_distance_m,
+              segments.segment_end_distance_m,
+              segments.segment_distance_m,
+              segments.segment_distance_value,
               segments.segment_distance_km,
               segments.segment_duration_seconds,
               segments.segment_pace_min_per_km,
@@ -470,6 +948,11 @@ EXPORTS: tuple[TableExport, ...] = (
             from {gold_table(config, "mart_run_segments")} as segments
             inner join {gold_table(config, "mart_run_sessions")} as sessions
               on segments.run_id = sessions.run_id
+            order by
+              segments.run_id,
+              segments.unit_system,
+              segments.segment_length_value,
+              segments.segment_index
         """,
     ),
     TableExport(
@@ -656,12 +1139,18 @@ def insert_rows(
     if not rows:
         return
 
-    columns = ", ".join(table_export.columns)
-    placeholders = ", ".join(f"%({column})s" for column in table_export.columns)
-    sql = f"insert into public.{table_export.table_name} ({columns}) values ({placeholders})"
+    query = psycopg_sql.SQL("insert into public.{} ({}) values ({})").format(
+        psycopg_sql.Identifier(table_export.table_name),
+        psycopg_sql.SQL(", ").join(
+            psycopg_sql.Identifier(column) for column in table_export.columns
+        ),
+        psycopg_sql.SQL(", ").join(
+            psycopg_sql.Placeholder(column) for column in table_export.columns
+        ),
+    )
 
     with connection.cursor() as cursor:
-        cursor.executemany(sql, rows)
+        cursor.executemany(query, rows)
 
 
 def insert_metadata(
@@ -690,11 +1179,13 @@ def reload_supabase(
 
     with psycopg.connect(supabase_db_url) as connection:
         with connection.cursor() as cursor:
-            cursor.execute(
-                "truncate "
-                + ", ".join(f"public.{table_name}" for table_name in table_names)
-                + " restart identity"
+            truncate_query = psycopg_sql.SQL("truncate {} restart identity").format(
+                psycopg_sql.SQL(", ").join(
+                    psycopg_sql.Identifier("public", table_name)
+                    for table_name in table_names
+                )
             )
+            cursor.execute(truncate_query)
 
         for table_export in EXPORTS:
             insert_rows(connection, table_export, exported[table_export.table_name])

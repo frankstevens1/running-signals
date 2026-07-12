@@ -16,6 +16,12 @@ import {
   YAxis,
 } from "recharts";
 
+import { useDistanceUnit } from "@/app/components/distance-unit-provider";
+import {
+  distanceFromKm,
+  speedFromKmh,
+  type DistanceUnit,
+} from "@/app/lib/distance-unit";
 import { formatPace, formatSignedPercent, shortDate } from "@/app/lib/format";
 import type { FitnessPoint, MonthRollup, WeekRollup } from "@/app/lib/types";
 import {
@@ -123,9 +129,9 @@ function numberValue(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function formatKm(value: unknown) {
+function formatDistanceValue(value: unknown, unit: DistanceUnit) {
   const parsed = numberValue(value);
-  return parsed === null ? "n/a" : `${parsed.toFixed(1)} km`;
+  return parsed === null ? "n/a" : `${distanceFromKm(parsed, unit).toFixed(1)} ${unit}`;
 }
 
 function formatDays(value: unknown) {
@@ -143,9 +149,9 @@ function formatSignedPercentValue(value: unknown) {
   return parsed === null ? "n/a" : formatSignedPercent(parsed);
 }
 
-function formatPaceValue(value: unknown) {
+function formatPaceValue(value: unknown, unit: DistanceUnit) {
   const parsed = numberValue(value);
-  return parsed === null ? "n/a" : formatPace(parsed);
+  return parsed === null ? "n/a" : formatPace(parsed, unit);
 }
 
 function getActivityDateTimestamp(value: string): number {
@@ -570,6 +576,7 @@ function ChartFrame({
 }
 
 export function WeeklyVolumeChart({ weeks }: { weeks: WeekRollup[] }) {
+  const { unit } = useDistanceUnit();
   const volumeBreakdown = getWeeklyVolumeBreakdown(weeks);
 
   return (
@@ -597,12 +604,12 @@ export function WeeklyVolumeChart({ weeks }: { weeks: WeekRollup[] }) {
             axisLine={false}
             tickLine={false}
             tick={axisTick}
-            tickFormatter={formatKm}
+            tickFormatter={(value) => formatDistanceValue(value, unit)}
           />
           <Tooltip
             {...tooltipStyle}
             labelFormatter={(value) => shortDate(String(value))}
-            formatter={(value, name) => [formatKm(value), name]}
+            formatter={(value, name) => [formatDistanceValue(value, unit), name]}
           />
           <Legend {...legendProps} />
           <Bar
@@ -634,6 +641,7 @@ export function WeeklyVolumeChart({ weeks }: { weeks: WeekRollup[] }) {
 }
 
 export function MonthlyVolumeChart({ months }: { months: MonthRollup[] }) {
+  const { unit } = useDistanceUnit();
   return (
     <ChartFrame
       title="Monthly volume"
@@ -660,7 +668,7 @@ export function MonthlyVolumeChart({ months }: { months: MonthRollup[] }) {
             axisLine={false}
             tickLine={false}
             tick={axisTick}
-            tickFormatter={formatKm}
+            tickFormatter={(value) => formatDistanceValue(value, unit)}
           />
           <YAxis
             yAxisId="right"
@@ -674,7 +682,7 @@ export function MonthlyVolumeChart({ months }: { months: MonthRollup[] }) {
             {...tooltipStyle}
             labelFormatter={formatMonthLabel}
             formatter={(value, name) => [
-              name === "Runs" ? formatRuns(value) : formatKm(value),
+              name === "Runs" ? formatRuns(value) : formatDistanceValue(value, unit),
               name,
             ]}
           />
@@ -826,16 +834,37 @@ export function HrDriftChart({ points }: { points: FitnessPoint[] }) {
 }
 
 export function FitnessEfficiencyChart({ points }: { points: FitnessPoint[] }) {
-  const efficiencyDomain = getEfficiencyDomain(points);
+  const { unit } = useDistanceUnit();
+  const displayPoints = useMemo(
+    () =>
+      points.map((point) => ({
+        ...point,
+        efficiencyRatio:
+          point.efficiencyRatio === null
+            ? null
+            : speedFromKmh(point.efficiencyRatio, unit),
+        rolling4RunEfficiencyRatio:
+          point.rolling4RunEfficiencyRatio === null
+            ? null
+            : speedFromKmh(point.rolling4RunEfficiencyRatio, unit),
+      })),
+    [points, unit],
+  );
+  const efficiencyDomain = getEfficiencyDomain(displayPoints);
+  const speedLabel = unit === "mi" ? "miles per hour" : "kilometres per hour";
+  const efficiencyInfo = {
+    ...CHART_INFO.fitnessEfficiency,
+    definition: `Efficiency ratio is session speed in ${speedLabel} divided by average heart rate. The rolling 4-run line averages the current run and previous three runs.`,
+  };
 
   return (
     <ChartFrame
       title="Speed per heartbeat"
       description="Session speed divided by average heart rate."
-      info={CHART_INFO.fitnessEfficiency}
+      info={efficiencyInfo}
     >
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={points} margin={{ top: 8, right: 8, left: 0 }}>
+        <LineChart data={displayPoints} margin={{ top: 8, right: 8, left: 0 }}>
           <CartesianGrid
             stroke={CHART_GRID_COLOR}
             strokeDasharray="2 5"
@@ -895,6 +924,7 @@ export function FitnessEfficiencyChart({ points }: { points: FitnessPoint[] }) {
 }
 
 export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
+  const { unit } = useDistanceUnit();
   const [selectedHeartRateBandIds, setSelectedHeartRateBandIds] = useState<string[]>([]);
   const data = useMemo<PaceHeartRateChartPoint[]>(
     () =>
@@ -982,7 +1012,10 @@ export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
     <ChartFrame
       title="Pace at comparable heart rate"
       description="Run pace over time within selected average-heart-rate bands."
-      info={CHART_INFO.paceHeartRate}
+      info={{
+        ...CHART_INFO.paceHeartRate,
+        definition: `Each point is a run's average pace plotted over time, grouped by average-heart-rate band. Pace is minutes per ${unit === "mi" ? "mile" : "kilometre"}, so lower values are faster.`,
+      }}
       controls={controls}
     >
       <div className="flex h-full flex-col">
@@ -1016,13 +1049,13 @@ export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
                 axisLine={false}
                 tickLine={false}
                 tick={axisTick}
-                tickFormatter={formatPaceValue}
+                tickFormatter={(value) => formatPaceValue(value, unit)}
               />
               <Tooltip
                 {...tooltipStyle}
                 labelFormatter={formatTimestampLabel}
                 formatter={(value, name) => [
-                  name === "Date" ? formatTimestampLabel(value) : formatPaceValue(value),
+                  name === "Date" ? formatTimestampLabel(value) : formatPaceValue(value, unit),
                   name,
                 ]}
               />

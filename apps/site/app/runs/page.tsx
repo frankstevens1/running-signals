@@ -8,6 +8,7 @@ import { SectionHeading } from "@/app/components/section-heading";
 import { getRoutes, getRuns } from "@/app/lib/data";
 import { explorerPages } from "@/app/lib/page-metadata";
 import { parseRunFilters, parseRunView, searchParamsFromRecord } from "@/app/lib/query";
+import { getServerDistanceUnit } from "@/app/lib/server-distance-unit";
 
 export default async function RunsPage({
   searchParams,
@@ -16,7 +17,8 @@ export default async function RunsPage({
 }) {
   const resolved = await searchParams;
   const params = searchParamsFromRecord(resolved);
-  const filters = parseRunFilters(params);
+  const unit = await getServerDistanceUnit();
+  const filters = parseRunFilters(params, unit);
   const view = parseRunView(params);
   const [result, routes] = await Promise.all([getRuns(filters), getRoutes(100)]);
   const routeOptions = routes.status === "ok" ? routes.data : [];
@@ -30,7 +32,12 @@ export default async function RunsPage({
           description="Filter and sort session rows by date, distance, pace, heart rate, route, recovery HR availability, GPS coverage, and recent training context."
           icon={explorerPages.runs.icon}
         />
-        <RunFilters params={params} routes={routeOptions} />
+        <RunFilters
+          key={`${unit}:${params.toString()}`}
+          params={params}
+          routes={routeOptions}
+          unit={unit}
+        />
         <DataState result={result}>
           {(data) => (
             <div className="space-y-4">
@@ -42,7 +49,7 @@ export default async function RunsPage({
                 offset={data.offset}
               />
               {view === "table" ? (
-                <RunTable runs={data.items} params={params} />
+                <RunTable runs={data.items} params={params} unit={unit} />
               ) : (
                 <RunTimeline runs={data.items} />
               )}

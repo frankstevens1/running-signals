@@ -9,9 +9,11 @@ import {
 } from "./supabase";
 import {
   mapDay,
+  mapActivityRecord,
   mapFitness,
   mapMonth,
   mapRoute,
+  mapRouteGeometryRecord,
   mapRun,
   mapSegment,
   mapWeek,
@@ -21,17 +23,20 @@ import {
 } from "./mappers";
 import type { RunFilters } from "./query";
 import type {
+  ActivityRecord,
   DashboardSummary,
   DataResult,
   DayRollup,
   FitnessPoint,
   LandingStatus,
   PaginatedResult,
-  RouteSegment,
+  RouteGeometryRecord,
   RouteSummary,
+  RunSegment,
   RunSession,
   VolumeData,
   WeekRollup,
+  UnitSystem,
 } from "./types";
 
 type SiteDataSource = "supabase" | "databricks";
@@ -190,10 +195,15 @@ const RUN_SELECT = `
   prior_28d_distance_km
 `;
 
-const ROUTE_SEGMENT_SELECT = `
+const RUN_SEGMENT_SELECT = `
   segments.run_id,
   sessions.route_id,
   cast(segments.activity_date as string) as activity_date,
+  segments.unit_system,
+  segments.segment_length_value,
+  segments.segment_length_m,
+  segments.segment_length_label,
+  segments.is_canonical,
   segments.segment_index,
   segments.segment_distance_km,
   segments.segment_duration_seconds,
@@ -208,10 +218,35 @@ const ROUTE_SEGMENT_SELECT = `
   segments.segment_grade,
   segments.segment_start_distance_m / 1000.0 as segment_start_distance_km,
   segments.segment_end_distance_m / 1000.0 as segment_end_distance_km,
+  segments.segment_start_boundary_m,
+  segments.segment_end_boundary_m,
   segments.segment_start_latitude_deg,
   segments.segment_start_longitude_deg,
   segments.segment_end_latitude_deg,
   segments.segment_end_longitude_deg
+`;
+
+const ACTIVITY_RECORD_SELECT = `
+  records.activity_id,
+  cast(records.activity_date as string) as activity_date,
+  records.run_id,
+  cast(records.record_timestamp as string) as record_timestamp,
+  records.record_index,
+  records.elapsed_seconds,
+  records.seconds_since_previous_record,
+  records.record_distance_m,
+  records.record_distance_km,
+  records.distance_delta_m,
+  records.speed_mps,
+  records.speed_kmh,
+  records.pace_min_per_km,
+  records.heart_rate,
+  records.running_cadence,
+  records.altitude_m,
+  records.altitude_delta_m,
+  records.temperature,
+  records.position_lat_deg,
+  records.position_long_deg
 `;
 
 async function queryLandingStatusFromDatabricks(): Promise<LandingStatus> {
@@ -457,69 +492,145 @@ async function queryRoutesFromSupabase(limit = 50): Promise<RouteSummary[]> {
   return result.rows.map(mapRoute);
 }
 
-async function queryRouteSegmentsFromDatabricks(
-  routeId?: string,
-  limit = 1200,
-): Promise<RouteSegment[]> {
-  const safeLimit = Math.min(Math.max(limit, 1), 5000);
-  const routeClause = routeId ? `and sessions.route_id = ${sqlString(routeId)}` : "";
+async function queryRouteRecordsFromDatabricks(
+  routeIds: readonly string[],
+): Promise<RouteGeometryRecord[]> {
+  if (routeIds.length === 0) return [];
+
+  const routeIdList = routeIds.map(sqlString).join(", ");
   const rows = await queryDatabricks(`
     select
-      ${ROUTE_SEGMENT_SELECT}
-    from ${goldTable("mart_run_segments")} as segments
-    inner join ${goldTable("mart_run_sessions")} as sessions
-      on segments.run_id = sessions.run_id
-    where 1 = 1
-      ${routeClause}
-    order by segments.activity_date desc, segments.run_id, segments.segment_index
-    limit ${safeLimit}
+      records.run_id,
+      routes.route_id,
+      records.record_index,
+      records.position_lat_deg,
+      records.position_long_deg
+    from ${goldTable("mart_activity_records")} as records
+    inner join ${goldTable("mart_routes")} as routes
+      on records.run_id = routes.route_representative_run_id
+    where routes.route_id in (${routeIdList})
+    order by routes.route_id, records.run_id, records.record_index
   `);
 
-  return rows.map(mapSegment);
+  return rows.map(mapRouteGeometryRecord);
 }
 
-async function queryRouteSegmentsFromSupabase(
-  routeId?: string,
-  limit = 1200,
-): Promise<RouteSegment[]> {
-  const safeLimit = Math.min(Math.max(limit, 1), 5000);
-  const pageSize = 1000;
-  const filters: SupabaseFilter[] = routeId
-    ? [{ column: "route_id", operator: "eq", value: routeId }]
-    : [];
+const ROUTE_ID_CHUNK_SIZE = 25;
+const ROUTE_RECORD_PAGE_SIZE = 1000;
+
+function routeIdChunks(routeIds: readonly string[]): string[][] {
+  const uniqueRouteIds = Array.from(new Set(routeIds.filter(Boolean))).slice(0, 100);
+  const chunks: string[][] = [];
+
+  for (let index = 0; index < uniqueRouteIds.length; index += ROUTE_ID_CHUNK_SIZE) {
+    chunks.push(uniqueRouteIds.slice(index, index + ROUTE_ID_CHUNK_SIZE));
+  }
+
+  return chunks;
+}
+
+function compareRouteGeometryRecords(
+  left: RouteGeometryRecord,
+  right: RouteGeometryRecord,
+): number {
+  if (left.routeId !== right.routeId) return left.routeId < right.routeId ? -1 : 1;
+  if (left.runId !== right.runId) return left.runId < right.runId ? -1 : 1;
+  return left.recordIndex - right.recordIndex;
+}
+
+async function queryRouteRecordChunkFromSupabase(
+  routeIds: readonly string[],
+): Promise<Record<string, unknown>[]> {
   const rows: Record<string, unknown>[] = [];
 
-  while (rows.length < safeLimit) {
-    const result = await querySupabase("site_route_segments", {
-      filters,
-      order: [
-        { column: "activity_date", direction: "desc", nulls: "last" },
-        { column: "run_id", direction: "asc", nulls: "last" },
-        { column: "segment_index", direction: "asc", nulls: "last" },
+  while (true) {
+    const result = await querySupabase("site_activity_records", {
+      select: "route_id,run_id,record_index,position_lat_deg,position_long_deg",
+      filters: [
+        { column: "is_route_representative", operator: "eq", value: true },
+        { column: "route_id", operator: "in", value: routeIds },
       ],
-      limit: Math.min(pageSize, safeLimit - rows.length),
+      order: [
+        { column: "route_id", direction: "asc", nulls: "last" },
+        { column: "run_id", direction: "asc", nulls: "last" },
+        { column: "record_index", direction: "asc", nulls: "last" },
+      ],
+      limit: ROUTE_RECORD_PAGE_SIZE,
       offset: rows.length,
     });
 
     rows.push(...result.rows);
-
-    if (result.rows.length < pageSize) {
-      break;
-    }
+    if (result.rows.length < ROUTE_RECORD_PAGE_SIZE) break;
   }
 
-  return rows.map(mapSegment);
+  return rows;
 }
 
-async function queryRunSegmentsFromDatabricks(runId: string, limit = 1200): Promise<RouteSegment[]> {
+async function queryRouteRecordsFromSupabase(
+  routeIds: readonly string[],
+): Promise<RouteGeometryRecord[]> {
+  const chunks = routeIdChunks(routeIds);
+  if (chunks.length === 0) return [];
+
+  const chunkRows = await Promise.all(chunks.map(queryRouteRecordChunkFromSupabase));
+  return chunkRows.flat().map(mapRouteGeometryRecord).sort(compareRouteGeometryRecords);
+}
+
+async function queryRunRecordsFromDatabricks(
+  runId: string,
+): Promise<ActivityRecord[]> {
+  const rows = await queryDatabricks(`
+    select
+      ${ACTIVITY_RECORD_SELECT},
+      sessions.route_id,
+      records.run_id = sessions.route_representative_run_id as is_route_representative
+    from ${goldTable("mart_activity_records")} as records
+    left join ${goldTable("mart_run_sessions")} as sessions
+      on records.run_id = sessions.run_id
+    where records.run_id = ${sqlString(runId)}
+    order by records.record_index
+  `);
+
+  return rows.map(mapActivityRecord);
+}
+
+async function queryRunRecordsFromSupabase(
+  runId: string,
+): Promise<ActivityRecord[]> {
+  const pageSize = 1000;
+  const rows: Record<string, unknown>[] = [];
+
+  while (true) {
+    const result = await querySupabase("site_activity_records", {
+      filters: [{ column: "run_id", operator: "eq", value: runId }],
+      order: [{ column: "record_index", direction: "asc", nulls: "last" }],
+      limit: pageSize,
+      offset: rows.length,
+    });
+
+    rows.push(...result.rows);
+    if (result.rows.length < pageSize) break;
+  }
+
+  return rows.map(mapActivityRecord);
+}
+
+async function queryRunSegmentsFromDatabricks(
+  runId: string,
+  unitSystem: UnitSystem,
+  segmentLengthValue: number,
+  limit = 1200,
+): Promise<RunSegment[]> {
   const safeLimit = Math.min(Math.max(limit, 1), 5000);
   const rows = await queryDatabricks(`
     select
-      ${ROUTE_SEGMENT_SELECT}
+      ${RUN_SEGMENT_SELECT}
     from ${goldTable("mart_run_segments")} as segments
     inner join ${goldTable("mart_run_sessions")} as sessions
       on segments.run_id = sessions.run_id
     where segments.run_id = ${sqlString(runId)}
+      and segments.unit_system = ${sqlString(unitSystem)}
+      and segments.segment_length_value = ${segmentLengthValue}
     order by segments.segment_index
     limit ${safeLimit}
   `);
@@ -527,14 +638,23 @@ async function queryRunSegmentsFromDatabricks(runId: string, limit = 1200): Prom
   return rows.map(mapSegment);
 }
 
-async function queryRunSegmentsFromSupabase(runId: string, limit = 1200): Promise<RouteSegment[]> {
+async function queryRunSegmentsFromSupabase(
+  runId: string,
+  unitSystem: UnitSystem,
+  segmentLengthValue: number,
+  limit = 1200,
+): Promise<RunSegment[]> {
   const safeLimit = Math.min(Math.max(limit, 1), 5000);
   const pageSize = 1000;
   const rows: Record<string, unknown>[] = [];
 
   while (rows.length < safeLimit) {
     const result = await querySupabase("site_route_segments", {
-      filters: [{ column: "run_id", operator: "eq", value: runId }],
+      filters: [
+        { column: "run_id", operator: "eq", value: runId },
+        { column: "unit_system", operator: "eq", value: unitSystem },
+        { column: "segment_length_value", operator: "eq", value: segmentLengthValue },
+      ],
       order: [{ column: "segment_index", direction: "asc", nulls: "last" }],
       limit: Math.min(pageSize, safeLimit - rows.length),
       offset: rows.length,
@@ -742,16 +862,28 @@ function queryRoutes(limit?: number): Promise<RouteSummary[]> {
     : queryRoutesFromSupabase(limit);
 }
 
-function queryRouteSegments(routeId?: string, limit?: number): Promise<RouteSegment[]> {
+function queryRouteRecords(routeIds: readonly string[]): Promise<RouteGeometryRecord[]> {
+  const requestedRouteIds = routeIdChunks(routeIds).flat();
   return getSiteDataSource() === "databricks"
-    ? queryRouteSegmentsFromDatabricks(routeId, limit)
-    : queryRouteSegmentsFromSupabase(routeId, limit);
+    ? queryRouteRecordsFromDatabricks(requestedRouteIds)
+    : queryRouteRecordsFromSupabase(requestedRouteIds);
 }
 
-function queryRunSegments(runId: string, limit?: number): Promise<RouteSegment[]> {
+function queryRunRecords(runId: string): Promise<ActivityRecord[]> {
   return getSiteDataSource() === "databricks"
-    ? queryRunSegmentsFromDatabricks(runId, limit)
-    : queryRunSegmentsFromSupabase(runId, limit);
+    ? queryRunRecordsFromDatabricks(runId)
+    : queryRunRecordsFromSupabase(runId);
+}
+
+function queryRunSegments(
+  runId: string,
+  unitSystem: UnitSystem,
+  segmentLengthValue: number,
+  limit?: number,
+): Promise<RunSegment[]> {
+  return getSiteDataSource() === "databricks"
+    ? queryRunSegmentsFromDatabricks(runId, unitSystem, segmentLengthValue, limit)
+    : queryRunSegmentsFromSupabase(runId, unitSystem, segmentLengthValue, limit);
 }
 
 function queryDays(limit?: number): Promise<DayRollup[]> {
@@ -794,15 +926,23 @@ export function getRoutes(limit?: number): Promise<DataResult<RouteSummary[]>> {
   return asResult(queryRoutes(limit));
 }
 
-export function getRouteSegments(
-  routeId?: string,
-  limit?: number,
-): Promise<DataResult<RouteSegment[]>> {
-  return asResult(queryRouteSegments(routeId, limit));
+export function getRouteRecords(
+  routeIds: readonly string[],
+): Promise<DataResult<RouteGeometryRecord[]>> {
+  return asResult(queryRouteRecords(routeIds));
 }
 
-export function getRunSegments(runId: string, limit?: number): Promise<DataResult<RouteSegment[]>> {
-  return asResult(queryRunSegments(runId, limit));
+export function getRunRecords(runId: string): Promise<DataResult<ActivityRecord[]>> {
+  return asResult(queryRunRecords(runId));
+}
+
+export function getRunSegments(
+  runId: string,
+  unitSystem: UnitSystem,
+  segmentLengthValue: number,
+  limit?: number,
+): Promise<DataResult<RunSegment[]>> {
+  return asResult(queryRunSegments(runId, unitSystem, segmentLengthValue, limit));
 }
 
 export function getDays(limit?: number): Promise<DataResult<DayRollup[]>> {

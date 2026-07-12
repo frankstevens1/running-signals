@@ -29,3 +29,23 @@ scoped to the raw Garmin prefixes and rotated.
 
 This only covers AWS access. Garmin Connect authentication still needs a separate non-interactive
 strategy using a writable external token store or explicitly provided credentials.
+
+## Why route geometry and analytical segments are separate
+
+Fixed-distance segments are useful for pace, heart-rate, cadence, and elevation comparisons, but
+their endpoints cannot reproduce corners or other detail between split boundaries. Route maps
+therefore use `mart_activity_records`, which preserves every ordered presentation-safe telemetry
+record and its nullable coordinates.
+
+`mart_run_segments` remains an analytical aggregate and derives metric and imperial splits from a
+small resolution table. Record intervals crossing a boundary are split proportionally, producing
+reconciling distance and duration rather than grouping sparse boundary observations.
+
+Run-session summaries and fitness drift use the accurate canonical 250m analytical rows. Route
+clustering intentionally does not: it rebuilds the original floor-bucketed 250m H3 path directly
+from silver records. Isolating that compatibility logic preserves established route identifiers
+without forcing the improved analytical segments to retain legacy boundary behavior.
+
+Legacy buckets select the lowest-distance H3 record and break equal-distance ties with
+`record_index`. Previous `min_by` ties were undefined, so this may resolve an ambiguous historical
+bucket once; subsequent route signatures are deterministic.

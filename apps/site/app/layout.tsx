@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Script from "next/script";
+
+import { DistanceUnitProvider } from "@/app/components/distance-unit-provider";
+import { DISTANCE_UNIT_STORAGE_KEY } from "@/app/lib/distance-unit";
+import { getServerDistanceUnit } from "@/app/lib/server-distance-unit";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,6 +19,31 @@ export const metadata: Metadata = {
 };
 
 const themeStorageKey = "running-signals-theme";
+
+const distanceUnitScript = `
+(() => {
+  try {
+    const storageKey = "${DISTANCE_UNIT_STORAGE_KEY}";
+    const savedUnit = window.localStorage.getItem(storageKey);
+    const cookieUnit = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith(storageKey + "="))
+      ?.split("=")[1];
+    const locale = new Intl.Locale(window.navigator.language);
+    const localeUnit = ["LR", "MM", "US"].includes(locale.region || "") ? "mi" : "km";
+    const unit = cookieUnit === "km" || cookieUnit === "mi"
+      ? cookieUnit
+      : savedUnit === "km" || savedUnit === "mi"
+        ? savedUnit
+        : localeUnit;
+
+    document.documentElement.dataset.distanceUnit = unit;
+    window.localStorage.setItem(storageKey, unit);
+    document.cookie = storageKey + "=" + unit + "; path=/; max-age=31536000; samesite=lax";
+  } catch {
+  }
+})();
+`;
 
 const themeScript = `
 (() => {
@@ -61,12 +90,14 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const initialTheme = await getInitialTheme();
+  const initialDistanceUnit = await getServerDistanceUnit();
 
   return (
     <html
       lang="en"
       className="h-full antialiased"
       data-theme={initialTheme}
+      data-distance-unit={initialDistanceUnit}
       suppressHydrationWarning
     >
       <body className="min-h-full bg-(--background) font-sans text-(--text)">
@@ -75,7 +106,14 @@ export default async function RootLayout({
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: themeScript }}
         />
-        {children}
+        <Script
+          id="running-signals-distance-unit"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: distanceUnitScript }}
+        />
+        <DistanceUnitProvider initialUnit={initialDistanceUnit}>
+          {children}
+        </DistanceUnitProvider>
       </body>
     </html>
   );

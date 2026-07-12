@@ -17,13 +17,21 @@ type StatementResponse = {
     };
   };
   manifest?: {
+    truncated?: boolean;
+    total_row_count?: number | string;
     schema?: {
       columns?: Array<{ name: string }>;
     };
   };
   result?: {
     data_array?: unknown[][];
+    next_chunk_internal_link?: string;
   };
+};
+
+type StatementChunk = {
+  data_array?: unknown[][];
+  next_chunk_internal_link?: string;
 };
 
 const NOT_CONFIGURED_MESSAGE =
@@ -78,13 +86,31 @@ export function goldTable(name: string): string {
   ].join(".");
 }
 
-function rowsFromStatement(response: StatementResponse): Record<string, unknown>[] {
-  const columns = response.manifest?.schema?.columns?.map((column) => column.name) ?? [];
-  const rows = response.result?.data_array ?? [];
-
+function rowsFromData(columns: string[], rows: unknown[][]): Record<string, unknown>[] {
   return rows.map((row) =>
     Object.fromEntries(columns.map((column, index) => [column, row[index] ?? null])),
   );
+}
+
+async function fetchStatementChunk(
+  config: DatabricksConfig,
+  internalLink: string,
+): Promise<StatementChunk> {
+  const url = new URL(internalLink, `https://${config.host}`);
+  if (url.host !== config.host) {
+    throw new Error("Databricks returned a chunk link for an unexpected host.");
+  }
+
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${config.token}` },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Databricks SQL chunk request failed with HTTP ${response.status}.`);
+  }
+
+  return (await response.json()) as StatementChunk;
 }
 
 async function submitStatement(
@@ -165,7 +191,42 @@ export async function queryDatabricks(
     );
   }
 
-  return rowsFromStatement(finalResponse);
+  const columns =
+    finalResponse.manifest?.schema?.columns?.map((column) => column.name) ?? [];
+  if (finalResponse.manifest?.truncated === true) {
+    throw new Error("Databricks SQL reported a truncated result set.");
+  }
+
+  const rows = [...(finalResponse.result?.data_array ?? [])];
+  let nextChunkLink = finalResponse.result?.next_chunk_internal_link;
+  const visitedChunkLinks = new Set<string>();
+
+  while (nextChunkLink) {
+    if (visitedChunkLinks.has(nextChunkLink)) {
+      throw new Error("Databricks returned a repeated result chunk link.");
+    }
+    visitedChunkLinks.add(nextChunkLink);
+
+    const chunk = await fetchStatementChunk(config, nextChunkLink);
+    rows.push(...(chunk.data_array ?? []));
+    nextChunkLink = chunk.next_chunk_internal_link;
+  }
+
+  const rawExpectedRowCount = finalResponse.manifest?.total_row_count;
+  const expectedRowCount =
+    rawExpectedRowCount === undefined ? undefined : Number(rawExpectedRowCount);
+
+  if (expectedRowCount !== undefined && !Number.isSafeInteger(expectedRowCount)) {
+    throw new Error("Databricks SQL returned an invalid total row count.");
+  }
+
+  if (expectedRowCount !== undefined && rows.length !== expectedRowCount) {
+    throw new Error(
+      `Databricks SQL returned ${rows.length} rows, expected ${expectedRowCount}.`,
+    );
+  }
+
+  return rowsFromData(columns, rows);
 }
 
 export function isDatabricksNotConfigured(error: unknown): boolean {

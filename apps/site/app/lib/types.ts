@@ -80,10 +80,50 @@ export type RouteSummary = {
   routeDistanceBucketKm: number | null;
 };
 
-export type RouteSegment = {
+export type RouteGeometryRecord = {
+  routeId: string;
+  runId: string;
+  recordIndex: number;
+  latitudeDeg: number | null;
+  longitudeDeg: number | null;
+};
+
+export type UnitSystem = "metric" | "imperial";
+
+export type ActivityRecord = {
+  activityId: string;
+  activityDate: string;
+  runId: string;
+  routeId: string | null;
+  isRouteRepresentative: boolean;
+  recordTimestamp: string | null;
+  recordIndex: number;
+  elapsedSeconds: number | null;
+  secondsSincePreviousRecord: number | null;
+  distanceM: number | null;
+  distanceKm: number | null;
+  distanceDeltaM: number | null;
+  speedMps: number | null;
+  speedKmh: number | null;
+  paceMinPerKm: number | null;
+  heartRate: number | null;
+  runningCadence: number | null;
+  altitudeM: number | null;
+  altitudeDeltaM: number | null;
+  temperature: number | null;
+  latitudeDeg: number | null;
+  longitudeDeg: number | null;
+};
+
+export type RunSegment = {
   runId: string;
   routeId: string | null;
   activityDate: string;
+  unitSystem: UnitSystem;
+  segmentLengthValue: number;
+  segmentLengthM: number;
+  segmentLengthLabel: string;
+  isCanonical: boolean;
   segmentIndex: number;
   segmentDistanceKm: number | null;
   segmentDurationSeconds: number | null;
@@ -98,6 +138,8 @@ export type RouteSegment = {
   segmentGrade: number | null;
   segmentStartDistanceKm: number | null;
   segmentEndDistanceKm: number | null;
+  segmentStartBoundaryM: number | null;
+  segmentEndBoundaryM: number | null;
   segmentStartLatitudeDeg: number | null;
   segmentStartLongitudeDeg: number | null;
   segmentEndLatitudeDeg: number | null;

@@ -7,7 +7,7 @@ import maplibregl, {
   type MapLayerMouseEvent,
 } from "maplibre-gl";
 
-import type { RouteSegment, RouteSummary } from "@/app/lib/types";
+import type { RouteGeometryRecord, RouteSummary } from "@/app/lib/types";
 
 type Position = [number, number];
 
@@ -72,37 +72,64 @@ function rasterPaint(theme: MapTheme) {
   } as const;
 }
 
-function validSegments(segments: RouteSegment[]) {
-  return segments.filter(
-    (segment) =>
-      segment.routeId &&
-      segment.segmentStartLatitudeDeg !== null &&
-      segment.segmentStartLongitudeDeg !== null &&
-      segment.segmentEndLatitudeDeg !== null &&
-      segment.segmentEndLongitudeDeg !== null,
+function isValidPosition(record: RouteGeometryRecord) {
+  return (
+    record.latitudeDeg !== null &&
+    record.latitudeDeg >= -90 &&
+    record.latitudeDeg <= 90 &&
+    record.longitudeDeg !== null &&
+    record.longitudeDeg >= -180 &&
+    record.longitudeDeg <= 180
   );
 }
 
-function fitSegments(map: maplibregl.Map, segments: RouteSegment[], duration = 500) {
+function fitRecords(map: maplibregl.Map, records: RouteGeometryRecord[], duration = 500) {
   const bounds = new maplibregl.LngLatBounds();
 
-  segments.forEach((segment) => {
-    if (
-      segment.segmentStartLatitudeDeg === null ||
-      segment.segmentStartLongitudeDeg === null ||
-      segment.segmentEndLatitudeDeg === null ||
-      segment.segmentEndLongitudeDeg === null
-    ) {
-      return;
-    }
-
-    bounds.extend([segment.segmentStartLongitudeDeg, segment.segmentStartLatitudeDeg]);
-    bounds.extend([segment.segmentEndLongitudeDeg, segment.segmentEndLatitudeDeg]);
+  records.forEach((record) => {
+    if (!isValidPosition(record)) return;
+    bounds.extend([record.longitudeDeg ?? 0, record.latitudeDeg ?? 0]);
   });
 
   if (!bounds.isEmpty()) {
     map.fitBounds(bounds, { padding: 54, maxZoom: 14, duration });
   }
+}
+
+function routeLineFeatures(records: RouteGeometryRecord[]): LineCollection["features"] {
+  const features: LineCollection["features"] = [];
+  let routeId: string | null = null;
+  let runId: string | null = null;
+  let coordinates: Position[] = [];
+
+  const closeSequence = () => {
+    if (routeId && runId && coordinates.length >= 2) {
+      features.push({
+        type: "Feature",
+        properties: { routeId, runId },
+        geometry: { type: "LineString", coordinates },
+      });
+    }
+    coordinates = [];
+  };
+
+  for (const record of records) {
+    if (record.routeId !== routeId || record.runId !== runId) {
+      closeSequence();
+      routeId = record.routeId;
+      runId = record.runId;
+    }
+
+    if (!isValidPosition(record)) {
+      closeSequence();
+      continue;
+    }
+
+    coordinates.push([record.longitudeDeg ?? 0, record.latitudeDeg ?? 0]);
+  }
+
+  closeSequence();
+  return features;
 }
 
 function routePointPaint(
@@ -187,12 +214,12 @@ function applyMapTheme(
 
 export function RouteMap({
   routes,
-  segments,
+  records,
   selectedRouteId,
   onSelectRoute,
 }: {
   routes: RouteSummary[];
-  segments: RouteSegment[];
+  records: RouteGeometryRecord[];
   selectedRouteId: string | null;
   onSelectRoute: (routeId: string) => void;
 }) {
@@ -200,7 +227,7 @@ export function RouteMap({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const selectedRouteIdRef = useRef(selectedRouteId);
   const [ready, setReady] = useState(false);
-  const usableSegments = useMemo(() => validSegments(segments), [segments]);
+  const usableRecords = useMemo(() => records.filter(isValidPosition), [records]);
   const routeRunCounts = useMemo(
     () => new Map(routes.map((route) => [route.routeId, route.runCount])),
     [routes],
@@ -213,26 +240,16 @@ export function RouteMap({
   const lineCollection = useMemo<LineCollection>(
     () => ({
       type: "FeatureCollection",
-      features: usableSegments.map((segment) => ({
-        type: "Feature",
-        properties: { routeId: segment.routeId ?? "", runId: segment.runId },
-        geometry: {
-          type: "LineString",
-          coordinates: [
-            [segment.segmentStartLongitudeDeg ?? 0, segment.segmentStartLatitudeDeg ?? 0],
-            [segment.segmentEndLongitudeDeg ?? 0, segment.segmentEndLatitudeDeg ?? 0],
-          ],
-        },
-      })),
+      features: routeLineFeatures(records),
     }),
-    [usableSegments],
+    [records],
   );
 
   const pointCollection = useMemo<PointCollection>(() => {
     const accumulators = new Map<string, RouteAccumulator>();
 
-    usableSegments.forEach((segment) => {
-      const routeId = segment.routeId;
+    usableRecords.forEach((record) => {
+      const routeId = record.routeId;
       if (!routeId) return;
 
       const current =
@@ -243,11 +260,9 @@ export function RouteMap({
           coordinateCount: 0,
         } satisfies RouteAccumulator);
 
-      current.longitudeTotal +=
-        (segment.segmentStartLongitudeDeg ?? 0) + (segment.segmentEndLongitudeDeg ?? 0);
-      current.latitudeTotal +=
-        (segment.segmentStartLatitudeDeg ?? 0) + (segment.segmentEndLatitudeDeg ?? 0);
-      current.coordinateCount += 2;
+      current.longitudeTotal += record.longitudeDeg ?? 0;
+      current.latitudeTotal += record.latitudeDeg ?? 0;
+      current.coordinateCount += 1;
       accumulators.set(routeId, current);
     });
 
@@ -268,7 +283,7 @@ export function RouteMap({
         },
       })),
     };
-  }, [routeRunCounts, usableSegments]);
+  }, [routeRunCounts, usableRecords]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -448,14 +463,14 @@ export function RouteMap({
     applyMapTheme(map, theme, selectedRouteId);
 
     if (selectedRouteId) {
-      fitSegments(
+      fitRecords(
         map,
-        usableSegments.filter((segment) => segment.routeId === selectedRouteId),
+        usableRecords.filter((record) => record.routeId === selectedRouteId),
       );
     } else {
-      fitSegments(map, usableSegments, 0);
+      fitRecords(map, usableRecords, 0);
     }
-  }, [lineCollection, pointCollection, ready, selectedRouteId, usableSegments]);
+  }, [lineCollection, pointCollection, ready, selectedRouteId, usableRecords]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -505,7 +520,7 @@ export function RouteMap({
     };
   }, [onSelectRoute, ready]);
 
-  if (usableSegments.length === 0) {
+  if (usableRecords.length === 0) {
     return (
       <section className="overflow-hidden rounded-sm border border-(--border) bg-(--surface)">
         <div className="border-b border-(--border) px-4 py-3">
@@ -515,7 +530,7 @@ export function RouteMap({
           <h2 className="mt-1 text-base font-semibold text-(--text)">Route topology</h2>
         </div>
         <div className="flex h-[460px] items-center justify-center p-6 text-center font-mono text-sm text-(--text-soft)">
-          No GPS route segments are available for clustering.
+          No complete GPS route records are available for clustering.
         </div>
       </section>
     );

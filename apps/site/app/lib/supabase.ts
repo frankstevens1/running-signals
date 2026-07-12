@@ -5,11 +5,19 @@ type SupabaseConfig = {
   anonKey: string;
 };
 
-export type SupabaseFilter = {
-  column: string;
-  operator: "eq" | "gte" | "lte" | "is" | "not.is";
-  value: string | number | boolean | null;
-};
+type SupabaseScalar = string | number | boolean | null;
+
+export type SupabaseFilter =
+  | {
+      column: string;
+      operator: "eq" | "gte" | "lte" | "is" | "not.is";
+      value: SupabaseScalar;
+    }
+  | {
+      column: string;
+      operator: "in";
+      value: readonly (string | number)[];
+    };
 
 export type SupabaseOrder = {
   column: string;
@@ -81,9 +89,19 @@ function fetchCacheOptions():
   return { next: { revalidate } };
 }
 
-function supabaseValue(value: string | number | boolean | null): string {
+function supabaseValue(value: SupabaseScalar): string {
   if (value === null) return "null";
   return String(value);
+}
+
+function postgrestQuotedValue(value: string | number): string {
+  const escaped = String(value).replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+  return `"${escaped}"`;
+}
+
+function supabaseFilterValue(filter: SupabaseFilter): string {
+  if (filter.operator !== "in") return supabaseValue(filter.value);
+  return `(${filter.value.map(postgrestQuotedValue).join(",")})`;
 }
 
 function parseCount(value: string | null): number | null {
@@ -115,7 +133,7 @@ export async function querySupabase(
   for (const filter of options.filters ?? []) {
     url.searchParams.append(
       filter.column,
-      `${filter.operator}.${supabaseValue(filter.value)}`,
+      `${filter.operator}.${supabaseFilterValue(filter)}`,
     );
   }
 

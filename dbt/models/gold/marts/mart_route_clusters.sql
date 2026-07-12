@@ -9,6 +9,41 @@ with recursive runs as (
     from {{ ref('silver_runs') }}
 ),
 
+legacy_route_records as (
+    select
+        run_id,
+        cast(floor(record_distance_m / 250.0) as int) + 1 as segment_index,
+        h3_cell_resolution_8,
+        h3_cell_resolution_9,
+        row_number() over (
+            partition by
+                run_id,
+                cast(floor(record_distance_m / 250.0) as int) + 1
+            order by
+                record_distance_m,
+                record_index
+        ) as representative_rank
+    from {{ ref('silver_run_records') }}
+    where record_distance_m is not null
+),
+
+legacy_route_segments as (
+    -- Preserve the original floor-bucket path with deterministic equal-distance ties.
+    select
+        run_id,
+        segment_index,
+        max(case
+            when representative_rank = 1 then h3_cell_resolution_8
+        end) as representative_h3_cell_resolution_8,
+        max(case
+            when representative_rank = 1 then h3_cell_resolution_9
+        end) as representative_h3_cell_resolution_9
+    from legacy_route_records
+    group by
+        run_id,
+        segment_index
+),
+
 route_cells as (
     select
         runs.run_id,
@@ -18,7 +53,7 @@ route_cells as (
         segments.segment_index,
         cast(segments.representative_h3_cell_resolution_8 as string) as h3_cell_resolution_8,
         cast(segments.representative_h3_cell_resolution_9 as string) as h3_cell_resolution_9
-    from {{ ref('mart_run_segments') }} as segments
+    from legacy_route_segments as segments
     inner join runs
         on segments.run_id = runs.run_id
     where segments.representative_h3_cell_resolution_8 is not null

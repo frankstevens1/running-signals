@@ -11,11 +11,13 @@ import {
   PaceHeartRateTrend,
 } from "@/app/components/trend-charts";
 import { getFitness } from "@/app/lib/data";
+import { speedFromKmh } from "@/app/lib/distance-unit";
 import { formatHeartRate, formatInteger, formatNumber, formatSignedPercent } from "@/app/lib/format";
 import { explorerPages } from "@/app/lib/page-metadata";
+import { getServerDistanceUnit } from "@/app/lib/server-distance-unit";
 
 export default async function FitnessPage() {
-  const fitness = await getFitness(180);
+  const [fitness, unit] = await Promise.all([getFitness(180), getServerDistanceUnit()]);
 
   return (
     <AppShell>
@@ -49,8 +51,12 @@ export default async function FitnessPage() {
                   />
                   <MetricCard
                     label="Latest efficiency"
-                    value={formatNumber(latest?.efficiencyRatio)}
-                    detail={`${formatInteger(driftCount)} returned runs with drift signal`}
+                    value={formatNumber(
+                      latest?.efficiencyRatio === null || latest?.efficiencyRatio === undefined
+                        ? null
+                        : speedFromKmh(latest.efficiencyRatio, unit),
+                    )}
+                    detail={`${unit === "mi" ? "mph" : "km/h"} per bpm; ${formatInteger(driftCount)} runs with drift`}
                     icon={Activity}
                   />
                 </div>

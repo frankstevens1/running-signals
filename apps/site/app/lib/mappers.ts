@@ -1,8 +1,10 @@
 import type {
+  ActivityRecord,
   DayRollup,
   FitnessPoint,
   MonthRollup,
-  RouteSegment,
+  RouteGeometryRecord,
+  RunSegment,
   RouteSummary,
   RunSession,
   WeekRollup,
@@ -81,11 +83,55 @@ export function mapRoute(row: Record<string, unknown>): RouteSummary {
   };
 }
 
-export function mapSegment(row: Record<string, unknown>): RouteSegment {
+export function mapRouteGeometryRecord(
+  row: Record<string, unknown>,
+): RouteGeometryRecord {
+  return {
+    routeId: stringValue(row, "route_id") ?? "",
+    runId: stringValue(row, "run_id") ?? "",
+    recordIndex: numberValue(row, "record_index") ?? 0,
+    latitudeDeg: numberValue(row, "position_lat_deg"),
+    longitudeDeg: numberValue(row, "position_long_deg"),
+  };
+}
+
+export function mapActivityRecord(row: Record<string, unknown>): ActivityRecord {
+  return {
+    activityId: stringValue(row, "activity_id") ?? "",
+    activityDate: stringValue(row, "activity_date") ?? "",
+    runId: stringValue(row, "run_id") ?? "",
+    routeId: stringValue(row, "route_id"),
+    isRouteRepresentative: booleanValue(row, "is_route_representative"),
+    recordTimestamp: stringValue(row, "record_timestamp"),
+    recordIndex: numberValue(row, "record_index") ?? 0,
+    elapsedSeconds: numberValue(row, "elapsed_seconds"),
+    secondsSincePreviousRecord: numberValue(row, "seconds_since_previous_record"),
+    distanceM: numberValue(row, "record_distance_m"),
+    distanceKm: numberValue(row, "record_distance_km"),
+    distanceDeltaM: numberValue(row, "distance_delta_m"),
+    speedMps: numberValue(row, "speed_mps"),
+    speedKmh: numberValue(row, "speed_kmh"),
+    paceMinPerKm: numberValue(row, "pace_min_per_km"),
+    heartRate: numberValue(row, "heart_rate"),
+    runningCadence: numberValue(row, "running_cadence"),
+    altitudeM: numberValue(row, "altitude_m"),
+    altitudeDeltaM: numberValue(row, "altitude_delta_m"),
+    temperature: numberValue(row, "temperature"),
+    latitudeDeg: numberValue(row, "position_lat_deg"),
+    longitudeDeg: numberValue(row, "position_long_deg"),
+  };
+}
+
+export function mapSegment(row: Record<string, unknown>): RunSegment {
   return {
     runId: stringValue(row, "run_id") ?? "",
     routeId: stringValue(row, "route_id"),
     activityDate: stringValue(row, "activity_date") ?? "",
+    unitSystem: stringValue(row, "unit_system") === "imperial" ? "imperial" : "metric",
+    segmentLengthValue: numberValue(row, "segment_length_value") ?? 0,
+    segmentLengthM: numberValue(row, "segment_length_m") ?? 0,
+    segmentLengthLabel: stringValue(row, "segment_length_label") ?? "",
+    isCanonical: booleanValue(row, "is_canonical"),
     segmentIndex: numberValue(row, "segment_index") ?? 0,
     segmentDistanceKm: numberValue(row, "segment_distance_km"),
     segmentDurationSeconds: numberValue(row, "segment_duration_seconds"),
@@ -100,6 +146,8 @@ export function mapSegment(row: Record<string, unknown>): RouteSegment {
     segmentGrade: numberValue(row, "segment_grade"),
     segmentStartDistanceKm: numberValue(row, "segment_start_distance_km"),
     segmentEndDistanceKm: numberValue(row, "segment_end_distance_km"),
+    segmentStartBoundaryM: numberValue(row, "segment_start_boundary_m"),
+    segmentEndBoundaryM: numberValue(row, "segment_end_boundary_m"),
     segmentStartLatitudeDeg: numberValue(row, "segment_start_latitude_deg"),
     segmentStartLongitudeDeg: numberValue(row, "segment_start_longitude_deg"),
     segmentEndLatitudeDeg: numberValue(row, "segment_end_latitude_deg"),

@@ -1,3 +1,4 @@
+import type { DistanceUnit } from "@/app/lib/distance-unit";
 import { formatDistance, shortDate } from "@/app/lib/format";
 import type { DayRollup } from "@/app/lib/types";
 import {
@@ -37,7 +38,13 @@ function intensityIndex(day: DayRollup): number {
   return 4;
 }
 
-export function ActivityCalendar({ days }: { days: DayRollup[] }) {
+export function ActivityCalendar({
+  days,
+  unit,
+}: {
+  days: DayRollup[];
+  unit: DistanceUnit;
+}) {
   if (days.length === 0) {
     return (
       <div className="rounded-sm border border-dashed border-(--border) bg-(--surface) p-8 font-mono text-sm text-(--text-soft)">
@@ -69,7 +76,7 @@ export function ActivityCalendar({ days }: { days: DayRollup[] }) {
           aria-label="Daily running distance"
         >
           {days.map((day) => {
-            const label = `${shortDate(day.calendarDate)}: ${formatDistance(day.distanceKm)}`;
+            const label = `${shortDate(day.calendarDate)}: ${formatDistance(day.distanceKm, unit)}`;
 
             return (
               <div

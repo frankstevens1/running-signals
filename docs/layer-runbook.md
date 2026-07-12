@@ -265,6 +265,8 @@ running_signals.gold.mart_weeks
 running_signals.gold.mart_months
 running_signals.gold.mart_years
 running_signals.gold.mart_run_sessions
+running_signals.gold.mart_segment_resolutions
+running_signals.gold.mart_activity_records
 running_signals.gold.mart_run_segments
 running_signals.gold.mart_route_clusters
 running_signals.gold.mart_routes
@@ -353,7 +355,14 @@ Use `--dry-run` to fetch Databricks row counts without writing to Supabase.
 Spot-check Databricks results after a full build:
 
 - Weekly, monthly, and yearly totals reconcile to `mart_days`.
-- `mart_run_segments` distance and duration reconcile approximately to `mart_run_sessions`.
+- Every `mart_activity_records` run is ordered uniquely by `record_index`, and valid coordinate rows
+  trace the complete route rather than a segment-endpoint approximation.
+- `mart_run_segments` contains quarter, half, and full metric and imperial resolutions; allocated
+  distance and duration reconcile to record-derived totals within numeric tolerance, including
+  intervals that cross one or more split boundaries.
+- Exact-boundary activity finishes do not produce a trailing zero-distance analytical segment.
+- `mart_run_sessions` and `signal_fitness` use accurate canonical metric 250m rows. Route clustering
+  uses its isolated legacy 250m floor-bucketed H3 path so existing `route_id` values remain stable.
 - `mart_route_clusters` has one row per GPS-backed run and `route_match_similarity` stays between 0
   and 1.
 - `mart_route_prediction_features` contains labels only from the current run observation and prior

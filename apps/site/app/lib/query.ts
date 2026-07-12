@@ -1,3 +1,9 @@
+import {
+  distanceToKm,
+  paceToMinPerKm,
+  type DistanceUnit,
+} from "./distance-unit";
+
 export type RunSort =
   | "activity_date"
   | "distance_km"
@@ -71,7 +77,10 @@ export function parseOptionalBoolean(value: string | null): boolean | undefined 
   return undefined;
 }
 
-export function parseRunFilters(params: URLSearchParams): RunFilters {
+export function parseRunFilters(
+  params: URLSearchParams,
+  unit: DistanceUnit = "km",
+): RunFilters {
   const sort = params.get("sort");
   const direction = params.get("direction");
 
@@ -82,16 +91,38 @@ export function parseRunFilters(params: URLSearchParams): RunFilters {
     direction: direction === "asc" ? "asc" : "desc",
     dateFrom: parseOptionalDate(params.get("dateFrom")),
     dateTo: parseOptionalDate(params.get("dateTo")),
-    minDistanceKm: parseOptionalNumber(params.get("minDistanceKm")),
-    maxDistanceKm: parseOptionalNumber(params.get("maxDistanceKm")),
-    minPace: parseOptionalNumber(params.get("minPace")),
-    maxPace: parseOptionalNumber(params.get("maxPace")),
+    minDistanceKm: parseOptionalMeasurement(
+      params.get("minDistance"),
+      (value) => distanceToKm(value, unit),
+      params.get("minDistanceKm"),
+    ),
+    maxDistanceKm: parseOptionalMeasurement(
+      params.get("maxDistance"),
+      (value) => distanceToKm(value, unit),
+      params.get("maxDistanceKm"),
+    ),
+    minPace: parseOptionalMeasurement(params.get("minPace"), (value) =>
+      paceToMinPerKm(value, unit),
+    ),
+    maxPace: parseOptionalMeasurement(params.get("maxPace"), (value) =>
+      paceToMinPerKm(value, unit),
+    ),
     minAvgHr: parseOptionalNumber(params.get("minAvgHr")),
     maxAvgHr: parseOptionalNumber(params.get("maxAvgHr")),
     routeId: params.get("routeId") || undefined,
     hasRecoveryHr: parseOptionalBoolean(params.get("hasRecoveryHr")),
     minGpsCoverage: parseOptionalNumber(params.get("minGpsCoverage")),
   };
+}
+
+function parseOptionalMeasurement(
+  value: string | null,
+  toCanonical: (value: number) => number,
+  canonicalFallback: string | null = null,
+): number | undefined {
+  const parsed = parseOptionalNumber(value);
+  if (parsed !== undefined) return toCanonical(parsed);
+  return parseOptionalNumber(canonicalFallback);
 }
 
 export function parseRunView(params: URLSearchParams): RunView {

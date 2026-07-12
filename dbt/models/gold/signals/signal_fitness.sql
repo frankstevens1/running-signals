@@ -13,9 +13,11 @@ health_days as (
 segments as (
     select *
     from {{ ref('mart_run_segments') }}
-    where segment_distance_km > 0
-      and avg_speed_kmh > 0
-      and avg_heart_rate > 0
+    where unit_system = 'metric'
+        and segment_length_m = 250.000
+        and segment_distance_km > 0
+        and avg_speed_kmh > 0
+        and avg_heart_rate > 0
 ),
 
 ranked_segments as (

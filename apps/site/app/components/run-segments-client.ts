@@ -2,53 +2,72 @@
 
 import { useEffect, useState } from "react";
 
-import type { RouteSegment } from "@/app/lib/types";
+import type { DistanceUnit, SegmentResolution } from "@/app/lib/distance-unit";
+import type { RunSegment } from "@/app/lib/types";
 
-const segmentCache = new Map<string, RouteSegment[]>();
-const segmentRequestCache = new Map<string, Promise<RouteSegment[]>>();
+const segmentCache = new Map<string, RunSegment[]>();
+const segmentRequestCache = new Map<string, Promise<RunSegment[]>>();
 
-async function fetchRunSegments(runId: string): Promise<RouteSegment[]> {
-  const existing = segmentCache.get(runId);
+function cacheKey(runId: string, unit: DistanceUnit, resolution: SegmentResolution) {
+  return `${runId}:${unit}:${resolution}`;
+}
+
+async function fetchRunSegments(
+  runId: string,
+  unit: DistanceUnit,
+  resolution: SegmentResolution,
+): Promise<RunSegment[]> {
+  const key = cacheKey(runId, unit, resolution);
+  const existing = segmentCache.get(key);
 
   if (existing) {
     return existing;
   }
 
-  const inFlight = segmentRequestCache.get(runId);
+  const inFlight = segmentRequestCache.get(key);
 
   if (inFlight) {
     return inFlight;
   }
 
-  const request = fetch(`/api/runs/${encodeURIComponent(runId)}/segments`, {
-    cache: "force-cache",
-  })
+  const request = fetch(
+    `/api/runs/${encodeURIComponent(runId)}/segments?unit=${unit}&resolution=${resolution}`,
+    {
+      cache: "force-cache",
+    },
+  )
     .then(async (response) => {
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as { error?: string } | null;
         throw new Error(payload?.error ?? `Failed to load run segments (${response.status}).`);
       }
 
-      return (await response.json()) as RouteSegment[];
+      return (await response.json()) as RunSegment[];
     })
     .then((segments) => {
-      segmentCache.set(runId, segments);
-      segmentRequestCache.delete(runId);
+      segmentCache.set(key, segments);
+      segmentRequestCache.delete(key);
       return segments;
     })
     .catch((error) => {
-      segmentRequestCache.delete(runId);
+      segmentRequestCache.delete(key);
       throw error;
     });
 
-  segmentRequestCache.set(runId, request);
+  segmentRequestCache.set(key, request);
   return request;
 }
 
-export function useRunSegments(runId: string, enabled: boolean) {
-  const cachedSegments = segmentCache.get(runId) ?? null;
-  const [fetched, setFetched] = useState<{ runId: string; segments: RouteSegment[] } | null>(null);
-  const [errorState, setErrorState] = useState<{ runId: string; message: string } | null>(null);
+export function useRunSegments(
+  runId: string,
+  unit: DistanceUnit,
+  resolution: SegmentResolution,
+  enabled: boolean,
+) {
+  const key = cacheKey(runId, unit, resolution);
+  const cachedSegments = segmentCache.get(key) ?? null;
+  const [fetched, setFetched] = useState<{ key: string; segments: RunSegment[] } | null>(null);
+  const [errorState, setErrorState] = useState<{ key: string; message: string } | null>(null);
 
   useEffect(() => {
     if (!enabled) {
@@ -61,16 +80,16 @@ export function useRunSegments(runId: string, enabled: boolean) {
 
     let cancelled = false;
 
-    fetchRunSegments(runId)
+    fetchRunSegments(runId, unit, resolution)
       .then((result) => {
         if (cancelled) return;
-        setFetched({ runId, segments: result });
+        setFetched({ key, segments: result });
         setErrorState(null);
       })
       .catch((fetchError: unknown) => {
         if (cancelled) return;
         setErrorState({
-          runId,
+          key,
           message:
             fetchError instanceof Error ? fetchError.message : "Failed to load run segments.",
         });
@@ -79,10 +98,10 @@ export function useRunSegments(runId: string, enabled: boolean) {
     return () => {
       cancelled = true;
     };
-  }, [cachedSegments, enabled, runId]);
+  }, [cachedSegments, enabled, key, resolution, runId, unit]);
 
-  const segments = cachedSegments ?? (fetched?.runId === runId ? fetched.segments : null);
-  const error = errorState?.runId === runId ? errorState.message : null;
+  const segments = cachedSegments ?? (fetched?.key === key ? fetched.segments : null);
+  const error = errorState?.key === key ? errorState.message : null;
   const isLoading = enabled && !segments && error === null;
 
   return { segments, isLoading, error };

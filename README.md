@@ -53,9 +53,10 @@ Implemented project surfaces:
   refresh for routine runs and range overwrite for intentional backfills.
 - Databricks Asset Bundle jobs for FIT and health bronze ingestion.
 - dbt silver models for dates, runs, per-record telemetry, health days, and compatibility weeks.
-- dbt gold models for daily, weekly, monthly, yearly, run, route, segment, signal, and
-  prediction-ready feature outputs.
-- A lightweight Next.js presentation layer under `apps/site`.
+- dbt gold models for daily, weekly, monthly, yearly, run, ordered activity-record, route,
+  multi-resolution segment, signal, and prediction-ready feature outputs.
+- A lightweight Next.js presentation layer under `apps/site`, with complete route geometry and a
+  global kilometre/mile preference.
 
 ## Documentation
 

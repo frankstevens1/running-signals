@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -12,6 +12,12 @@ import {
   YAxis,
 } from "recharts";
 
+import {
+  distanceFromKm,
+  SEGMENT_RESOLUTIONS,
+  type DistanceUnit,
+  type SegmentResolution,
+} from "@/app/lib/distance-unit";
 import {
   formatCadence,
   formatDate,
@@ -24,17 +30,19 @@ import {
   formatRouteId,
   formatSpeed,
 } from "@/app/lib/format";
-import type { RouteSegment, RunSession } from "@/app/lib/types";
+import type { ActivityRecord, RunSegment, RunSession } from "@/app/lib/types";
 
-import { RunSegmentMap } from "./run-segment-map";
+import { ActivityRouteMap } from "./activity-route-map";
+import { useDistanceUnit } from "./distance-unit-provider";
+import { useRunRecords } from "./run-records-client";
 import { useRunSegments } from "./run-segments-client";
 
-function statItems(run: RunSession) {
+function statItems(run: RunSession, unit: DistanceUnit) {
   return [
-    ["Distance", formatDistance(run.distanceKm)],
+    ["Distance", formatDistance(run.distanceKm, unit)],
     ["Duration", formatDuration(run.durationSeconds)],
-    ["Pace", formatPace(run.avgPaceMinPerKm)],
-    ["Speed", formatSpeed(run.speedKmh)],
+    ["Pace", formatPace(run.avgPaceMinPerKm, unit)],
+    ["Speed", formatSpeed(run.speedKmh, unit)],
     ["Avg HR", formatHeartRate(run.avgHeartRate)],
     ["Max HR", formatHeartRate(run.maxHeartRate)],
     ["Ascent", formatElevation(run.totalAscent)],
@@ -47,56 +55,31 @@ function statItems(run: RunSession) {
     ["Sleep duration", formatDuration(run.sleepDurationSeconds)],
     ["Route", formatRouteId(run.routeId)],
     ["GPS coverage", run.recordDistanceCoverageRatio === null ? "n/a" : `${Math.round(run.recordDistanceCoverageRatio * 100)}%`],
-    ["Prior 7d", formatDistance(run.prior7dDistanceKm)],
-    ["Prior 28d", formatDistance(run.prior28dDistanceKm)],
+    ["Prior 7d", formatDistance(run.prior7dDistanceKm, unit)],
+    ["Prior 28d", formatDistance(run.prior28dDistanceKm, unit)],
   ] as const;
 }
 
-function profilePoints(segments: RouteSegment[]) {
-  const points: Array<{ distanceKm: number; altitudeM: number | null }> = [];
-
-  for (const segment of segments) {
-    const startDistance = segment.segmentStartDistanceKm ?? points.at(-1)?.distanceKm ?? 0;
-    const endDistance =
-      segment.segmentEndDistanceKm ??
-      (segment.segmentDistanceKm === null ? startDistance : startDistance + segment.segmentDistanceKm);
-
-    let startAltitude: number | null = null;
-    let endAltitude: number | null = null;
-
-    if (
-      segment.minAltitudeM !== null &&
-      segment.maxAltitudeM !== null &&
-      segment.elevationChangeM !== null
-    ) {
-      if (segment.elevationChangeM >= 0) {
-        startAltitude = segment.minAltitudeM;
-        endAltitude = Math.min(segment.maxAltitudeM, segment.minAltitudeM + segment.elevationChangeM);
-      } else {
-        startAltitude = segment.maxAltitudeM;
-        endAltitude = Math.max(segment.minAltitudeM, segment.maxAltitudeM + segment.elevationChangeM);
-      }
-    } else if (segment.minAltitudeM !== null && segment.maxAltitudeM !== null) {
-      startAltitude = segment.minAltitudeM;
-      endAltitude = segment.maxAltitudeM;
-    }
-
-    if (points.length === 0 || points.at(-1)?.distanceKm !== startDistance) {
-      points.push({ distanceKm: startDistance, altitudeM: startAltitude });
-    }
-
-    points.push({ distanceKm: endDistance, altitudeM: endAltitude });
-  }
-
-  return points.filter((point) => point.altitudeM !== null);
+function profilePoints(records: ActivityRecord[], unit: DistanceUnit) {
+  return records.flatMap((record) => {
+    if (record.distanceKm === null || record.altitudeM === null) return [];
+    return [{ distance: distanceFromKm(record.distanceKm, unit), altitudeM: record.altitudeM }];
+  });
 }
 
-function splitDistance(segment: RouteSegment): string {
+function splitDistance(segment: RunSegment, unit: DistanceUnit): string {
   if (segment.segmentStartDistanceKm !== null && segment.segmentEndDistanceKm !== null) {
-    return `${segment.segmentStartDistanceKm.toFixed(2)}-${segment.segmentEndDistanceKm.toFixed(2)} km`;
+    return `${distanceFromKm(segment.segmentStartDistanceKm, unit).toFixed(2)}-${distanceFromKm(segment.segmentEndDistanceKm, unit).toFixed(2)} ${unit}`;
   }
 
-  return formatDistance(segment.segmentDistanceKm);
+  return formatDistance(segment.segmentDistanceKm, unit);
+}
+
+function resolutionLabel(resolution: SegmentResolution, unit: DistanceUnit) {
+  if (unit === "mi") return `${resolution} mi`;
+  if (resolution === 0.25) return "250 m";
+  if (resolution === 0.5) return "500 m";
+  return "1 km";
 }
 
 export function RunDetailDialog({
@@ -111,8 +94,16 @@ export function RunDetailDialog({
   const titleId = useId();
   const descriptionId = useId();
   const dialogRef = useRef<HTMLDivElement | null>(null);
-  const { segments, isLoading, error } = useRunSegments(run?.runId ?? "", open && run !== null);
-  const elevationPoints = segments ? profilePoints(segments) : [];
+  const { unit } = useDistanceUnit();
+  const [resolution, setResolution] = useState<SegmentResolution>(1);
+  const recordState = useRunRecords(run?.runId ?? "", open && run !== null);
+  const segmentState = useRunSegments(
+    run?.runId ?? "",
+    unit,
+    resolution,
+    open && run !== null,
+  );
+  const elevationPoints = recordState.records ? profilePoints(recordState.records, unit) : [];
 
   useEffect(() => {
     if (!open) {
@@ -193,8 +184,8 @@ export function RunDetailDialog({
               {formatDate(run.activityDate)}
             </h2>
             <p id={descriptionId} className="mt-1 text-sm text-(--text-soft)">
-              {formatDistance(run.distanceKm)} in {formatDuration(run.durationSeconds)} at{" "}
-              {formatPace(run.avgPaceMinPerKm)}.
+              {formatDistance(run.distanceKm, unit)} in {formatDuration(run.durationSeconds)} at{" "}
+              {formatPace(run.avgPaceMinPerKm, unit)}.
             </p>
           </div>
           <button
@@ -210,15 +201,15 @@ export function RunDetailDialog({
         <div className="space-y-6 px-5 py-5">
           <section className="space-y-4">
             <div>
-              {isLoading ? (
+              {recordState.isLoading ? (
                 <div className="h-80 animate-pulse border border-(--border) bg-(--surface-muted)" />
-              ) : error ? (
+              ) : recordState.error ? (
                 <div className="flex h-80 items-center justify-center border border-dashed border-(--border) bg-(--surface-muted) px-4 font-mono text-xs text-(--text-soft)">
-                  {error}
+                  {recordState.error}
                 </div>
               ) : (
-                <RunSegmentMap
-                  segments={segments ?? []}
+                <ActivityRouteMap
+                  records={recordState.records ?? []}
                   className="h-80 border border-(--border) bg-(--surface-muted)"
                 />
               )}
@@ -229,7 +220,7 @@ export function RunDetailDialog({
                 session_summary
               </h3>
               <dl className="grid border-l border-t border-(--border) sm:grid-cols-3 lg:grid-cols-6">
-                {statItems(run).map(([label, value]) => (
+                {statItems(run, unit).map(([label, value]) => (
                   <div
                     key={label}
                     className="border-r border-b border-(--border) bg-(--surface-muted)/60 px-3 py-3"
@@ -250,7 +241,7 @@ export function RunDetailDialog({
                 elevation_profile
               </h3>
               <p className="text-xs text-(--text-soft)">
-                Built from cumulative segment distance and segment altitude fields.
+                Built from ordered activity-record distance and altitude fields.
               </p>
             </div>
             {elevationPoints.length === 0 ? (
@@ -263,10 +254,10 @@ export function RunDetailDialog({
                   <LineChart data={elevationPoints}>
                     <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
                     <XAxis
-                      dataKey="distanceKm"
+                      dataKey="distance"
                       tick={{ fill: "var(--text-soft)", fontSize: 12 }}
                       stroke="var(--border)"
-                      tickFormatter={(value: number) => `${value.toFixed(1)} km`}
+                      tickFormatter={(value: number) => `${value.toFixed(1)} ${unit}`}
                     />
                     <YAxis
                       tick={{ fill: "var(--text-soft)", fontSize: 12 }}
@@ -284,7 +275,7 @@ export function RunDetailDialog({
                         const numericValue = Number(value);
                         return [`${Math.round(numericValue)} m`, "Altitude"];
                       }}
-                      labelFormatter={(value) => `${Number(value).toFixed(2)} km`}
+                      labelFormatter={(value) => `${Number(value).toFixed(2)} ${unit}`}
                     />
                     <Line
                       type="monotone"
@@ -300,23 +291,40 @@ export function RunDetailDialog({
           </section>
 
           <section className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="font-mono text-xs uppercase tracking-[0.12em] text-(--text)">
-                segment_splits::250m
+                segment_splits::{resolutionLabel(resolution, unit).toLowerCase().replace(" ", "_")}
               </h3>
               <p className="text-xs text-(--text-soft)">
-                Ordered segment rows from <code className="font-mono text-(--text)">mart_run_segments</code>.
+                Ordered analytical rows from <code className="font-mono text-(--text)">mart_run_segments</code>.
               </p>
             </div>
-            {isLoading ? (
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Split resolution">
+              {SEGMENT_RESOLUTIONS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  aria-pressed={resolution === option}
+                  onClick={() => setResolution(option)}
+                  className={`h-8 border px-3 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors ${
+                    resolution === option
+                      ? "border-(--accent) bg-(--accent-soft) text-(--accent)"
+                      : "border-(--border) text-(--text-soft) hover:border-(--text-soft) hover:text-(--text)"
+                  }`}
+                >
+                  {resolutionLabel(option, unit)}
+                </button>
+              ))}
+            </div>
+            {segmentState.isLoading ? (
               <div className="border border-(--border) bg-(--surface-muted) p-6 font-mono text-xs text-(--text-soft)">
                 Loading segment splits...
               </div>
-            ) : error ? (
+            ) : segmentState.error ? (
               <div className="border border-dashed border-(--border) bg-(--surface-muted) p-6 font-mono text-xs text-(--text-soft)">
-                {error}
+                {segmentState.error}
               </div>
-            ) : !segments || segments.length === 0 ? (
+            ) : !segmentState.segments || segmentState.segments.length === 0 ? (
               <div className="border border-dashed border-(--border) bg-(--surface-muted) p-6 font-mono text-xs text-(--text-soft)">
                 No segment details are available for this run.
               </div>
@@ -337,19 +345,19 @@ export function RunDetailDialog({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-(--border) bg-(--surface)">
-                      {segments.map((segment) => (
+                      {segmentState.segments.map((segment) => (
                         <tr
-                          key={`${segment.runId}-${segment.segmentIndex}`}
+                          key={`${segment.runId}-${segment.unitSystem}-${segment.segmentLengthValue}-${segment.segmentIndex}`}
                           className="transition-colors hover:bg-(--accent-soft)"
                         >
                           <td className="whitespace-nowrap px-4 py-3 font-medium text-(--text)">
-                            {splitDistance(segment)}
+                            {splitDistance(segment, unit)}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3">
                             {formatDuration(segment.segmentDurationSeconds)}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3">
-                            {formatPace(segment.segmentPaceMinPerKm)}
+                            {formatPace(segment.segmentPaceMinPerKm, unit)}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3">
                             {formatHeartRate(segment.avgHeartRate)}

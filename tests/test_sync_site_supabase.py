@@ -6,6 +6,7 @@ import time
 import urllib.error
 import urllib.request
 from email.message import Message
+from pathlib import Path
 from types import TracebackType
 from typing import Literal
 
@@ -101,7 +102,149 @@ def test_databricks_request_does_not_retry_http_errors(
     assert calls == 1
 
 
-def test_site_route_segments_export_includes_segment_detail_columns() -> None:
+def test_query_databricks_reads_all_inline_result_chunks(monkeypatch: MonkeyPatch) -> None:
+    config = databricks_config()
+    chunk_urls: list[str] = []
+
+    monkeypatch.setattr(
+        sync_site_supabase,
+        "submit_statement",
+        lambda config, statement: {
+            "status": {"state": "SUCCEEDED"},
+            "manifest": {
+                "total_row_count": 3,
+                "schema": {
+                    "columns": [
+                        {"name": "run_id"},
+                        {"name": "record_index"},
+                    ]
+                }
+            },
+            "result": {
+                "data_array": [["run-1", "1"]],
+                "next_chunk_internal_link": "/api/2.0/sql/statements/statement/result/chunks/1",
+            },
+        },
+    )
+
+    def fake_databricks_request(
+        config: sync_site_supabase.DatabricksConfig,
+        method: str,
+        url: str,
+        payload: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        assert method == "GET"
+        assert payload is None
+        chunk_urls.append(url)
+
+        if url.endswith("/chunks/1"):
+            return {
+                "data_array": [["run-1", "2"]],
+                "next_chunk_internal_link": (
+                    "/api/2.0/sql/statements/statement/result/chunks/2"
+                ),
+            }
+
+        return {
+            "data_array": [["run-2", "1"]],
+        }
+
+    monkeypatch.setattr(
+        sync_site_supabase,
+        "databricks_request",
+        fake_databricks_request,
+    )
+
+    assert sync_site_supabase.query_databricks(config, "select records") == [
+        {"run_id": "run-1", "record_index": "1"},
+        {"run_id": "run-1", "record_index": "2"},
+        {"run_id": "run-2", "record_index": "1"},
+    ]
+    assert chunk_urls == [
+        "https://example.databricks.com/api/2.0/sql/statements/statement/result/chunks/1",
+        "https://example.databricks.com/api/2.0/sql/statements/statement/result/chunks/2",
+    ]
+
+
+def test_query_databricks_rejects_truncated_results(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        sync_site_supabase,
+        "submit_statement",
+        lambda config, statement: {
+            "status": {"state": "SUCCEEDED"},
+            "manifest": {
+                "truncated": True,
+                "total_row_count": 1,
+                "schema": {"columns": [{"name": "run_id"}]},
+            },
+            "result": {"data_array": [["run-1"]]},
+        },
+    )
+
+    with pytest.raises(RuntimeError, match="result was truncated"):
+        sync_site_supabase.query_databricks(databricks_config(), "select records")
+
+
+def test_query_databricks_rejects_row_count_mismatch(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        sync_site_supabase,
+        "submit_statement",
+        lambda config, statement: {
+            "status": {"state": "SUCCEEDED"},
+            "manifest": {
+                "total_row_count": 2,
+                "schema": {"columns": [{"name": "run_id"}]},
+            },
+            "result": {"data_array": [["run-1"]]},
+        },
+    )
+
+    with pytest.raises(RuntimeError, match="expected 2 rows, fetched 1"):
+        sync_site_supabase.query_databricks(databricks_config(), "select records")
+
+
+def test_site_activity_records_export_includes_ordered_presentation_telemetry() -> None:
+    export = next(
+        table_export
+        for table_export in sync_site_supabase.EXPORTS
+        if table_export.table_name == "site_activity_records"
+    )
+
+    assert export.columns == (
+        "run_id",
+        "activity_id",
+        "route_id",
+        "is_route_representative",
+        "activity_date",
+        "record_timestamp",
+        "record_index",
+        "elapsed_seconds",
+        "seconds_since_previous_record",
+        "record_distance_m",
+        "record_distance_km",
+        "distance_delta_m",
+        "speed_mps",
+        "speed_kmh",
+        "pace_min_per_km",
+        "heart_rate",
+        "running_cadence",
+        "altitude_m",
+        "altitude_delta_m",
+        "temperature",
+        "position_lat_deg",
+        "position_long_deg",
+    )
+
+    statement = export.statement(databricks_config())
+
+    assert "`running_signals`.`gold`.`mart_activity_records`" in statement
+    assert "inner join `running_signals`.`gold`.`mart_run_sessions`" in statement
+    assert "coalesce(records.run_id = sessions.route_representative_run_id, false)" in statement
+    assert "order by records.run_id, records.record_index" in statement
+    assert "where" not in statement.lower()
+
+
+def test_site_route_segments_export_includes_resolution_and_detail_columns() -> None:
     export = next(
         table_export
         for table_export in sync_site_supabase.EXPORTS
@@ -112,7 +255,18 @@ def test_site_route_segments_export_includes_segment_detail_columns() -> None:
         "run_id",
         "route_id",
         "activity_date",
+        "unit_system",
+        "segment_length_value",
+        "segment_length_m",
+        "segment_length_label",
+        "is_canonical",
         "segment_index",
+        "segment_start_boundary_m",
+        "segment_end_boundary_m",
+        "segment_start_distance_m",
+        "segment_end_distance_m",
+        "segment_distance_m",
+        "segment_distance_value",
         "segment_distance_km",
         "segment_duration_seconds",
         "segment_pace_min_per_km",
@@ -134,6 +288,15 @@ def test_site_route_segments_export_includes_segment_detail_columns() -> None:
 
     statement = export.statement(databricks_config())
 
+    assert "segments.unit_system" in statement
+    assert "segments.segment_length_value" in statement
+    assert "segments.segment_length_m" in statement
+    assert "segments.segment_length_label" in statement
+    assert "segments.is_canonical" in statement
+    assert "segments.segment_start_boundary_m" in statement
+    assert "segments.segment_end_boundary_m" in statement
+    assert "segments.segment_distance_m" in statement
+    assert "segments.segment_distance_value" in statement
     assert "segments.segment_duration_seconds" in statement
     assert "segments.segment_pace_min_per_km" in statement
     assert "segments.avg_speed_kmh" in statement
@@ -145,3 +308,22 @@ def test_site_route_segments_export_includes_segment_detail_columns() -> None:
     assert "segments.segment_grade" in statement
     assert "segment_start_distance_km" in statement
     assert "segment_end_distance_km" in statement
+    assert "segments.unit_system," in statement
+    assert "segments.segment_length_value," in statement
+    assert "segments.segment_index" in statement
+
+
+def test_supabase_migration_uses_resolution_aware_keys_and_public_read_policy() -> None:
+    migration = (
+        Path(__file__).parents[1]
+        / "supabase/migrations/202607120001_activity_records_and_segment_resolutions.sql"
+    ).read_text()
+
+    assert "create table public.site_activity_records" in migration
+    assert "primary key (run_id, record_index)" in migration
+    assert "site_activity_records_route_idx" in migration
+    assert "on public.site_activity_records for select" in migration
+    assert (
+        "add primary key (run_id, unit_system, segment_length_value, segment_index)"
+        in migration
+    )

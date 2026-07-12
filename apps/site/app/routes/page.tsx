@@ -2,7 +2,7 @@ import { AppShell } from "@/app/components/app-shell";
 import { DataState } from "@/app/components/data-state";
 import { RouteExplorer } from "@/app/components/route-explorer";
 import { SectionHeading } from "@/app/components/section-heading";
-import { getRouteSegments, getRoutes } from "@/app/lib/data";
+import { getRouteRecords, getRoutes } from "@/app/lib/data";
 import { explorerPages } from "@/app/lib/page-metadata";
 import { getSearchParam } from "@/app/lib/query";
 
@@ -13,28 +13,34 @@ export default async function RoutesPage({
 }) {
   const resolved = await searchParams;
   const routeId = getSearchParam(resolved, "routeId");
-  const [routes, segments] = await Promise.all([getRoutes(100), getRouteSegments(undefined, 5000)]);
+  const routes = await getRoutes(100);
+  const records =
+    routes.status === "ok"
+      ? await getRouteRecords(routes.data.map((route) => route.routeId))
+      : null;
 
   return (
     <AppShell>
       <div className="space-y-10">
         <SectionHeading
-          eyebrow="mart_routes and mart_run_segments"
+          eyebrow="mart_routes and mart_activity_records"
           title="Route map"
-          description="Route centroids are clustered over an OpenStreetMap basemap, with public GPS-derived segment lines available for selection and inspection."
+          description="Representative routes use complete, ordered activity geometry over an OpenStreetMap basemap, with route centroids available for selection and inspection."
           icon={explorerPages.routes.icon}
         />
         <DataState result={routes}>
           {(routeData) => (
-            <DataState result={segments}>
-              {(segmentData) => (
-                <RouteExplorer
-                  routes={routeData}
-                  segments={segmentData}
-                  initialSelectedRouteId={routeId}
-                />
-              )}
-            </DataState>
+            records ? (
+              <DataState result={records}>
+                {(recordData) => (
+                  <RouteExplorer
+                    routes={routeData}
+                    records={recordData}
+                    initialSelectedRouteId={routeId}
+                  />
+                )}
+              </DataState>
+            ) : null
           )}
         </DataState>
       </div>

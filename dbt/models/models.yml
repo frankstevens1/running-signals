@@ -264,12 +264,43 @@ models:
                 to: ref('mart_weeks')
                 field: week_start_date
 
-  - name: mart_run_segments
-    description: Fixed 250m route and performance segments derived from silver_run_records.
+  - name: mart_segment_resolutions
+    description: Configured metric and imperial segment lengths used to derive analytical run splits.
     tests:
       - unique_combination_of_columns:
           arguments:
-            combination_of_columns: ["run_id", "segment_index"]
+            combination_of_columns: ["unit_system", "segment_length_value"]
+    columns:
+      - name: unit_system
+        description: Unit family used to label and select a segment resolution.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["metric", "imperial"]
+      - name: segment_length_value
+        description: Configured split length expressed in kilometres for metric rows or miles for imperial rows.
+        tests:
+          - not_null
+      - name: segment_length_m
+        description: Exact configured split length expressed canonically in metres.
+        tests:
+          - not_null
+      - name: segment_length_label
+        description: Stable human-readable label for the configured resolution.
+        tests:
+          - not_null
+      - name: is_canonical
+        description: Identifies the 250m resolution retained by session and fitness calculations.
+        tests:
+          - not_null
+
+  - name: mart_activity_records
+    description: Presentation-safe ordered activity telemetry used for complete route geometry and within-run charts.
+    tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ["run_id", "record_index"]
     columns:
       - name: run_id
         tests:
@@ -278,35 +309,125 @@ models:
               arguments:
                 to: ref('silver_runs')
                 field: run_id
+      - name: activity_id
+        tests:
+          - not_null
+      - name: activity_date
+        tests:
+          - not_null
+      - name: record_index
+        description: One-based deterministic record order within the activity.
+        tests:
+          - not_null
+      - name: record_timestamp
+        tests:
+          - not_null
+      - name: elapsed_seconds
+        description: Seconds elapsed from the first retained record in the activity.
+        tests:
+          - not_null
+      - name: record_distance_m
+        description: Cumulative activity distance in canonical metres when Garmin provides it.
+      - name: position_lat_deg
+        description: Latitude in decimal degrees; nullable for records without valid GPS telemetry.
+      - name: position_long_deg
+        description: Longitude in decimal degrees; nullable for records without valid GPS telemetry.
+
+  - name: mart_run_segments
+    description: Configurable metric and imperial analytical splits with record intervals allocated proportionally across crossed distance boundaries.
+    tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              ["run_id", "unit_system", "segment_length_value", "segment_index"]
+    columns:
+      - name: run_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('silver_runs')
+                field: run_id
+      - name: unit_system
+        description: Metric or imperial unit family for the segment resolution.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["metric", "imperial"]
+      - name: segment_length_value
+        description: Configured split length in kilometres for metric rows or miles for imperial rows.
+        tests:
+          - not_null
+      - name: segment_length_m
+        description: Configured split length expressed canonically in metres.
+        tests:
+          - not_null
+      - name: segment_length_label
+        description: Human-readable resolution label such as 250 m or 0.25 mi.
+        tests:
+          - not_null
+      - name: is_canonical
+        description: True only for the metric 250m rows retained by established downstream calculations.
+        tests:
+          - not_null
       - name: segment_index
+        description: One-based segment order within a run and configured resolution.
+        tests:
+          - not_null
+      - name: segment_start_boundary_m
+        description: Lower split boundary in canonical metres; movement after this point belongs to the segment, while distance zero belongs to segment 1.
+        tests:
+          - not_null
+      - name: segment_end_boundary_m
+        description: Inclusive upper split boundary in canonical metres.
         tests:
           - not_null
       - name: segment_start_timestamp
+        description: Earliest interpolated timestamp allocated to the segment.
+        tests:
+          - not_null
+      - name: segment_end_timestamp
+        description: Latest interpolated timestamp allocated to the segment.
+        tests:
+          - not_null
+      - name: segment_distance_m
+        description: Sum of record-interval distance allocated to the segment, in metres.
         tests:
           - not_null
       - name: segment_distance_km
-        description: Distance covered between the first and last record in the fixed segment.
+        description: Allocated segment distance expressed in kilometres.
+      - name: segment_distance_value
+        description: Allocated segment distance in kilometres for metric rows or miles for imperial rows.
+        tests:
+          - not_null
       - name: segment_duration_seconds
-        description: Time between the first and last record in the fixed segment. Present when timestamps exist.
+        description: Sum of elapsed record-interval time allocated proportionally by distance overlap; stationary time is assigned to the endpoint segment.
+        tests:
+          - not_null
       - name: segment_pace_min_per_km
-        description: Segment duration divided by positive segment distance. Nullable for zero-distance segments.
+        description: Allocated segment duration divided by allocated positive distance. Nullable for zero-distance segments.
+      - name: avg_speed_kmh
+        description: Allocated segment distance divided by allocated segment duration.
       - name: avg_heart_rate
-        description: Average record heart rate within the segment. Nullable when FIT records do not include heart-rate telemetry.
+        description: Weighted average of linearly interpolated record-interval heart rate within the segment.
       - name: avg_running_cadence
-        description: Average record cadence within the segment, normalized to total steps per minute. Nullable when FIT records do not include cadence telemetry.
+        description: Weighted average of linearly interpolated total-steps-per-minute cadence within the segment.
       - name: min_altitude_m
         description: Minimum enhanced altitude observed within the segment. Nullable when altitude telemetry is absent.
       - name: max_altitude_m
         description: Maximum enhanced altitude observed within the segment. Nullable when altitude telemetry is absent.
       - name: elevation_change_m
-        description: End altitude minus start altitude within the segment. Nullable when altitude telemetry is absent.
+        description: Interpolated end-boundary altitude minus start-boundary altitude. Nullable when altitude telemetry is absent.
       - name: segment_grade
         description: Elevation change divided by positive segment distance in meters. Nullable when altitude telemetry or positive distance is absent.
       - name: representative_h3_cell_resolution_8
-        description: Resolution-8 H3 cell used for route similarity matching.
+        description: Representative resolution-8 H3 telemetry cell for the analytical segment; stable route identity is calculated separately from legacy 250m buckets.
+      - name: record_count
+        description: Count of distinct record intervals contributing distance, duration, or telemetry to the segment.
 
   - name: mart_route_clusters
-    description: One row per GPS-backed run with similarity-based, direction-specific route identity.
+    description: One row per GPS-backed run with similarity-based, direction-specific route identity derived from the preserved legacy 250m H3 path and deterministic equal-distance record ordering.
     columns:
       - name: run_id
         tests:
