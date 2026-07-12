@@ -14,6 +14,7 @@ import {
   mapMonth,
   mapRoute,
   mapRouteGeometryRecord,
+  mapRunFilterBounds,
   mapRun,
   mapSegment,
   mapWeek,
@@ -31,6 +32,7 @@ import type {
   LandingStatus,
   PaginatedResult,
   RouteGeometryRecord,
+  RunFilterBounds,
   RouteSummary,
   RunSegment,
   RunSession,
@@ -452,6 +454,30 @@ async function queryRunsFromSupabase(
   }
 }
 
+async function queryRunFilterBoundsFromDatabricks(): Promise<RunFilterBounds> {
+  const rows = await queryDatabricks(`
+    select
+      cast(min(activity_date) as string) as min_activity_date,
+      cast(max(activity_date) as string) as max_activity_date,
+      min(distance_km) as min_distance_km,
+      max(distance_km) as max_distance_km,
+      min(avg_pace_min_per_km) as min_pace_min_per_km,
+      max(avg_pace_min_per_km) as max_pace_min_per_km,
+      min(avg_heart_rate) as min_avg_heart_rate,
+      max(avg_heart_rate) as max_avg_heart_rate,
+      min(record_distance_coverage_ratio) as min_gps_coverage,
+      max(record_distance_coverage_ratio) as max_gps_coverage
+    from ${goldTable("mart_run_sessions")}
+  `);
+
+  return mapRunFilterBounds(rows[0] ?? {});
+}
+
+async function queryRunFilterBoundsFromSupabase(): Promise<RunFilterBounds> {
+  const result = await querySupabase("site_run_filter_bounds", { limit: 1 });
+  return mapRunFilterBounds(result.rows[0] ?? {});
+}
+
 async function queryRoutesFromDatabricks(limit = 50): Promise<RouteSummary[]> {
   const safeLimit = Math.min(Math.max(limit, 1), 100);
   const rows = await queryDatabricks(`
@@ -856,6 +882,12 @@ function queryRuns(filters: RunFilters): Promise<PaginatedResult<RunSession>> {
     : queryRunsFromSupabase(filters);
 }
 
+function queryRunFilterBounds(): Promise<RunFilterBounds> {
+  return getSiteDataSource() === "databricks"
+    ? queryRunFilterBoundsFromDatabricks()
+    : queryRunFilterBoundsFromSupabase();
+}
+
 function queryRoutes(limit?: number): Promise<RouteSummary[]> {
   return getSiteDataSource() === "databricks"
     ? queryRoutesFromDatabricks(limit)
@@ -920,6 +952,10 @@ export function getLandingStatus(): Promise<DataResult<LandingStatus>> {
 
 export function getRuns(filters: RunFilters): Promise<DataResult<PaginatedResult<RunSession>>> {
   return asResult(queryRuns(filters));
+}
+
+export function getRunFilterBounds(): Promise<DataResult<RunFilterBounds>> {
+  return asResult(queryRunFilterBounds());
 }
 
 export function getRoutes(limit?: number): Promise<DataResult<RouteSummary[]>> {

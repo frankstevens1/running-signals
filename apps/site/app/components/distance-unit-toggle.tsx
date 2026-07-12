@@ -60,7 +60,7 @@ export function DistanceUnitToggle() {
     <div
       role="group"
       aria-label="Distance unit"
-      className="flex h-9 items-center border border-(--border) bg-(--surface-muted) p-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.08em]"
+      className="flex h-9 items-center border border-(--border) bg-(--surface-muted) px-1 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.08em]"
     >
       {(["km", "mi"] as const).map((option) => (
         <button

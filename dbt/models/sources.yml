@@ -5,21 +5,6 @@ sources:
     catalog: "{{ env_var('DATABRICKS_CATALOG') }}"
     schema: "{{ env_var('DATABRICKS_BRONZE_SCHEMA', 'bronze') }}"
     tables:
-      - name: garmin_activities_raw
-        description: Raw Garmin activity summary payloads.
-        columns:
-          - name: activity_id
-            tests:
-              - not_null
-              - unique
-
-      - name: garmin_activity_details_raw
-        description: Raw Garmin activity detail payloads including laps, samples, heart-rate data, Garmin Recovery HR, and extended metrics where available.
-        columns:
-          - name: activity_id
-            tests:
-              - not_null
-
       - name: garmin_fit_sessions
         description: Bronze Garmin FIT session messages with one row per running activity.
         columns:
@@ -59,6 +44,10 @@ sources:
 
       - name: garmin_health_daily_payloads
         description: Bronze Garmin Connect daily health JSON payloads with one row per calendar date and endpoint payload type.
+        tests:
+          - unique_combination_of_columns:
+              arguments:
+                combination_of_columns: ["calendar_date", "payload_type"]
         columns:
           - name: calendar_date
             tests:

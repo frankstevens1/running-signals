@@ -52,6 +52,9 @@ type WeeklyVolumeDatum = WeekRollup & {
   longestRunDistanceKm: number;
   otherWeeklyDistanceKm: number;
 };
+type WeeklyStructureDatum = WeekRollup & {
+  avgRunDistanceKm: number | null;
+};
 
 const HEART_RATE_BAND_SIZE_BPM = 10;
 const PACE_DOMAIN_PADDING_MIN_PER_KM = 0.25;
@@ -432,8 +435,14 @@ function getEfficiencyDomain(points: FitnessPoint[]): NumericDomain {
   return [Math.max(0, min - padding), max + padding];
 }
 
-function getCompleteStructureWeeks(weeks: WeekRollup[]) {
-  return weeks.filter((week) => week.activeDays + week.missedDays === 7);
+function getCompleteStructureWeeks(weeks: WeekRollup[]): WeeklyStructureDatum[] {
+  return weeks
+    .filter((week) => week.activeDays + week.missedDays === 7)
+    .map((week) => ({
+      ...week,
+      avgRunDistanceKm:
+        week.runsPerWeek > 0 ? week.weeklyDistanceKm / week.runsPerWeek : null,
+    }));
 }
 
 function getWeeklyVolumeBreakdown(weeks: WeekRollup[]): WeeklyVolumeDatum[] {
@@ -485,15 +494,18 @@ const CHART_INFO = {
   weeklyStructure: {
     title: "Weekly structure",
     definition:
-      "Active days are completed calendar days with at least one run. Missed days are completed calendar days with no run. The chart shows completed weeks where the active and missed day counts add to seven.",
-    source: "dbt mart_weeks, from mart_days active_day_flag and missed_day_flag.",
+      "Active days are completed calendar days with at least one run. Missed days are completed calendar days with no run. Average run distance divides weekly distance by runs in each completed week. The chart shows completed weeks where the active and missed day counts add to seven.",
+    source:
+      "dbt mart_weeks, using mart_days activity flags, weekly distance, and run count.",
     interpretation: [
       "More active days means higher run frequency in that completed week.",
+      "The average-distance line distinguishes weeks built from longer runs from weeks built from shorter runs.",
       "Missed days are non-run days, not failures. Rest days, cross-training, travel, and planned breaks all appear as missed run days.",
       "Look for consistency patterns across several weeks rather than treating one week as decisive.",
     ],
     caveats: [
       "This chart measures running regularity only. It does not know whether non-run days were planned recovery or other training.",
+      "Weeks with no runs have no average run distance.",
     ],
   },
   hrDrift: {
@@ -710,12 +722,13 @@ export function MonthlyVolumeChart({ months }: { months: MonthRollup[] }) {
 }
 
 export function WeeklyStructureChart({ weeks }: { weeks: WeekRollup[] }) {
+  const { unit } = useDistanceUnit();
   const completeWeeks = getCompleteStructureWeeks(weeks);
 
   return (
     <ChartFrame
       title="Weekly structure"
-      description="Active and missed days by completed week."
+      description="Active and missed days with average run distance by completed week."
       info={CHART_INFO.weeklyStructure}
     >
       <ResponsiveContainer width="100%" height="100%">
@@ -741,10 +754,24 @@ export function WeeklyStructureChart({ weeks }: { weeks: WeekRollup[] }) {
             tick={axisTick}
             tickFormatter={formatDays}
           />
+          <YAxis
+            yAxisId="right"
+            orientation="right"
+            domain={[0, "auto"]}
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
+            tickFormatter={(value) => formatDistanceValue(value, unit)}
+          />
           <Tooltip
             {...tooltipStyle}
             labelFormatter={(value) => shortDate(String(value))}
-            formatter={(value, name) => [formatDays(value), name]}
+            formatter={(value, name) => [
+              name === "Avg run distance"
+                ? formatDistanceValue(value, unit)
+                : formatDays(value),
+              name,
+            ]}
           />
           <Legend {...legendProps} />
           <Bar
@@ -762,6 +789,15 @@ export function WeeklyStructureChart({ weeks }: { weeks: WeekRollup[] }) {
             stackId="days"
             fill={MUTED_SERIES_COLOR}
             radius={[2, 2, 0, 0]}
+          />
+          <Line
+            yAxisId="right"
+            type="monotone"
+            dataKey="avgRunDistanceKm"
+            name="Avg run distance"
+            stroke={SECONDARY_SERIES_COLOR}
+            strokeWidth={2}
+            dot={false}
           />
         </ComposedChart>
       </ResponsiveContainer>

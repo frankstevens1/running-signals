@@ -10,6 +10,19 @@ export type PaginatedResult<T> = {
   offset: number;
 };
 
+export type RunFilterBounds = {
+  minActivityDate: string | null;
+  maxActivityDate: string | null;
+  minDistanceKm: number | null;
+  maxDistanceKm: number | null;
+  minPaceMinPerKm: number | null;
+  maxPaceMinPerKm: number | null;
+  minAvgHeartRate: number | null;
+  maxAvgHeartRate: number | null;
+  minGpsCoverage: number | null;
+  maxGpsCoverage: number | null;
+};
+
 export type DashboardSummary = {
   latestCompletedDate: string | null;
   totalRuns: number;

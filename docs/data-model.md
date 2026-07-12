@@ -88,6 +88,18 @@ contracts.
 
 ## Bronze Tables
 
+The dbt source contract contains only the four tables created by the current FIT and health bronze
+ingestion jobs. It does not declare the retired Garmin Connect activity-summary or
+activity-detail tables. Source tests enforce the required identifiers used by downstream models,
+the FIT session `run_id` grain, the allowed health payload types, and the health payload
+`calendar_date` + `payload_type` grain.
+
+The downstream test suite separately validates declared model keys, parent relationships, and the
+business rules for ordered activity records, configured segment resolutions, segment allocation,
+route-match similarity, cadence, and recovery-heart-rate ranges. The activity-record key-parity
+test is the sole preservation assertion between silver and its presentation-safe gold projection;
+the former per-run row-count comparison was redundant because exact key parity is stricter.
+
 ### bronze.garmin_fit_sessions
 
 Grain: one row per Garmin running activity session.

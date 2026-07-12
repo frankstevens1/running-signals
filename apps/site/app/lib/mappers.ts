@@ -4,6 +4,7 @@ import type {
   FitnessPoint,
   MonthRollup,
   RouteGeometryRecord,
+  RunFilterBounds,
   RunSegment,
   RouteSummary,
   RunSession,
@@ -60,6 +61,21 @@ export function mapRun(row: Record<string, unknown>): RunSession {
     sleepDurationSeconds: numberValue(row, "sleep_duration_seconds"),
     prior7dDistanceKm: numberValue(row, "prior_7d_distance_km"),
     prior28dDistanceKm: numberValue(row, "prior_28d_distance_km"),
+  };
+}
+
+export function mapRunFilterBounds(row: Record<string, unknown>): RunFilterBounds {
+  return {
+    minActivityDate: stringValue(row, "min_activity_date"),
+    maxActivityDate: stringValue(row, "max_activity_date"),
+    minDistanceKm: numberValue(row, "min_distance_km"),
+    maxDistanceKm: numberValue(row, "max_distance_km"),
+    minPaceMinPerKm: numberValue(row, "min_pace_min_per_km"),
+    maxPaceMinPerKm: numberValue(row, "max_pace_min_per_km"),
+    minAvgHeartRate: numberValue(row, "min_avg_heart_rate"),
+    maxAvgHeartRate: numberValue(row, "max_avg_heart_rate"),
+    minGpsCoverage: numberValue(row, "min_gps_coverage"),
+    maxGpsCoverage: numberValue(row, "max_gps_coverage"),
   };
 }
 

@@ -1,4 +1,11 @@
-import { siDatabricks, siGarmin, siNextdotjs, siPython, siVercel } from "simple-icons";
+import {
+  siDatabricks,
+  siGarmin,
+  siNextdotjs,
+  siPython,
+  siPostgresql,
+  siVercel,
+} from "simple-icons";
 
 type TechIcon = {
   path: string;
@@ -24,51 +31,77 @@ const dbtIcon: TechIcon = {
 };
 
 const logos: TechLogoProps[] = [
-  { label: "Garmin", description: "Supplies activity and health data.", icon: siGarmin },
-  { label: "Python", description: "Downloads and lands Garmin data.", icon: siPython },
+  {
+    label: "Garmin",
+    description: "Supplies activity and daily health source data.",
+    icon: siGarmin,
+  },
+  {
+    label: "Python",
+    description: "Automates ingestion into the raw landing layer.",
+    icon: siPython,
+  },
   {
     label: "AWS S3",
-    description: "Preserves raw FIT and health files.",
+    description: "Preserves recoverable raw FIT and health files.",
     icon: awsS3Icon,
   },
   {
     label: "Databricks",
-    description: "Parses files into bronze Delta tables.",
+    description: "Job orchestration and lakehouse management.",
     icon: siDatabricks,
   },
   {
-    label: "dbt",
-    description: "Builds tested silver and gold models.",
+    label: "dbt / SQL",
+    description: "Tests and transforms silver and gold models.",
     icon: dbtIcon,
   },
-  { label: "SQL", description: "Defines rollups and training signals.", badge: "SQL" },
-  { label: "Next.js", description: "Presents signals in data explorers.", icon: siNextdotjs },
-  { label: "Vercel", description: "Deploys the public portfolio site.", icon: siVercel },
+  {
+    label: "PostgreSQL",
+    description: "Serves curated data for downstream applications.",
+    icon: siPostgresql,
+  },
+  {
+    label: "Next.js",
+    description: "Builds and renders the presentation application.",
+    icon: siNextdotjs,
+  },
+  {
+    label: "Vercel",
+    description: "Deploys and serves the presentation application.",
+    icon: siVercel,
+  },
 ];
 
 export function TechLogo({ label, description, icon, badge }: TechLogoProps) {
   return (
     <div className="group border-r border-b border-(--border) px-4 py-4">
-      <div className="flex h-full items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-(--border) bg-(--surface-muted) text-(--accent) transition-colors group-hover:border-(--accent)">
-          {icon ? (
-            <svg
-              viewBox={icon.viewBox ?? "0 0 24 24"}
-              className="h-5 w-5 fill-current"
-              aria-hidden="true"
-            >
-              <path d={icon.path} />
-            </svg>
-          ) : (
-            <span className="px-1 text-center font-mono text-[0.65rem] font-semibold uppercase leading-none">
-              {badge}
-            </span>
-          )}
+      <div className="flex h-full flex-col">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-(--border) bg-(--surface-muted) text-(--accent) transition-colors group-hover:border-(--accent)">
+            {icon ? (
+              <svg
+                viewBox={icon.viewBox ?? "0 0 24 24"}
+                className="h-5 w-5 fill-current"
+                aria-hidden="true"
+              >
+                <path d={icon.path} />
+              </svg>
+            ) : (
+              <span className="px-1 text-center font-mono text-[0.65rem] font-semibold uppercase leading-none">
+                {badge}
+              </span>
+            )}
+          </div>
+
+          <p className="min-w-0 font-mono text-xs uppercase tracking-[0.12em] text-(--text)">
+            {label}
+          </p>
         </div>
-        <div className="min-w-0">
-          <p className="font-mono text-xs uppercase tracking-[0.12em] text-(--text)">{label}</p>
-          <p className="mt-1 text-xs leading-5 text-(--text-soft)">{description}</p>
-        </div>
+
+        <p className="mt-3 text-xs leading-5 text-(--text-soft)">
+          {description}
+        </p>
       </div>
     </div>
   );

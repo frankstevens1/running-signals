@@ -17,7 +17,7 @@ const pillars = [
     href: "/consistency",
     icon: explorerPages.consistency.icon,
     copy: "See whether training is happening regularly through active days, completed weeks, streaks, and breaks.",
-    source: "mart_days + mart_weeks",
+    source: "signal_consistency + mart_days + mart_weeks",
   },
   {
     index: "02",
@@ -26,7 +26,7 @@ const pillars = [
     href: "/volume",
     icon: explorerPages.volume.icon,
     copy: "Inspect accumulated load through weekly and monthly distance, rolling totals, and long-run contribution.",
-    source: "mart_weeks + mart_months",
+    source: "signal_volume + mart_weeks + mart_months + mart_years",
   },
   {
     index: "03",
@@ -80,7 +80,7 @@ export default function Home() {
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
               <Link
-                href="#methodology"
+                href="#signal-families"
                 className="inline-flex h-11 items-center justify-center gap-2 border border-(--border) bg-(--surface) px-5 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-(--text) transition-colors hover:border-(--text-soft) hover:bg-(--surface-muted)"
               >
                 Trace the pipeline
@@ -93,7 +93,7 @@ export default function Home() {
         </section>
 
         <div className="space-y-28 py-24 sm:space-y-32 sm:py-28 lg:space-y-40 lg:py-36">
-          <section>
+          <section id="signal-families" className="scroll-mt-28">
             <SectionHeading
               eyebrow="01 / Signal families"
               title="Three questions, answered with inspectable data."

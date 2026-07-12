@@ -1,49 +1,181 @@
-import { RotateCcw, Search, SlidersHorizontal } from "lucide-react";
+"use client";
 
-import { distanceFromKm, type DistanceUnit } from "@/app/lib/distance-unit";
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import { ChevronDown, RotateCcw, Search, SlidersHorizontal } from "lucide-react";
+import { useRouter } from "next/navigation";
+
+import { distanceFromKm, paceFromMinPerKm, type DistanceUnit } from "@/app/lib/distance-unit";
 import { formatDistance, formatRouteId } from "@/app/lib/format";
-import type { RouteSummary } from "@/app/lib/types";
+import {
+  EMPTY_RUN_FILTER_BOUNDS,
+  formatRunFilterNumber,
+  hasActiveRunFilterParams,
+  hasPersistedRunFilters,
+  normalizeRunFilters,
+  parseStoredRunFilters,
+  RUN_FILTER_STORAGE_KEY,
+  runFilterFormValues,
+  runFiltersEqual,
+  runFiltersFromFormValues,
+  runFiltersFromSearchParams,
+  serializeRunFilters,
+  withRunFilters,
+  type RunFilterFormValues,
+} from "@/app/lib/run-filter-state";
+import type { RouteSummary, RunFilterBounds } from "@/app/lib/types";
+
+function hrefFor(params: URLSearchParams): string {
+  const query = params.toString();
+  return query ? `/runs?${query}` : "/runs";
+}
+
+function formatBound(
+  value: number | null,
+  convert: (value: number) => string,
+): string | undefined {
+  return value === null ? undefined : convert(value);
+}
 
 export function RunFilters({
-  params,
+  paramsString,
   routes,
   unit,
+  bounds,
 }: {
-  params: URLSearchParams;
+  paramsString: string;
   routes: RouteSummary[];
   unit: DistanceUnit;
+  bounds: RunFilterBounds | null;
 }) {
-  const value = (key: string) => params.get(key) ?? "";
-  const selectedRouteId = value("routeId");
-  const distanceValue = (key: string, legacyKey: string) => {
-    const current = value(key);
-    if (current) return current;
+  const router = useRouter();
+  const filterBounds = bounds ?? EMPTY_RUN_FILTER_BOUNDS;
+  const params = useMemo(() => new URLSearchParams(paramsString), [paramsString]);
+  const currentFilters = useMemo(() => {
+    const filters = runFiltersFromSearchParams(params, unit);
+    return bounds ? normalizeRunFilters(filters, bounds) : filters;
+  }, [bounds, params, unit]);
+  const defaultValues = useMemo(
+    () => runFilterFormValues({}, filterBounds, unit),
+    [filterBounds, unit],
+  );
+  const [values, setValues] = useState<RunFilterFormValues>(() =>
+    runFilterFormValues(currentFilters, filterBounds, unit),
+  );
 
-    const legacyValue = value(legacyKey);
-    if (!legacyValue) return "";
+  useEffect(() => {
+    if (!bounds) return;
 
-    const legacy = Number(legacyValue);
-    if (!Number.isFinite(legacy)) return "";
+    if (hasActiveRunFilterParams(params)) {
+      const rawFilters = runFiltersFromSearchParams(params, unit);
+      if (!runFiltersEqual(rawFilters, currentFilters)) {
+        const nextParams = withRunFilters(params, currentFilters, unit);
+        nextParams.delete("offset");
+        router.replace(hrefFor(nextParams), { scroll: false });
+      }
+      return;
+    }
 
-    return String(Number(distanceFromKm(legacy, unit).toFixed(4)));
-  };
+    try {
+      const rawValue = window.localStorage.getItem(RUN_FILTER_STORAGE_KEY);
+      const restoredFilters = parseStoredRunFilters(rawValue, bounds);
+
+      if (!restoredFilters) {
+        if (rawValue !== null) window.localStorage.removeItem(RUN_FILTER_STORAGE_KEY);
+        return;
+      }
+
+      window.localStorage.setItem(RUN_FILTER_STORAGE_KEY, serializeRunFilters(restoredFilters));
+
+      const nextParams = withRunFilters(params, restoredFilters, unit);
+      nextParams.delete("offset");
+
+      if (nextParams.toString() !== paramsString) {
+        router.replace(hrefFor(nextParams), { scroll: false });
+      }
+    } catch {
+      // Storage can be unavailable in privacy-restricted browser contexts.
+    }
+  }, [bounds, currentFilters, params, paramsString, router, unit]);
+
+  const selectedRouteId = values.routeId;
   const hasSelectedRouteOption = routes.some((route) => route.routeId === selectedRouteId);
   const controlClass =
     "h-10 w-full rounded-none border border-(--border) bg-(--background) px-3 font-mono text-xs text-(--text) outline-none transition placeholder:text-(--text-soft) focus:border-(--accent) focus:bg-(--surface) focus:ring-1 focus:ring-(--accent)";
+  const selectControlClass = `${controlClass} appearance-none pr-9`;
   const fieldClass = "space-y-1.5";
   const fieldLabelClass =
     "block font-mono text-[10px] uppercase tracking-[0.12em] text-(--text-soft)";
   const pairedFieldClass = `${fieldClass} sm:col-span-2 xl:col-span-3`;
+  const dateMinimum = filterBounds.minActivityDate ?? undefined;
+  const dateMaximum = filterBounds.maxActivityDate ?? undefined;
+  const distanceMinimum = formatBound(filterBounds.minDistanceKm, (value) =>
+    formatRunFilterNumber(distanceFromKm(value, unit)),
+  );
+  const distanceMaximum = formatBound(filterBounds.maxDistanceKm, (value) =>
+    formatRunFilterNumber(distanceFromKm(value, unit)),
+  );
+  const paceMinimum = formatBound(filterBounds.minPaceMinPerKm, (value) =>
+    formatRunFilterNumber(paceFromMinPerKm(value, unit)),
+  );
+  const paceMaximum = formatBound(filterBounds.maxPaceMinPerKm, (value) =>
+    formatRunFilterNumber(paceFromMinPerKm(value, unit)),
+  );
+  const heartRateMinimum = formatBound(filterBounds.minAvgHeartRate, formatRunFilterNumber);
+  const heartRateMaximum = formatBound(filterBounds.maxAvgHeartRate, formatRunFilterNumber);
+  const gpsMinimum = formatBound(filterBounds.minGpsCoverage, formatRunFilterNumber);
+  const gpsMaximum = formatBound(filterBounds.maxGpsCoverage, formatRunFilterNumber);
+
+  function updateValue(event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+    const { name, value } = event.target;
+    setValues((current) => ({ ...current, [name]: value } as RunFilterFormValues));
+  }
+
+  function persist(filters: ReturnType<typeof runFiltersFromFormValues>) {
+    try {
+      if (hasPersistedRunFilters(filters)) {
+        window.localStorage.setItem(RUN_FILTER_STORAGE_KEY, serializeRunFilters(filters));
+      } else {
+        window.localStorage.removeItem(RUN_FILTER_STORAGE_KEY);
+      }
+    } catch {
+      // Storage is an enhancement; the URL remains the applied filter state.
+    }
+  }
+
+  function applyFilters(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const filters = runFiltersFromFormValues(values, bounds, unit);
+    const nextParams = withRunFilters(params, filters, unit);
+    nextParams.delete("offset");
+
+    persist(filters);
+    setValues(runFilterFormValues(filters, filterBounds, unit));
+
+    if (nextParams.toString() !== paramsString) {
+      router.push(hrefFor(nextParams), { scroll: false });
+    }
+  }
+
+  function clearFilters() {
+    const nextParams = withRunFilters(params, {}, unit);
+    nextParams.delete("offset");
+
+    try {
+      window.localStorage.removeItem(RUN_FILTER_STORAGE_KEY);
+    } catch {
+      // Storage is an enhancement; the URL is still reset below.
+    }
+
+    setValues(defaultValues);
+
+    if (nextParams.toString() !== paramsString) {
+      router.push(hrefFor(nextParams), { scroll: false });
+    }
+  }
 
   return (
-    <form
-      key={`${unit}:${params.toString()}`}
-      className="border border-(--border) bg-(--surface)"
-    >
-      <input type="hidden" name="limit" value={value("limit") || "25"} />
-      <input type="hidden" name="sort" value={value("sort") || "activity_date"} />
-      <input type="hidden" name="direction" value={value("direction") || "desc"} />
-      <input type="hidden" name="view" value={value("view") || "timeline"} />
+    <form onSubmit={applyFilters} className="border border-(--border) bg-(--surface)">
       <div className="flex items-center justify-between gap-4 border-b border-(--border) px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
           <SlidersHorizontal className="h-4 w-4 shrink-0 text-(--accent)" aria-hidden="true" />
@@ -67,8 +199,10 @@ export function RunFilters({
             name="dateFrom"
             type="date"
             suppressHydrationWarning
-            defaultValue={value("dateFrom")}
-            max={value("dateTo") || undefined}
+            value={values.dateFrom}
+            min={dateMinimum}
+            max={values.dateTo || dateMaximum}
+            onChange={updateValue}
             className={controlClass}
           />
         </label>
@@ -79,45 +213,61 @@ export function RunFilters({
             name="dateTo"
             type="date"
             suppressHydrationWarning
-            defaultValue={value("dateTo")}
-            min={value("dateFrom") || undefined}
+            value={values.dateTo}
+            min={values.dateFrom || dateMinimum}
+            max={dateMaximum}
+            onChange={updateValue}
             className={controlClass}
           />
         </label>
 
         <label className={`${fieldClass} sm:col-span-2 lg:col-span-2 xl:col-span-4`}>
           <span className={fieldLabelClass}>Route</span>
-          <select
-            name="routeId"
-            suppressHydrationWarning
-            defaultValue={selectedRouteId}
-            className={controlClass + " rounded-none"}
-          >
-            <option value="">Any route</option>
-            {selectedRouteId && !hasSelectedRouteOption ? (
-              <option value={selectedRouteId}>{formatRouteId(selectedRouteId)} - selected</option>
-            ) : null}
-            {routes.map((route) => (
-              <option key={route.routeId} value={route.routeId}>
-                {formatRouteId(route.routeId)} - {route.runCount} runs -{" "}
-                {formatDistance(route.avgDistanceKm, unit)}
-              </option>
-            ))}
-          </select>
+          <span className="relative block">
+            <select
+              name="routeId"
+              suppressHydrationWarning
+              value={values.routeId}
+              onChange={updateValue}
+              className={selectControlClass}
+            >
+              <option value="">Any route</option>
+              {selectedRouteId && !hasSelectedRouteOption ? (
+                <option value={selectedRouteId}>{formatRouteId(selectedRouteId)} - selected</option>
+              ) : null}
+              {routes.map((route) => (
+                <option key={route.routeId} value={route.routeId}>
+                  {formatRouteId(route.routeId)} - {route.runCount} runs -{" "}
+                  {formatDistance(route.avgDistanceKm, unit)}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-(--text-soft)"
+              aria-hidden="true"
+            />
+          </span>
         </label>
 
         <label className={`${fieldClass} lg:col-span-1 xl:col-span-2`}>
           <span className={fieldLabelClass}>Recovery HR</span>
-          <select
-            name="hasRecoveryHr"
-            suppressHydrationWarning
-            defaultValue={value("hasRecoveryHr")}
-            className={controlClass}
-          >
-            <option value="">Any</option>
-            <option value="true">Available</option>
-            <option value="false">Missing</option>
-          </select>
+          <span className="relative block">
+            <select
+              name="hasRecoveryHr"
+              suppressHydrationWarning
+              value={values.hasRecoveryHr}
+              onChange={updateValue}
+              className={selectControlClass}
+            >
+              <option value="">Any</option>
+              <option value="true">Available</option>
+              <option value="false">Missing</option>
+            </select>
+            <ChevronDown
+              className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-(--text-soft)"
+              aria-hidden="true"
+            />
+          </span>
         </label>
 
         <label className={`${fieldClass} lg:col-span-1 xl:col-span-2`}>
@@ -127,11 +277,11 @@ export function RunFilters({
             type="number"
             suppressHydrationWarning
             inputMode="decimal"
-            min="0"
-            max="1"
-            step="0.01"
-            placeholder="0.90"
-            defaultValue={value("minGpsCoverage")}
+            min={gpsMinimum}
+            max={gpsMaximum}
+            step="any"
+            value={values.minGpsCoverage}
+            onChange={updateValue}
             className={controlClass}
           />
         </label>
@@ -144,11 +294,12 @@ export function RunFilters({
               type="number"
               suppressHydrationWarning
               inputMode="decimal"
-              min="0"
-              step="0.1"
-              placeholder="5.0"
+              min={distanceMinimum}
+              max={values.maxDistance || distanceMaximum}
+              step="any"
               aria-label={`Minimum distance in ${unit === "mi" ? "miles" : "kilometres"}`}
-              defaultValue={distanceValue("minDistance", "minDistanceKm")}
+              value={values.minDistance}
+              onChange={updateValue}
               className={controlClass}
             />
             <input
@@ -156,11 +307,12 @@ export function RunFilters({
               type="number"
               suppressHydrationWarning
               inputMode="decimal"
-              min="0"
-              step="0.1"
-              placeholder="12.0"
+              min={values.minDistance || distanceMinimum}
+              max={distanceMaximum}
+              step="any"
               aria-label={`Maximum distance in ${unit === "mi" ? "miles" : "kilometres"}`}
-              defaultValue={distanceValue("maxDistance", "maxDistanceKm")}
+              value={values.maxDistance}
+              onChange={updateValue}
               className={controlClass}
             />
           </div>
@@ -174,11 +326,12 @@ export function RunFilters({
               type="number"
               suppressHydrationWarning
               inputMode="decimal"
-              min="0"
-              step="0.01"
-              placeholder="5.00"
+              min={paceMinimum}
+              max={values.maxPace || paceMaximum}
+              step="any"
               aria-label={`Minimum pace in decimal minutes per ${unit === "mi" ? "mile" : "kilometre"}`}
-              defaultValue={value("minPace")}
+              value={values.minPace}
+              onChange={updateValue}
               className={controlClass}
             />
             <input
@@ -186,11 +339,12 @@ export function RunFilters({
               type="number"
               suppressHydrationWarning
               inputMode="decimal"
-              min="0"
-              step="0.01"
-              placeholder="6.50"
+              min={values.minPace || paceMinimum}
+              max={paceMaximum}
+              step="any"
               aria-label={`Maximum pace in decimal minutes per ${unit === "mi" ? "mile" : "kilometre"}`}
-              defaultValue={value("maxPace")}
+              value={values.maxPace}
+              onChange={updateValue}
               className={controlClass}
             />
           </div>
@@ -203,32 +357,32 @@ export function RunFilters({
               name="minAvgHr"
               type="number"
               suppressHydrationWarning
-              inputMode="numeric"
-              min="40"
-              max="220"
-              step="1"
-              placeholder="130"
+              inputMode="decimal"
+              min={heartRateMinimum}
+              max={values.maxAvgHr || heartRateMaximum}
+              step="any"
               aria-label="Minimum average heart rate"
-              defaultValue={value("minAvgHr")}
+              value={values.minAvgHr}
+              onChange={updateValue}
               className={controlClass}
             />
             <input
               name="maxAvgHr"
               type="number"
               suppressHydrationWarning
-              inputMode="numeric"
-              min="40"
-              max="220"
-              step="1"
-              placeholder="170"
+              inputMode="decimal"
+              min={values.minAvgHr || heartRateMinimum}
+              max={heartRateMaximum}
+              step="any"
               aria-label="Maximum average heart rate"
-              defaultValue={value("maxAvgHr")}
+              value={values.maxAvgHr}
+              onChange={updateValue}
               className={controlClass}
             />
           </div>
         </fieldset>
 
-        <div className="grid grid-cols-[minmax(0,1fr)_2.25rem] gap-2 sm:col-span-2 lg:col-span-6 xl:col-span-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:col-span-2 lg:col-span-6 xl:col-span-3">
           <button
             type="submit"
             className="inline-flex h-10 min-w-0 items-center justify-center gap-2 bg-(--accent) px-3 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-(--accent-foreground) transition-colors hover:bg-(--accent-strong)"
@@ -236,14 +390,13 @@ export function RunFilters({
             <Search className="h-4 w-4" aria-hidden="true" />
             Apply
           </button>
-          <a
-            href="/runs"
-            aria-label="Reset run filters"
-            title="Reset filters"
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center border border-(--border) text-(--text-soft) transition-colors hover:border-(--text-soft) hover:bg-(--surface-muted) hover:text-(--text)"
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="inline-flex h-10 items-center justify-center gap-2 border border-(--border) px-3 font-mono text-xs uppercase tracking-[0.08em] text-(--text-soft) transition-colors hover:border-(--text-soft) hover:bg-(--surface-muted) hover:text-(--text)"
           >
             <RotateCcw className="h-4 w-4" aria-hidden="true" />
-          </a>
+          </button>
         </div>
       </div>
     </form>
