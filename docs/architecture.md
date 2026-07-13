@@ -145,7 +145,7 @@ descriptive context, not readiness or medical scoring.
 
 ## Analytics Readiness
 
-The modeled outputs support three analytical uses without turning the project into a coaching
+The modeled outputs support four analytical uses without turning the project into a coaching
 product:
 
 - Monitoring: `mart_days`, `mart_weeks`, `mart_months`, and `mart_years` expose daily training
@@ -153,13 +153,18 @@ product:
 - Visual analytics: `mart_runs`, `mart_run_sessions`, `mart_routes`, `mart_route_clusters`,
   `mart_activity_records`, `mart_run_segments`, and `mart_running_signals` expose run, route,
   record, segment, and signal views for portfolio communication.
-- Prediction-ready features: `mart_route_prediction_features` and
-  `mart_weekly_training_features` provide transparent feature and label columns for later modeling
-  experiments, but do not train models or produce forecasts.
+- Offline ML experimentation: `mart_route_prediction_features` and
+  `mart_weekly_training_features` provide transparent, versioned feature and label columns for
+  active baseline comparisons and validation experiments. No production model, forecast, or
+  performance result is claimed.
+- Agent Interface (in progress): a planned read-only MCP layer will expose bounded tools and
+  contextual resources over approved gold models. It will return typed evidence and visualization
+  intent for a consuming application to render; no production MCP endpoint is currently deployed.
 
 See `docs/data-model.md` and `dbt/models/models.yml` for grains, important columns, and tests.
 See `docs/layer-runbook.md` for the exact setup and refresh commands across raw, bronze, silver,
-and gold.
+and gold. See `docs/agent-interface.md` for the proposed MCP contract, ownership boundaries, and
+privacy constraints.
 
 ## References
 

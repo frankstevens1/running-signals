@@ -67,6 +67,10 @@ The `docs/` directory contains the deeper reviewer-facing documentation:
 - [Data model](docs/data-model.md): bronze, silver, and gold model contracts and lineage.
 - [Signal definitions](docs/signal-definitions.md): implemented consistency, volume, fitness,
   route, and segment metrics.
+- [Agent Interface](docs/agent-interface.md): planned read-only MCP tools, response contracts,
+  rendering responsibilities, and safety boundaries.
+- [RAG extension proposal](docs/rag-extension.md): staged retrieval architecture, corpus rules,
+  evaluation criteria, and privacy controls for grounding agent explanations.
 - [Layer runbook](docs/layer-runbook.md): setup, refresh order, and validation commands.
 - [Garmin data exploration](docs/garmin-data-exploration.md): source payload findings and field
   notes.

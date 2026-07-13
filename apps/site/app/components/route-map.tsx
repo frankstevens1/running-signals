@@ -7,16 +7,20 @@ import maplibregl, {
   type MapLayerMouseEvent,
 } from "maplibre-gl";
 
+import {
+  countryLabelFeatures,
+  type CountryFeatureCollection,
+  type MapBounds,
+  type MapPosition,
+} from "@/app/lib/route-geography";
 import type { RouteGeometryRecord, RouteSummary } from "@/app/lib/types";
-
-type Position = [number, number];
 
 type LineCollection = {
   type: "FeatureCollection";
   features: Array<{
     type: "Feature";
     properties: { routeId: string; runId: string };
-    geometry: { type: "LineString"; coordinates: Position[] };
+    geometry: { type: "LineString"; coordinates: MapPosition[] };
   }>;
 };
 
@@ -25,7 +29,7 @@ type PointCollection = {
   features: Array<{
     type: "Feature";
     properties: { routeId: string; runCount: number };
-    geometry: { type: "Point"; coordinates: Position };
+    geometry: { type: "Point"; coordinates: MapPosition };
   }>;
 };
 
@@ -40,10 +44,15 @@ type MapTheme = {
   accentStrong: string;
   accentForeground: string;
   background: string;
+  text: string;
   signalOk: string;
   signalWarn: string;
   isLight: boolean;
 };
+
+export type MapFocus =
+  | { key: string; type: "bounds"; bounds: MapBounds }
+  | { key: string; type: "position"; position: MapPosition; zoom: number };
 
 function cssToken(styles: CSSStyleDeclaration, name: string, fallback: string) {
   return styles.getPropertyValue(name).trim() || fallback;
@@ -57,6 +66,7 @@ function readMapTheme(): MapTheme {
     accentStrong: cssToken(styles, "--accent-strong", "#4ade80"),
     accentForeground: cssToken(styles, "--accent-foreground", "#04110a"),
     background: cssToken(styles, "--background", "#06110a"),
+    text: cssToken(styles, "--text", "#e8efe9"),
     signalOk: cssToken(styles, "--signal-ok", "#22c55e"),
     signalWarn: cssToken(styles, "--signal-warn", "#f59e0b"),
     isLight: styles.colorScheme.includes("light"),
@@ -96,11 +106,21 @@ function fitRecords(map: maplibregl.Map, records: RouteGeometryRecord[], duratio
   }
 }
 
+function fitBounds(map: maplibregl.Map, bounds: MapBounds) {
+  map.fitBounds(
+    [
+      [bounds[0], bounds[1]],
+      [bounds[2], bounds[3]],
+    ],
+    { padding: 54, maxZoom: 11, duration: 500 },
+  );
+}
+
 function routeLineFeatures(records: RouteGeometryRecord[]): LineCollection["features"] {
   const features: LineCollection["features"] = [];
   let routeId: string | null = null;
   let runId: string | null = null;
-  let coordinates: Position[] = [];
+  let coordinates: MapPosition[] = [];
 
   const closeSequence = () => {
     if (routeId && runId && coordinates.length >= 2) {
@@ -160,10 +180,37 @@ function routePointPaint(
   };
 }
 
+function applyCountryStyles(
+  map: maplibregl.Map,
+  theme: MapTheme,
+  selectedCountryId: string | null,
+) {
+  if (map.getLayer("country-fill")) {
+    map.setPaintProperty("country-fill", "fill-color", theme.accent);
+    map.setPaintProperty("country-fill", "fill-opacity", [
+      "case",
+      ["==", ["get", "countryId"], selectedCountryId ?? ""],
+      0.34,
+      [">", ["get", "routeCount"], 0],
+      0.18,
+      0.025,
+    ] as never);
+  }
+
+  if (map.getLayer("country-outline")) {
+    map.setPaintProperty("country-outline", "line-color", theme.accentStrong);
+  }
+
+  if (map.getLayer("country-count")) {
+    map.setPaintProperty("country-count", "text-color", theme.text);
+  }
+}
+
 function applyMapTheme(
   map: maplibregl.Map,
   theme: MapTheme,
   selectedRouteId: string | null,
+  selectedCountryId: string | null,
 ) {
   if (map.getLayer("osm")) {
     const paint = rasterPaint(theme);
@@ -210,32 +257,56 @@ function applyMapTheme(
   if (map.getLayer("route-point-count")) {
     map.setPaintProperty("route-point-count", "text-color", theme.accentForeground);
   }
+
+  applyCountryStyles(map, theme, selectedCountryId);
+}
+
+function setLayerVisibility(map: maplibregl.Map, layerId: string, visible: boolean) {
+  if (map.getLayer(layerId)) {
+    map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
+  }
 }
 
 export function RouteMap({
   routes,
   records,
   selectedRouteId,
+  selectedCountryId,
+  countryFeatures,
+  focus,
   onSelectRoute,
+  onSelectCountry,
 }: {
   routes: RouteSummary[];
   records: RouteGeometryRecord[];
   selectedRouteId: string | null;
+  selectedCountryId: string | null;
+  countryFeatures: CountryFeatureCollection | null;
+  focus: MapFocus | null;
   onSelectRoute: (routeId: string) => void;
+  onSelectCountry: (countryId: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const selectedRouteIdRef = useRef(selectedRouteId);
+  const selectedCountryIdRef = useRef(selectedCountryId);
+  const fittedInitialRoutesRef = useRef(false);
   const [ready, setReady] = useState(false);
+  const [countryOverview, setCountryOverview] = useState(false);
   const usableRecords = useMemo(() => records.filter(isValidPosition), [records]);
   const routeRunCounts = useMemo(
     () => new Map(routes.map((route) => [route.routeId, route.runCount])),
     [routes],
   );
+  const countryLabels = useMemo(
+    () => (countryFeatures ? countryLabelFeatures(countryFeatures) : null),
+    [countryFeatures],
+  );
 
   useEffect(() => {
     selectedRouteIdRef.current = selectedRouteId;
-  }, [selectedRouteId]);
+    selectedCountryIdRef.current = selectedCountryId;
+  }, [selectedCountryId, selectedRouteId]);
 
   const lineCollection = useMemo<LineCollection>(
     () => ({
@@ -319,22 +390,32 @@ export function RouteMap({
     mapRef.current = map;
     map.addControl(
       new maplibregl.NavigationControl({ showCompass: false }),
-      "top-right",
+      "bottom-left",
     );
+    const resizeObserver = new ResizeObserver(() => map.resize());
+    resizeObserver.observe(containerRef.current);
 
     const syncTheme = () => {
       if (map.isStyleLoaded()) {
-        applyMapTheme(map, readMapTheme(), selectedRouteIdRef.current);
+        applyMapTheme(
+          map,
+          readMapTheme(),
+          selectedRouteIdRef.current,
+          selectedCountryIdRef.current,
+        );
       }
     };
     const handleLoad = () => {
       syncTheme();
+      setCountryOverview(map.getZoom() <= 5);
       setReady(true);
     };
+    const handleZoomEnd = () => setCountryOverview(map.getZoom() <= 5);
     const themeObserver = new MutationObserver(syncTheme);
     const colorScheme = window.matchMedia("(prefers-color-scheme: light)");
 
     map.on("load", handleLoad);
+    map.on("zoomend", handleZoomEnd);
     themeObserver.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["data-theme"],
@@ -342,9 +423,11 @@ export function RouteMap({
     colorScheme.addEventListener("change", syncTheme);
 
     return () => {
+      resizeObserver.disconnect();
       themeObserver.disconnect();
       colorScheme.removeEventListener("change", syncTheme);
       map.off("load", handleLoad);
+      map.off("zoomend", handleZoomEnd);
       map.remove();
       if (mapRef.current === map) {
         mapRef.current = null;
@@ -391,9 +474,6 @@ export function RouteMap({
         cluster: true,
         clusterMaxZoom: 12,
         clusterRadius: 56,
-        clusterProperties: {
-          run_count_sum: ["+", ["get", "runCount"]],
-        },
       } as never);
       map.addLayer({
         id: "route-clusters",
@@ -405,7 +485,7 @@ export function RouteMap({
           "circle-opacity": 0.88,
           "circle-radius": [
             "step",
-            ["get", "run_count_sum"],
+            ["get", "point_count"],
             18,
             10,
             24,
@@ -422,7 +502,7 @@ export function RouteMap({
         source: "route-centroids",
         filter: ["has", "point_count"],
         layout: {
-          "text-field": ["to-string", ["get", "run_count_sum"]],
+          "text-field": ["to-string", ["get", "point_count"]],
           "text-size": 12,
           "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
         },
@@ -443,7 +523,7 @@ export function RouteMap({
         source: "route-centroids",
         filter: ["!", ["has", "point_count"]],
         layout: {
-          "text-field": ["to-string", ["get", "runCount"]],
+          "text-field": ["to-string", 1],
           "text-size": 11,
           "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
         },
@@ -456,21 +536,111 @@ export function RouteMap({
     }
 
     map.setFilter("selected-route-lines", ["==", ["get", "routeId"], selectedRouteId ?? ""]);
-    const selectedPointColor = routePointPaint(selectedRouteId, theme)?.["circle-color"];
-    if (selectedPointColor) {
-      map.setPaintProperty("route-points", "circle-color", selectedPointColor);
-    }
-    applyMapTheme(map, theme, selectedRouteId);
+    applyMapTheme(map, theme, selectedRouteId, selectedCountryId);
+  }, [lineCollection, pointCollection, ready, selectedCountryId, selectedRouteId]);
 
-    if (selectedRouteId) {
-      fitRecords(
-        map,
-        usableRecords.filter((record) => record.routeId === selectedRouteId),
-      );
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !countryFeatures) return;
+    const theme = readMapTheme();
+
+    if (!map.getSource("countries")) {
+      map.addSource("countries", { type: "geojson", data: countryFeatures as never });
+      map.addLayer({
+        id: "country-fill",
+        type: "fill",
+        source: "countries",
+        paint: {
+          "fill-color": theme.accent,
+          "fill-opacity": 0.1,
+        },
+      });
+      map.addLayer({
+        id: "country-outline",
+        type: "line",
+        source: "countries",
+        paint: {
+          "line-color": theme.accentStrong,
+          "line-opacity": 0.82,
+          "line-width": 1.2,
+        },
+      });
     } else {
-      fitRecords(map, usableRecords, 0);
+      (map.getSource("countries") as GeoJSONSource).setData(countryFeatures as never);
     }
-  }, [lineCollection, pointCollection, ready, selectedRouteId, usableRecords]);
+
+    if (!map.getSource("country-labels")) {
+      map.addSource("country-labels", { type: "geojson", data: countryLabels as never });
+      map.addLayer({
+        id: "country-count",
+        type: "symbol",
+        source: "country-labels",
+        layout: {
+          "text-field": [
+            "concat",
+            ["get", "countryName"],
+            "\n",
+            ["to-string", ["get", "routeCount"]],
+            " routes",
+          ],
+          "text-size": 12,
+          "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+          "text-justify": "center",
+        },
+        paint: {
+          "text-color": theme.text,
+          "text-halo-color": theme.background,
+          "text-halo-width": 1.2,
+        },
+      });
+    } else {
+      (map.getSource("country-labels") as GeoJSONSource).setData(countryLabels as never);
+    }
+
+    applyCountryStyles(map, theme, selectedCountryId);
+  }, [countryFeatures, countryLabels, ready, selectedCountryId]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    const showCountryOverview = countryOverview && Boolean(countryFeatures);
+
+    ["country-fill", "country-outline", "country-count"].forEach((layerId) =>
+      setLayerVisibility(map, layerId, showCountryOverview),
+    );
+    ["route-lines", "selected-route-lines", "route-clusters", "cluster-count", "route-points", "route-point-count"].forEach(
+      (layerId) => setLayerVisibility(map, layerId, !showCountryOverview),
+    );
+  }, [countryFeatures, countryOverview, ready]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || fittedInitialRoutesRef.current || usableRecords.length === 0) return;
+
+    fitRecords(map, usableRecords, 0);
+    fittedInitialRoutesRef.current = true;
+  }, [ready, usableRecords]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !selectedRouteId) return;
+
+    fitRecords(
+      map,
+      usableRecords.filter((record) => record.routeId === selectedRouteId),
+    );
+  }, [ready, selectedRouteId, usableRecords]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !focus) return;
+
+    if (focus.type === "bounds") {
+      fitBounds(map, focus.bounds);
+    } else {
+      map.easeTo({ center: focus.position, zoom: focus.zoom, duration: 500 });
+    }
+  }, [focus, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -484,16 +654,14 @@ export function RouteMap({
 
       const source = map.getSource("route-centroids") as GeoJSONSource;
       source.getClusterExpansionZoom(clusterId).then((zoom) => {
-        map.easeTo({ center: coordinates as Position, zoom, duration: 450 });
+        map.easeTo({ center: coordinates as MapPosition, zoom, duration: 450 });
       });
     };
 
     const handleRouteClick = (event: MapLayerMouseEvent) => {
       const feature = map.queryRenderedFeatures(event.point, { layers: ["route-points"] })[0];
       const routeId = feature?.properties?.routeId;
-      if (typeof routeId === "string") {
-        onSelectRoute(routeId);
-      }
+      if (typeof routeId === "string") onSelectRoute(routeId);
     };
 
     const setPointer = () => {
@@ -520,46 +688,42 @@ export function RouteMap({
     };
   }, [onSelectRoute, ready]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !countryFeatures) return;
+
+    const handleCountryClick = (event: MapLayerMouseEvent) => {
+      const feature = map.queryRenderedFeatures(event.point, { layers: ["country-fill"] })[0];
+      const countryId = feature?.properties?.countryId;
+      const routeCount = Number(feature?.properties?.routeCount);
+      if (typeof countryId === "string" && routeCount > 0) onSelectCountry(countryId);
+    };
+
+    const setPointer = () => {
+      map.getCanvas().style.cursor = "pointer";
+    };
+    const clearPointer = () => {
+      map.getCanvas().style.cursor = "";
+    };
+
+    map.on("click", "country-fill", handleCountryClick);
+    map.on("mouseenter", "country-fill", setPointer);
+    map.on("mouseleave", "country-fill", clearPointer);
+
+    return () => {
+      map.off("click", "country-fill", handleCountryClick);
+      map.off("mouseenter", "country-fill", setPointer);
+      map.off("mouseleave", "country-fill", clearPointer);
+    };
+  }, [countryFeatures, onSelectCountry, ready]);
+
   if (usableRecords.length === 0) {
     return (
-      <section className="overflow-hidden rounded-sm border border-(--border) bg-(--surface)">
-        <div className="border-b border-(--border) px-4 py-3">
-          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-(--accent)">
-            spatial.cluster_index
-          </p>
-          <h2 className="mt-1 text-base font-semibold text-(--text)">Route topology</h2>
-        </div>
-        <div className="flex h-[460px] items-center justify-center p-6 text-center font-mono text-sm text-(--text-soft)">
-          No complete GPS route records are available for clustering.
-        </div>
-      </section>
+      <div className="flex h-[520px] items-center justify-center p-6 text-center font-mono text-sm text-(--text-soft) lg:h-[620px]">
+        No complete GPS route records are available for mapping.
+      </div>
     );
   }
 
-  return (
-    <section className="overflow-hidden rounded-sm border border-(--border) bg-(--surface)">
-      <div className="flex flex-col gap-3 border-b border-(--border) px-4 py-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-(--accent)">
-            spatial.cluster_index
-          </p>
-          <h2 className="mt-1 text-base font-semibold text-(--text)">Route topology</h2>
-          <p className="mt-1 text-sm text-(--text-soft)">
-            Select a route node to isolate its observed GPS segments.
-          </p>
-        </div>
-        <div className="flex items-center gap-4 font-mono text-[10px] uppercase tracking-[0.12em] text-(--text-soft)">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-(--accent)" aria-hidden="true" />
-            Route
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-(--signal-warn)" aria-hidden="true" />
-            Selected
-          </span>
-        </div>
-      </div>
-      <div ref={containerRef} className="h-[520px] w-full" />
-    </section>
-  );
+  return <div ref={containerRef} className="h-[520px] w-full lg:h-[620px]" />;
 }

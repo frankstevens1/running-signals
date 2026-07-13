@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+
 import { AppShell } from "@/app/components/app-shell";
 import { SectionHeading } from "@/app/components/section-heading";
 import { explorerPages } from "@/app/lib/page-metadata";
@@ -62,19 +65,34 @@ const featureGroups = [
 const useCases = [
   {
     title: "Route pace prediction",
-    copy: "Estimate expected pace for a known route using route shape, prior route history, recent training context, and same-day health context.",
+    copy: "Baseline comparisons are testing how route shape, prior route history, recent training, and same-day health context explain pace outcomes.",
   },
   {
     title: "Weekly training load forecasting",
-    copy: "Use completed weekly rollups and prior-week lag fields to test simple forecasts of next-week distance, duration, or active-week status.",
+    copy: "Simple baselines are being compared for next-week distance, duration, and active-week labels using completed rollups and lag fields.",
   },
   {
     title: "Completion and duration estimation",
-    copy: "Estimate likely run duration or completed distance for recurring routes without turning the result into a coaching recommendation.",
+    copy: "Validation experiments are examining duration and completed-distance labels for recurring routes without turning results into coaching recommendations.",
   },
   {
     title: "Descriptive clustering and segmentation",
-    copy: "Group routes, weeks, or sessions by observed behavior to explain patterns such as route types, training blocks, or recovery-heavy weeks.",
+    copy: "Exploratory grouping is testing whether observed routes, weeks, and sessions expose stable patterns worth expressing as descriptive analytics.",
+  },
+];
+
+const analyticalValueSteps = [
+  {
+    title: "Inspect errors and features",
+    copy: "Baseline error analysis and feature review can reveal missing context, unstable assumptions, and upstream data-quality gaps.",
+  },
+  {
+    title: "Validate the finding",
+    copy: "A result must remain stable, explainable, and analytically useful before it becomes part of the governed model surface.",
+  },
+  {
+    title: "Promote analytical value",
+    copy: "Validated findings can become documented and tested gold metrics or features that improve future agent context and visual analysis.",
   },
 ];
 
@@ -93,29 +111,35 @@ export default function MlReadinessPage() {
         <SectionHeading
           eyebrow="feature marts"
           title="ML readiness assets"
-          description="The project exposes feature and label tables that could support future modeling experiments, while deliberately stopping short of deployed predictions, recommendations, readiness scores, or coaching."
+          description="Offline baseline comparisons and validation experiments are underway using versioned feature and label marts, while the project deliberately stops short of deployed predictions, recommendations, readiness scores, or coaching."
           icon={explorerPages.mlReadiness.icon}
         />
 
         <section className="grid border border-(--border) bg-(--surface) md:grid-cols-[15rem_1fr]">
           <div className="border-b border-(--border) bg-(--surface-muted)/60 p-5 md:border-r md:border-b-0">
             <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-(--accent)">
-              system_boundary
+              experiment_status
             </p>
-            <p className="mt-2 font-mono text-xs text-(--signal-ok)">features_only: true</p>
+            <p className="mt-2 font-mono text-xs text-(--signal-ok)">
+              offline_baselines: active
+            </p>
+            <p className="mt-1 font-mono text-xs text-(--text-soft)">
+              production_inference: none
+            </p>
           </div>
           <p className="max-w-4xl p-5 text-sm leading-7 text-(--text-soft)">
-            These are analytical feature assets. They make model inputs, labels, lineage, and
-            missing-data behavior easier to inspect, but this site does not train models, serve
-            predictions, or convert the outputs into athlete guidance.
+            The active work compares simple offline baselines and validates modeling assumptions.
+            Inputs, labels, lineage, and missing-data behavior remain inspectable, but this site does
+            not train or serve models, claim performance, or convert experimental outputs into
+            athlete guidance.
           </p>
         </section>
 
         <section>
           <SectionHeading
             eyebrow="01 / Feature library"
-            title="Inputs and outcomes remain explicit."
-            description="Prediction-ready assets expose their grain, source, and intended labels without presenting experimental possibilities as live intelligence."
+            title="Versioned inputs keep experiments inspectable."
+            description="Active baseline and validation work uses explicit grains, sources, and labels without presenting experimental results as live intelligence."
             level={2}
           />
           <div className="mt-8 border-t border-(--border)">
@@ -150,9 +174,9 @@ export default function MlReadinessPage() {
 
         <section>
           <SectionHeading
-            eyebrow="02 / Potential experiments"
-            title="Future work starts offline."
-            description="These use cases describe technically supported experiments, not shipped predictions, recommendations, or athlete guidance."
+            eyebrow="02 / Active experiments"
+            title="Baseline and validation work stays offline."
+            description="These use cases are being explored against versioned feature and label marts. No model performance, published finding, production prediction, or athlete guidance is claimed."
             level={2}
           />
           <div className="mt-8 grid border-l border-t border-(--border) md:grid-cols-2 xl:grid-cols-4">
@@ -168,6 +192,47 @@ export default function MlReadinessPage() {
                 <p className="mt-3 text-sm leading-6 text-(--text-soft)">{useCase.copy}</p>
               </article>
             ))}
+          </div>
+        </section>
+
+        <section>
+          <SectionHeading
+            eyebrow="03 / Analytical value"
+            title="Experiments can improve the governed analytics layer."
+            description="The useful outcome is not automatically a deployed model. Careful analysis can expose better definitions, missing context, and data-quality work."
+            level={2}
+          />
+          <div className="mt-8 grid border border-(--border) bg-(--surface)/50 lg:grid-cols-[1fr_18rem]">
+            <ol className="grid border-b border-(--border) md:grid-cols-3 lg:border-r lg:border-b-0">
+              {analyticalValueSteps.map((step, index) => (
+                <li
+                  key={step.title}
+                  className="border-b border-(--border) p-5 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0"
+                >
+                  <p className="font-mono text-[10px] text-(--accent)">
+                    review::{String(index + 1).padStart(2, "0")}
+                  </p>
+                  <h3 className="mt-3 text-base font-medium text-(--text)">{step.title}</h3>
+                  <p className="mt-3 text-sm leading-6 text-(--text-soft)">{step.copy}</p>
+                </li>
+              ))}
+            </ol>
+            <div className="p-5">
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-(--accent)">
+                serving_boundary
+              </p>
+              <p className="mt-3 text-sm leading-6 text-(--text-soft)">
+                Only deliberately promoted gold outputs can become context for the planned
+                read-only MCP interface. Experimental predictions are not passed through directly.
+              </p>
+              <Link
+                href="/agent-interface"
+                className="mt-5 inline-flex items-center gap-2 font-mono text-xs font-medium uppercase tracking-[0.08em] text-(--accent) hover:text-(--accent-strong)"
+              >
+                Review Agent Interface
+                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </Link>
+            </div>
           </div>
         </section>
       </div>

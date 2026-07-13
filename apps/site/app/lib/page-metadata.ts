@@ -8,6 +8,7 @@ import {
   HeartPulse,
   House,
   Map,
+  Network,
   TableProperties,
 } from "lucide-react";
 
@@ -80,10 +81,18 @@ export const sitePages = {
   mlReadiness: {
     href: "/ml-readiness",
     label: "ML Readiness",
-    description: "Review model-ready outputs and feature opportunities.",
+    description: "Review active offline experiments and versioned feature assets.",
     group: "Extensions",
-    keywords: ["machine learning", "features", "models", "downstream"],
+    keywords: ["machine learning", "features", "models", "experiments", "validation"],
     icon: BrainCircuit,
+  },
+  agentInterface: {
+    href: "/agent-interface",
+    label: "Agent Interface",
+    description: "Inspect the planned read-only MCP contract for governed analytics.",
+    group: "Extensions",
+    keywords: ["agent", "mcp", "tools", "resources", "contract", "visualization"],
+    icon: Network,
   },
 } satisfies Record<string, PageMetadata>;
 
@@ -95,6 +104,7 @@ export const explorerPages = {
   volume: sitePages.volume,
   fitness: sitePages.fitness,
   mlReadiness: sitePages.mlReadiness,
+  agentInterface: sitePages.agentInterface,
 };
 
 export const explorerNavItems = [
@@ -104,6 +114,7 @@ export const explorerNavItems = [
   explorerPages.volume,
   explorerPages.fitness,
   explorerPages.mlReadiness,
+  explorerPages.agentInterface,
 ] as const;
 
 export const navigationGroups = [
@@ -125,7 +136,7 @@ export const navigationGroups = [
   {
     label: "Extensions",
     icon: BrainCircuit,
-    items: [sitePages.mlReadiness],
+    items: [sitePages.mlReadiness, sitePages.agentInterface],
   },
 ] as const;
 

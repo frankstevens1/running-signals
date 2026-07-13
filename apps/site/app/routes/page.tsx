@@ -24,8 +24,8 @@ export default async function RoutesPage({
       <div className="space-y-10">
         <SectionHeading
           eyebrow="mart_routes and mart_activity_records"
-          title="Route map"
-          description="Representative routes use complete, ordered activity geometry over an OpenStreetMap basemap, with route centroids available for selection and inspection."
+          title="Routes"
+          description="Browse representative route geometry by location, then use the route list to compare and inspect observed running patterns."
           icon={explorerPages.routes.icon}
         />
         <DataState result={routes}>

@@ -176,7 +176,7 @@ export default function Home() {
                 </h2>
                 <p className="mt-4 max-w-xl text-sm leading-7 text-(--text-soft)">
                   Move from individual sessions and route geometry to consistency, volume, fitness,
-                  and prediction-ready feature assets.
+                  active offline ML experiments, and the planned read-only agent interface.
                 </p>
                 <p className="mt-6 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.1em] text-(--text-soft)">
                   <Braces className="h-4 w-4 text-(--accent)" aria-hidden="true" />
