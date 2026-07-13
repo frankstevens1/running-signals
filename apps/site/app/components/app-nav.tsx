@@ -48,7 +48,7 @@ export function AppNav() {
   };
 
   return (
-    <nav aria-label="Primary" className="relative">
+    <nav aria-label="Primary" className="relative -mx-4 sm:-mx-6 lg:mx-0">
       <div className="hidden w-full min-w-0 items-stretch justify-between gap-4 overflow-x-auto border-t border-(--border) lg:flex">
         {navigationGroups.map((group) => (
           <div key={group.label} className="flex shrink-0 items-center gap-1 px-2">
@@ -148,7 +148,7 @@ export function AppNav() {
                             <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                             <span className="min-w-0">
                               <span className="block font-medium">{item.label}</span>
-                              <span className="mt-0.5 block truncate text-xs text-(--text-faint)">
+                              <span className="mt-0.5 hidden truncate text-xs text-(--text-faint) sm:block">
                                 {item.description}
                               </span>
                             </span>
