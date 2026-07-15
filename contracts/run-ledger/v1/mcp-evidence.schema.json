@@ -1,0 +1,638 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://running-signals.local/contracts/run-ledger/v1/mcp-evidence.schema.json",
+  "title": "Run Ledger MCP analytical evidence v1",
+  "description": "Typed, read-only evidence returned by the planned Running Signals MCP interface. Run Ledger owns orchestration and narrative generation; this envelope supplies only governed analytical evidence and rendering intent.",
+  "x-running-signals": {
+    "artifactType": "mcp-evidence-schema",
+    "contractVersion": "1.0.0",
+    "status": "compatible",
+    "runtimeTruth": true,
+    "deploymentStatus": "not_deployed",
+    "tenantScope": "Derived from the verified Supabase subject; tools never accept user_id.",
+    "safety": "Descriptive running analytics only. No coaching, diagnosis, readiness score, or medical conclusion."
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/trainingSummaryEvidence"
+    },
+    {
+      "$ref": "#/$defs/volumeTrendEvidence"
+    },
+    {
+      "$ref": "#/$defs/routeComparisonEvidence"
+    },
+    {
+      "$ref": "#/$defs/fitnessTrendEvidence"
+    },
+    {
+      "$ref": "#/$defs/unavailableEvidence"
+    },
+    {
+      "$ref": "#/$defs/errorEvidence"
+    }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "toolName": {
+      "type": "string",
+      "enum": [
+        "get_training_summary",
+        "get_volume_trend",
+        "compare_route_runs",
+        "get_fitness_trend"
+      ]
+    },
+    "metricReference": {
+      "type": "object",
+      "properties": {
+        "metric_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"
+        },
+        "metric_version": {
+          "const": "1.0.0"
+        },
+        "canonical_unit": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "metric_id",
+        "metric_version",
+        "canonical_unit"
+      ],
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "generation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pipeline_run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "gold_models": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^contract_v1_[a-z0-9_]+$"
+          }
+        },
+        "source_max_activity_date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        }
+      },
+      "required": [
+        "generation_id",
+        "pipeline_run_id",
+        "gold_models",
+        "source_max_activity_date"
+      ],
+      "additionalProperties": false
+    },
+    "caveat": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "descriptive_not_prescriptive",
+            "missing_optional_telemetry",
+            "limited_sample",
+            "route_conditions_uncontrolled",
+            "stale_while_refreshing"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "visualizationIntent": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "metric_cards",
+            "line_chart",
+            "bar_chart",
+            "calendar",
+            "route_comparison_table"
+          ]
+        },
+        "x_axis_field": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "series": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "field": {
+                "type": "string",
+                "minLength": 1
+              },
+              "metric_id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"
+              }
+            },
+            "required": [
+              "field",
+              "metric_id"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "x_axis_field",
+        "series"
+      ],
+      "additionalProperties": false
+    },
+    "baseEvidence": {
+      "type": "object",
+      "properties": {
+        "evidence_version": {
+          "const": "1.0.0"
+        },
+        "contract_version": {
+          "const": "1.0.0"
+        },
+        "tool_name": {
+          "$ref": "#/$defs/toolName"
+        },
+        "request_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "correlation_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "status": {
+          "type": "string"
+        },
+        "data_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "analytical_timezone": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "freshness": {
+          "oneOf": [
+            {
+              "$ref": "api-v1.json#/$defs/freshness"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "metric_references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/metricReference"
+          }
+        },
+        "provenance": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/provenance"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "caveats": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/caveat"
+          }
+        },
+        "visualization_intent": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/visualizationIntent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {}
+      },
+      "required": [
+        "evidence_version",
+        "contract_version",
+        "tool_name",
+        "request_id",
+        "correlation_id",
+        "status",
+        "data_version",
+        "generated_at",
+        "analytical_timezone",
+        "freshness",
+        "metric_references",
+        "provenance",
+        "caveats",
+        "visualization_intent",
+        "evidence"
+      ]
+    },
+    "trainingSummaryEvidence": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseEvidence"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "tool_name": {
+              "const": "get_training_summary"
+            },
+            "status": {
+              "const": "success"
+            },
+            "data_version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "analytical_timezone": {
+              "type": "string",
+              "minLength": 1
+            },
+            "freshness": {
+              "$ref": "api-v1.json#/$defs/freshness"
+            },
+            "provenance": {
+              "$ref": "#/$defs/provenance"
+            },
+            "visualization_intent": {
+              "$ref": "#/$defs/visualizationIntent"
+            },
+            "evidence": {
+              "$ref": "api-v1.json#/$defs/trainingSummary"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "volumeTrendEvidence": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseEvidence"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "tool_name": {
+              "const": "get_volume_trend"
+            },
+            "status": {
+              "const": "success"
+            },
+            "data_version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "analytical_timezone": {
+              "type": "string",
+              "minLength": 1
+            },
+            "freshness": {
+              "$ref": "api-v1.json#/$defs/freshness"
+            },
+            "provenance": {
+              "$ref": "#/$defs/provenance"
+            },
+            "visualization_intent": {
+              "$ref": "#/$defs/visualizationIntent"
+            },
+            "evidence": {
+              "type": "object",
+              "properties": {
+                "grain": {
+                  "type": "string",
+                  "enum": [
+                    "day",
+                    "week",
+                    "month",
+                    "year"
+                  ]
+                },
+                "series": {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "$ref": "api-v1.json#/$defs/dailyTraining"
+                      },
+                      {
+                        "$ref": "api-v1.json#/$defs/weeklyTraining"
+                      },
+                      {
+                        "$ref": "api-v1.json#/$defs/monthlyTraining"
+                      },
+                      {
+                        "$ref": "api-v1.json#/$defs/yearlyTraining"
+                      }
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "grain",
+                "series"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "routeComparisonEvidence": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseEvidence"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "tool_name": {
+              "const": "compare_route_runs"
+            },
+            "status": {
+              "const": "success"
+            },
+            "data_version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "analytical_timezone": {
+              "type": "string",
+              "minLength": 1
+            },
+            "freshness": {
+              "$ref": "api-v1.json#/$defs/freshness"
+            },
+            "provenance": {
+              "$ref": "#/$defs/provenance"
+            },
+            "visualization_intent": {
+              "$ref": "#/$defs/visualizationIntent"
+            },
+            "evidence": {
+              "type": "object",
+              "properties": {
+                "route_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "comparisons": {
+                  "type": "array",
+                  "maxItems": 100,
+                  "items": {
+                    "$ref": "api-v1.json#/$defs/routeComparison"
+                  }
+                }
+              },
+              "required": [
+                "route_id",
+                "comparisons"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "fitnessTrendEvidence": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseEvidence"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "tool_name": {
+              "const": "get_fitness_trend"
+            },
+            "status": {
+              "const": "success"
+            },
+            "data_version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "analytical_timezone": {
+              "type": "string",
+              "minLength": 1
+            },
+            "freshness": {
+              "$ref": "api-v1.json#/$defs/freshness"
+            },
+            "provenance": {
+              "$ref": "#/$defs/provenance"
+            },
+            "visualization_intent": {
+              "$ref": "#/$defs/visualizationIntent"
+            },
+            "evidence": {
+              "type": "object",
+              "properties": {
+                "window": {
+                  "const": "latest_180_runs"
+                },
+                "points": {
+                  "type": "array",
+                  "maxItems": 180,
+                  "items": {
+                    "$ref": "api-v1.json#/$defs/fitnessPoint"
+                  }
+                },
+                "bands": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "api-v1.json#/$defs/fitnessBand"
+                  }
+                }
+              },
+              "required": [
+                "window",
+                "points",
+                "bands"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "unavailableEvidence": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseEvidence"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "unavailable"
+            },
+            "evidence": {
+              "type": "null"
+            },
+            "metric_references": {
+              "maxItems": 0
+            },
+            "provenance": {
+              "type": "null"
+            },
+            "visualization_intent": {
+              "type": "null"
+            },
+            "unavailable_reason": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "no_active_generation",
+                    "resource_suppressed",
+                    "insufficient_source_data",
+                    "refresh_pending",
+                    "unsupported_window"
+                  ]
+                },
+                "retryable": {
+                  "type": "boolean"
+                },
+                "retry_after_seconds": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "code",
+                "retryable",
+                "retry_after_seconds"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "unavailable_reason"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "errorEvidence": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseEvidence"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "error"
+            },
+            "evidence": {
+              "type": "null"
+            },
+            "metric_references": {
+              "maxItems": 0
+            },
+            "provenance": {
+              "type": "null"
+            },
+            "visualization_intent": {
+              "type": "null"
+            },
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "unauthenticated",
+                    "forbidden",
+                    "not_found",
+                    "validation_error",
+                    "rate_limited",
+                    "internal_error"
+                  ]
+                },
+                "retryable": {
+                  "type": "boolean"
+                },
+                "retry_after_seconds": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "code",
+                "retryable",
+                "retry_after_seconds"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "error"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  }
+}

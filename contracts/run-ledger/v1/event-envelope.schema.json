@@ -1,0 +1,689 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://running-signals.local/contracts/run-ledger/v1/event-envelope.schema.json",
+  "title": "Run Ledger analytical invalidation event envelope v1",
+  "description": "Tenant-scoped, persisted invalidation event broadcast only after the associated state commits. Realtime delivery is best effort; API v1 remains the source of truth.",
+  "x-running-signals": {
+    "artifactType": "event-envelope-schema",
+    "contractVersion": "1.0.0",
+    "status": "compatible",
+    "runtimeTruth": true,
+    "channel": "user:{authenticated_user_id}:analytics",
+    "ordering": "sequence is strictly monotonic within one authenticated user's analytics stream and starts at 1",
+    "deduplication": "event_id",
+    "gapRecovery": "Fetch api_v1.event_history after the last contiguous sequence; if the gap predates retention, refetch api_v1.freshness and affected resources.",
+    "forbiddenPayloadData": [
+      "health_values",
+      "gps_coordinates",
+      "raw_file_paths",
+      "upload_tokens",
+      "free_form_narratives"
+    ]
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/importUploadingEvent"
+    },
+    {
+      "$ref": "#/$defs/importValidatingEvent"
+    },
+    {
+      "$ref": "#/$defs/importQueuedEvent"
+    },
+    {
+      "$ref": "#/$defs/importProcessingEvent"
+    },
+    {
+      "$ref": "#/$defs/importCompletedEvent"
+    },
+    {
+      "$ref": "#/$defs/importCompletedWithWarningsEvent"
+    },
+    {
+      "$ref": "#/$defs/importFailedEvent"
+    },
+    {
+      "$ref": "#/$defs/refreshStartedEvent"
+    },
+    {
+      "$ref": "#/$defs/refreshCompletedEvent"
+    },
+    {
+      "$ref": "#/$defs/refreshFailedEvent"
+    },
+    {
+      "$ref": "#/$defs/dataPublishedEvent"
+    }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "opaqueId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "baseEvent": {
+      "type": "object",
+      "properties": {
+        "contract_version": {
+          "const": "1.0.0"
+        },
+        "event_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "event_type": {
+          "type": "string"
+        },
+        "event_version": {
+          "const": "1.0.0"
+        },
+        "stream": {
+          "const": "analytics"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "occurred_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "resource_type": {
+          "type": "string",
+          "enum": [
+            "fit_import",
+            "analytical_refresh",
+            "contract_generation"
+          ]
+        },
+        "resource_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "data_version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200
+        },
+        "correlation_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "payload": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "contract_version",
+        "event_id",
+        "event_type",
+        "event_version",
+        "stream",
+        "sequence",
+        "occurred_at",
+        "resource_type",
+        "resource_id",
+        "data_version",
+        "correlation_id",
+        "payload"
+      ]
+    },
+    "importPayloadBase": {
+      "type": "object",
+      "properties": {
+        "import_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "state": {
+          "type": "string"
+        },
+        "total_file_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "completed_file_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "accepted_file_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rejected_file_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "warning_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failure_code": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "import_id",
+        "state",
+        "total_file_count",
+        "completed_file_count",
+        "accepted_file_count",
+        "rejected_file_count",
+        "warning_count",
+        "failure_code"
+      ]
+    },
+    "refreshPayloadBase": {
+      "type": "object",
+      "properties": {
+        "refresh_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "state": {
+          "type": "string"
+        },
+        "trigger": {
+          "type": "string",
+          "enum": [
+            "first_load",
+            "incremental",
+            "deletion",
+            "correction",
+            "timezone_change"
+          ]
+        },
+        "previous_data_version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200
+        },
+        "failure_code": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "refresh_id",
+        "state",
+        "trigger",
+        "previous_data_version",
+        "failure_code"
+      ]
+    },
+    "publishedPayload": {
+      "type": "object",
+      "properties": {
+        "generation_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "previous_data_version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200
+        },
+        "published_data_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "availability": {
+          "type": "string",
+          "enum": [
+            "empty",
+            "populated"
+          ]
+        },
+        "changed_resources": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "training_summary",
+              "runs",
+              "run_filter_bounds",
+              "daily_training",
+              "weekly_training",
+              "monthly_training",
+              "yearly_training",
+              "routes",
+              "route_geometry",
+              "segments",
+              "activity_profiles",
+              "route_comparisons",
+              "fitness",
+              "fitness_trends",
+              "metric_catalog",
+              "freshness"
+            ]
+          }
+        }
+      },
+      "required": [
+        "generation_id",
+        "previous_data_version",
+        "published_data_version",
+        "availability",
+        "changed_resources"
+      ],
+      "additionalProperties": false
+    },
+    "importUploadingEvent": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseEvent"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_type": {
+              "const": "fit.import.uploading"
+            },
+            "resource_type": {
+              "const": "fit_import"
+            },
+            "payload": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/importPayloadBase"
+                },
+                {
+                  "properties": {
+                    "state": {
+                      "const": "uploading"
+                    },
+                    "failure_code": {
+                      "type": "null"
+                    }
+                  }
+                }
+              ],
+              "unevaluatedProperties": false
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "importValidatingEvent": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseEvent"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_type": {
+              "const": "fit.import.validating"
+            },
+            "resource_type": {
+              "const": "fit_import"
+            },
+            "payload": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/importPayloadBase"
+                },
+                {
+                  "properties": {
+                    "state": {
+                      "const": "validating"
+                    },
+                    "failure_code": {
+                      "type": "null"
+                    }
+                  }
+                }
+              ],
+              "unevaluatedProperties": false
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "importQueuedEvent": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseEvent"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_type": {
+              "const": "fit.import.queued"
+            },
+            "resource_type": {
+              "const": "fit_import"
+            },
+            "payload": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/importPayloadBase"
+                },
+                {
+                  "properties": {
+                    "state": {
+                      "const": "queued"
+                    },
+                    "failure_code": {
+                      "type": "null"
+                    }
+                  }
+                }
+              ],
+              "unevaluatedProperties": false
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "importProcessingEvent": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseEvent"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_type": {
+              "const": "fit.import.processing"
+            },
+            "resource_type": {
+              "const": "fit_import"
+            },
+            "payload": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/importPayloadBase"
+                },
+                {
+                  "properties": {
+                    "state": {
+                      "const": "processing"
+                    },
+                    "failure_code": {
+                      "type": "null"
+                    }
+                  }
+                }
+              ],
+              "unevaluatedProperties": false
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "importCompletedEvent": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseEvent"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_type": {
+              "const": "fit.import.completed"
+            },
+            "resource_type": {
+              "const": "fit_import"
+            },
+            "payload": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/importPayloadBase"
+                },
+                {
+                  "properties": {
+                    "state": {
+                      "const": "completed"
+                    },
+                    "rejected_file_count": {
+                      "const": 0
+                    },
+                    "warning_count": {
+                      "const": 0
+                    },
+                    "failure_code": {
+                      "type": "null"
+                    }
+                  }
+                }
+              ],
+              "unevaluatedProperties": false
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "importCompletedWithWarningsEvent": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseEvent"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_type": {
+              "const": "fit.import.completed_with_warnings"
+            },
+            "resource_type": {
+              "const": "fit_import"
+            },
+            "payload": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/importPayloadBase"
+                },
+                {
+                  "properties": {
+                    "state": {
+                      "const": "completed_with_warnings"
+                    },
+                    "warning_count": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "failure_code": {
+                      "type": "null"
+                    }
+                  }
+                }
+              ],
+              "unevaluatedProperties": false
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "importFailedEvent": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseEvent"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_type": {
+              "const": "fit.import.failed"
+            },
+            "resource_type": {
+              "const": "fit_import"
+            },
+            "payload": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/importPayloadBase"
+                },
+                {
+                  "properties": {
+                    "state": {
+                      "const": "failed"
+                    },
+                    "failure_code": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              ],
+              "unevaluatedProperties": false
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "refreshStartedEvent": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseEvent"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_type": {
+              "const": "analytics.refresh.started"
+            },
+            "resource_type": {
+              "const": "analytical_refresh"
+            },
+            "payload": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/refreshPayloadBase"
+                },
+                {
+                  "properties": {
+                    "state": {
+                      "const": "started"
+                    },
+                    "failure_code": {
+                      "type": "null"
+                    }
+                  }
+                }
+              ],
+              "unevaluatedProperties": false
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "refreshCompletedEvent": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseEvent"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_type": {
+              "const": "analytics.refresh.completed"
+            },
+            "resource_type": {
+              "const": "analytical_refresh"
+            },
+            "payload": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/refreshPayloadBase"
+                },
+                {
+                  "properties": {
+                    "state": {
+                      "const": "completed"
+                    },
+                    "failure_code": {
+                      "type": "null"
+                    }
+                  }
+                }
+              ],
+              "unevaluatedProperties": false
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "refreshFailedEvent": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseEvent"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_type": {
+              "const": "analytics.refresh.failed"
+            },
+            "resource_type": {
+              "const": "analytical_refresh"
+            },
+            "payload": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/refreshPayloadBase"
+                },
+                {
+                  "properties": {
+                    "state": {
+                      "const": "failed"
+                    },
+                    "failure_code": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              ],
+              "unevaluatedProperties": false
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "dataPublishedEvent": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseEvent"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_type": {
+              "const": "contract.data_published"
+            },
+            "resource_type": {
+              "const": "contract_generation"
+            },
+            "payload": {
+              "$ref": "#/$defs/publishedPayload"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  }
+}

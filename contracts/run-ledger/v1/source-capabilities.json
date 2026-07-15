@@ -1,0 +1,208 @@
+{
+  "artifactType": "source-capabilities",
+  "contractVersion": "1.0.0",
+  "status": "compatible",
+  "runtimeTruth": true,
+  "description": "Run Ledger v1 source availability for user-uploaded Garmin FIT files. Supported means the source can supply the capability; optional values remain null when an individual file or device omits them.",
+  "states": [
+    {
+      "state": "supported",
+      "meaning": "The FIT upload path can supply this capability and reviewed gold contracts may expose it."
+    },
+    {
+      "state": "source_not_uploaded",
+      "meaning": "The v1 FIT upload path does not contain this source. Its values are absent from API v1, MCP v1, events, and Run Ledger fixtures."
+    }
+  ],
+  "capabilities": [
+    {
+      "capabilityId": "fit.session",
+      "state": "supported",
+      "source": "garmin_fit_session",
+      "availability": "required_for_accepted_activity",
+      "definition": "Accepted running activity identity, analytical date, start time, distance, duration, speed, pace, ascent, and descent from validated FIT session messages with documented fallbacks in silver.",
+      "missingBehavior": "A file without enough session identity to form an activity is rejected. Individual optional measurements remain null.",
+      "sensitivity": "private_training_data",
+      "goldOwners": [
+        "contract_v1_runs",
+        "contract_v1_daily_training",
+        "contract_v1_weekly_training",
+        "contract_v1_monthly_training",
+        "contract_v1_yearly_training",
+        "contract_v1_training_summary"
+      ]
+    },
+    {
+      "capabilityId": "fit.record_telemetry",
+      "state": "supported",
+      "source": "garmin_fit_record",
+      "availability": "optional_per_activity",
+      "definition": "Ordered timestamps, elapsed time, cumulative distance, deltas, speed, pace, and other record-level values used by gold profiles and segments.",
+      "missingBehavior": "The activity summary remains available; profile or segment operations return nullable fields or insufficient_source_data when no supported artifact can be produced.",
+      "sensitivity": "private_training_data",
+      "goldOwners": [
+        "contract_v1_activity_profiles",
+        "contract_v1_segments"
+      ]
+    },
+    {
+      "capabilityId": "fit.heart_rate",
+      "state": "supported",
+      "source": "garmin_fit_session_and_record",
+      "availability": "optional_per_activity",
+      "definition": "Session average/maximum heart rate and record heart rate used for descriptive fitness and segment analytics.",
+      "missingBehavior": "Heart-rate fields, efficiency, drift, and heart-rate-band values that require the missing telemetry are null; other activity values remain available.",
+      "sensitivity": "private_health_adjacent_data",
+      "goldOwners": [
+        "contract_v1_runs",
+        "contract_v1_segments",
+        "contract_v1_activity_profiles",
+        "contract_v1_fitness",
+        "contract_v1_fitness_trends"
+      ]
+    },
+    {
+      "capabilityId": "fit.recovery_heart_rate",
+      "state": "supported",
+      "source": "garmin_fit_recovery_hr_event",
+      "availability": "optional_per_activity",
+      "definition": "Garmin Recovery HR calculated in gold-compatible upstream logic as final recorded running heart rate minus the latest numeric FIT recovery_hr event value.",
+      "missingBehavior": "garmin_recovery_hr is null when either required value is missing or invalid.",
+      "sensitivity": "private_health_adjacent_data",
+      "goldOwners": [
+        "contract_v1_runs",
+        "contract_v1_fitness",
+        "contract_v1_training_summary"
+      ]
+    },
+    {
+      "capabilityId": "fit.gps",
+      "state": "supported",
+      "source": "garmin_fit_record_position",
+      "availability": "optional_per_activity",
+      "definition": "Validated record coordinates used by gold to create route identity, bounded display geometry, record coverage, route geography, and route comparisons.",
+      "missingBehavior": "Route identifiers, geometry, geography, and GPS coverage remain null or unavailable; the non-spatial activity summary remains available.",
+      "sensitivity": "private_precise_location",
+      "goldOwners": [
+        "contract_v1_runs",
+        "contract_v1_routes",
+        "contract_v1_route_geometry",
+        "contract_v1_route_comparisons",
+        "contract_v1_segments"
+      ]
+    },
+    {
+      "capabilityId": "fit.altitude",
+      "state": "supported",
+      "source": "garmin_fit_session_and_record",
+      "availability": "optional_per_activity",
+      "definition": "Session ascent/descent and record altitude used by gold for elevation profiles, segment elevation change/grade, and route altitude range.",
+      "missingBehavior": "Altitude-derived fields remain null without required telemetry; distance and duration remain available.",
+      "sensitivity": "private_training_data",
+      "goldOwners": [
+        "contract_v1_runs",
+        "contract_v1_routes",
+        "contract_v1_segments",
+        "contract_v1_activity_profiles"
+      ]
+    },
+    {
+      "capabilityId": "fit.cadence",
+      "state": "supported",
+      "source": "garmin_fit_record_cadence",
+      "availability": "optional_per_activity",
+      "definition": "FIT per-leg cadence normalized to total steps per minute in silver and exposed through gold profile and segment fields.",
+      "missingBehavior": "Cadence fields remain null.",
+      "sensitivity": "private_training_data",
+      "goldOwners": [
+        "contract_v1_segments",
+        "contract_v1_activity_profiles"
+      ]
+    },
+    {
+      "capabilityId": "fit.temperature",
+      "state": "supported",
+      "source": "garmin_fit_record_temperature",
+      "availability": "optional_per_activity",
+      "definition": "Record temperature in canonical degrees Celsius for the bounded activity profile.",
+      "missingBehavior": "temperature is null.",
+      "sensitivity": "private_training_data",
+      "goldOwners": [
+        "contract_v1_activity_profiles"
+      ]
+    },
+    {
+      "capabilityId": "pipeline.publication",
+      "state": "supported",
+      "source": "running_signals_publication_metadata",
+      "availability": "required_for_active_generation",
+      "definition": "Contract, data-version, analytical-timezone, freshness, and publication metadata produced with an atomic analytical generation.",
+      "missingBehavior": "API analytical reads return no_active_generation rather than an incomplete dataset.",
+      "sensitivity": "private_operational_metadata",
+      "goldOwners": [
+        "contract_v1_freshness"
+      ]
+    },
+    {
+      "capabilityId": "health.hrv",
+      "state": "source_not_uploaded",
+      "source": "garmin_connect_daily_health_json",
+      "availability": "not_available_in_run_ledger_v1",
+      "definition": "Daily HRV values and status are not contained in the v1 FIT upload contract.",
+      "missingBehavior": "No hrv_value, hrv_status, HRV coverage count, API field, MCP evidence field, or public snapshot field is published.",
+      "sensitivity": "private_health_data",
+      "goldOwners": [],
+      "exposedInApiV1": false,
+      "exposedInMcpV1": false
+    },
+    {
+      "capabilityId": "health.resting_heart_rate",
+      "state": "source_not_uploaded",
+      "source": "garmin_connect_daily_health_json",
+      "availability": "not_available_in_run_ledger_v1",
+      "definition": "Daily resting-heart-rate values are not contained in the v1 FIT upload contract.",
+      "missingBehavior": "No resting_heart_rate value, coverage count, API field, MCP evidence field, or public snapshot field is published.",
+      "sensitivity": "private_health_data",
+      "goldOwners": [],
+      "exposedInApiV1": false,
+      "exposedInMcpV1": false
+    },
+    {
+      "capabilityId": "health.daily_heart_rate",
+      "state": "source_not_uploaded",
+      "source": "garmin_connect_daily_health_json",
+      "availability": "not_available_in_run_ledger_v1",
+      "definition": "Daily all-day heart-rate payloads and coverage are not contained in the v1 FIT upload contract.",
+      "missingBehavior": "No daily heart-rate values or coverage fields are published.",
+      "sensitivity": "private_health_data",
+      "goldOwners": [],
+      "exposedInApiV1": false,
+      "exposedInMcpV1": false
+    },
+    {
+      "capabilityId": "health.sleep",
+      "state": "source_not_uploaded",
+      "source": "garmin_connect_daily_health_json",
+      "availability": "not_available_in_run_ledger_v1",
+      "definition": "Daily sleep score, duration, and interval values are not contained in the v1 FIT upload contract.",
+      "missingBehavior": "No sleep value, coverage count, API field, MCP evidence field, or public snapshot field is published.",
+      "sensitivity": "private_health_data",
+      "goldOwners": [],
+      "exposedInApiV1": false,
+      "exposedInMcpV1": false
+    },
+    {
+      "capabilityId": "health.coverage",
+      "state": "source_not_uploaded",
+      "source": "garmin_connect_daily_health_json",
+      "availability": "not_available_in_run_ledger_v1",
+      "definition": "Owner-only counts of days containing HRV, resting-heart-rate, sleep, or all-day heart-rate payloads are outside Run Ledger v1.",
+      "missingBehavior": "The DashboardSummary.healthCoverage wrapper is absent rather than returned with fabricated zeros.",
+      "sensitivity": "private_health_metadata",
+      "goldOwners": [],
+      "exposedInApiV1": false,
+      "exposedInMcpV1": false
+    }
+  ]
+}
+

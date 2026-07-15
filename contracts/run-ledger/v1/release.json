@@ -1,0 +1,48 @@
+{
+  "releaseSchemaVersion": 1,
+  "contractVersion": "1.0.0",
+  "generatedAt": "2026-07-15T22:00:51Z",
+  "compatibility": {
+    "status": "compatible",
+    "supportedConsumerMajorVersions": [1],
+    "runtimeImportAllowed": true
+  },
+  "artifacts": [
+    {
+      "path": "api-v1.json",
+      "type": "api-rpc-schemas",
+      "status": "compatible",
+      "runtimeTruth": true
+    },
+    {
+      "path": "event-envelope.schema.json",
+      "type": "event-envelope-schema",
+      "status": "compatible",
+      "runtimeTruth": true
+    },
+    {
+      "path": "fixtures/representative.json",
+      "type": "representative-fixtures",
+      "status": "compatible",
+      "runtimeTruth": true
+    },
+    {
+      "path": "mcp-evidence.schema.json",
+      "type": "mcp-evidence-schema",
+      "status": "compatible",
+      "runtimeTruth": true
+    },
+    {
+      "path": "metric-catalog.json",
+      "type": "metric-catalog",
+      "status": "compatible",
+      "runtimeTruth": true
+    },
+    {
+      "path": "source-capabilities.json",
+      "type": "source-capabilities",
+      "status": "compatible",
+      "runtimeTruth": true
+    }
+  ]
+}

@@ -1,0 +1,3684 @@
+{
+  "artifactType": "metric-catalog",
+  "contractVersion": "1.0.0",
+  "status": "compatible",
+  "runtimeTruth": true,
+  "description": "Stable Run Ledger v1 metric identifiers. Every entry binds to a versioned Running Signals contract_v1 gold field; serving and consumer code may not redefine it.",
+  "metricIdPolicy": "<surface>.<snake_case_field>; identifiers and definitions are immutable within v1 except for backward-compatible metadata additions.",
+  "unitDefinitions": [
+    {
+      "unitId": "boolean",
+      "definition": "Boolean analytical flag."
+    },
+    {
+      "unitId": "bpm",
+      "definition": "Beats per minute."
+    },
+    {
+      "unitId": "calendar_month",
+      "definition": "Calendar month number from 1 through 12."
+    },
+    {
+      "unitId": "calendar_year",
+      "definition": "Four-digit calendar year."
+    },
+    {
+      "unitId": "category",
+      "definition": "Stable producer-defined category identifier."
+    },
+    {
+      "unitId": "celsius",
+      "definition": "Degrees Celsius."
+    },
+    {
+      "unitId": "count",
+      "definition": "Non-negative count."
+    },
+    {
+      "unitId": "date",
+      "definition": "ISO 8601 calendar date in the declared analytical timezone."
+    },
+    {
+      "unitId": "days",
+      "definition": "Count of completed calendar days."
+    },
+    {
+      "unitId": "degrees",
+      "definition": "Decimal geographic degrees."
+    },
+    {
+      "unitId": "km",
+      "definition": "Kilometres."
+    },
+    {
+      "unitId": "km_per_hour",
+      "definition": "Kilometres per hour."
+    },
+    {
+      "unitId": "km_per_hour_per_bpm",
+      "definition": "Kilometres per hour divided by beats per minute."
+    },
+    {
+      "unitId": "m",
+      "definition": "Metres."
+    },
+    {
+      "unitId": "m_per_second",
+      "definition": "Metres per second."
+    },
+    {
+      "unitId": "min_per_km",
+      "definition": "Minutes per kilometre."
+    },
+    {
+      "unitId": "ratio",
+      "definition": "Unitless ratio; percentage displays multiply the canonical value by 100."
+    },
+    {
+      "unitId": "seconds",
+      "definition": "Seconds."
+    },
+    {
+      "unitId": "steps_per_minute",
+      "definition": "Total steps per minute; FIT per-leg cadence is normalized in silver before gold."
+    },
+    {
+      "unitId": "unit_system_distance",
+      "definition": "Kilometres for metric resolution rows or miles for imperial resolution rows."
+    },
+    {
+      "unitId": "weeks",
+      "definition": "Count of completed calendar weeks."
+    }
+  ],
+  "metrics": [
+    {
+      "metricId": "daily.active_day_flag",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned active day flag under the completed-calendar consistency rules.",
+      "valueType": "boolean",
+      "canonicalUnit": "boolean",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "day"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_daily_training",
+          "field": "active_day_flag"
+        }
+      ]
+    },
+    {
+      "metricId": "daily.distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned distance km at the declared day grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "day"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_daily_training",
+          "field": "distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "daily.duration_seconds",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned elapsed running duration at the declared day grain.",
+      "valueType": "number",
+      "canonicalUnit": "seconds",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "day"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_daily_training",
+          "field": "duration_seconds"
+        }
+      ]
+    },
+    {
+      "metricId": "daily.long_run_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Maximum single-activity distance at the declared day grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "day"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_daily_training",
+          "field": "long_run_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "daily.rolling_28d_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned rolling 28d distance km using the explicitly named rolling window.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "day"
+      ],
+      "supportedWindows": [
+        "current_and_previous_27_completed_days"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_daily_training",
+          "field": "rolling_28d_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "daily.rolling_7d_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned rolling 7d distance km using the explicitly named rolling window.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "day"
+      ],
+      "supportedWindows": [
+        "current_and_previous_6_completed_days"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_daily_training",
+          "field": "rolling_7d_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "daily.run_count",
+      "metricVersion": "1.0.0",
+      "definition": "Count of accepted running activities at the declared day grain.",
+      "valueType": "integer",
+      "canonicalUnit": "count",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "day"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_daily_training",
+          "field": "run_count"
+        }
+      ]
+    },
+    {
+      "metricId": "filter.max_activity_date",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned maximum non-null activity date across the complete active activity history.",
+      "valueType": "date",
+      "canonicalUnit": "date",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "complete_active_history"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_run_filter_bounds",
+          "field": "max_activity_date"
+        }
+      ]
+    },
+    {
+      "metricId": "filter.max_avg_heart_rate",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned maximum non-null avg heart rate across the complete active activity history.",
+      "valueType": "number",
+      "canonicalUnit": "bpm",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "complete_active_history"
+      ],
+      "sourceCapabilities": [
+        "fit.heart_rate",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_run_filter_bounds",
+          "field": "max_avg_heart_rate"
+        }
+      ]
+    },
+    {
+      "metricId": "filter.max_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned maximum non-null distance km across the complete active activity history.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "complete_active_history"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_run_filter_bounds",
+          "field": "max_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "filter.max_gps_coverage",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned maximum non-null gps coverage across the complete active activity history.",
+      "valueType": "number",
+      "canonicalUnit": "ratio",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "complete_active_history"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_run_filter_bounds",
+          "field": "max_gps_coverage"
+        }
+      ]
+    },
+    {
+      "metricId": "filter.max_pace_min_per_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned maximum non-null pace min per km across the complete active activity history.",
+      "valueType": "number",
+      "canonicalUnit": "min_per_km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "complete_active_history"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_run_filter_bounds",
+          "field": "max_pace_min_per_km"
+        }
+      ]
+    },
+    {
+      "metricId": "filter.min_activity_date",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned minimum non-null activity date across the complete active activity history.",
+      "valueType": "date",
+      "canonicalUnit": "date",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "complete_active_history"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_run_filter_bounds",
+          "field": "min_activity_date"
+        }
+      ]
+    },
+    {
+      "metricId": "filter.min_avg_heart_rate",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned minimum non-null avg heart rate across the complete active activity history.",
+      "valueType": "number",
+      "canonicalUnit": "bpm",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "complete_active_history"
+      ],
+      "sourceCapabilities": [
+        "fit.heart_rate",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_run_filter_bounds",
+          "field": "min_avg_heart_rate"
+        }
+      ]
+    },
+    {
+      "metricId": "filter.min_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned minimum non-null distance km across the complete active activity history.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "complete_active_history"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_run_filter_bounds",
+          "field": "min_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "filter.min_gps_coverage",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned minimum non-null gps coverage across the complete active activity history.",
+      "valueType": "number",
+      "canonicalUnit": "ratio",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "complete_active_history"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_run_filter_bounds",
+          "field": "min_gps_coverage"
+        }
+      ]
+    },
+    {
+      "metricId": "filter.min_pace_min_per_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned minimum non-null pace min per km across the complete active activity history.",
+      "valueType": "number",
+      "canonicalUnit": "min_per_km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "complete_active_history"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_run_filter_bounds",
+          "field": "min_pace_min_per_km"
+        }
+      ]
+    },
+    {
+      "metricId": "fitness.avg_heart_rate",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned mean heart rate at the declared activity grain.",
+      "valueType": "number",
+      "canonicalUnit": "bpm",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.heart_rate",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_fitness",
+          "field": "avg_heart_rate"
+        }
+      ]
+    },
+    {
+      "metricId": "fitness.avg_pace_min_per_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned mean pace min per km at the declared activity grain.",
+      "valueType": "number",
+      "canonicalUnit": "min_per_km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_fitness",
+          "field": "avg_pace_min_per_km"
+        }
+      ]
+    },
+    {
+      "metricId": "fitness.distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned distance km at the declared activity grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_fitness",
+          "field": "distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "fitness.efficiency_ratio",
+      "metricVersion": "1.0.0",
+      "definition": "Activity speed_kmh divided by avg_heart_rate when average heart rate is positive.",
+      "valueType": "number",
+      "canonicalUnit": "km_per_hour_per_bpm",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.heart_rate",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_fitness",
+          "field": "efficiency_ratio"
+        }
+      ]
+    },
+    {
+      "metricId": "fitness.garmin_recovery_hr",
+      "metricVersion": "1.0.0",
+      "definition": "Latest recorded running heart rate minus the latest numeric FIT recovery_hr event value, in bpm.",
+      "valueType": "number",
+      "canonicalUnit": "bpm",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.recovery_heart_rate",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_fitness",
+          "field": "garmin_recovery_hr"
+        },
+        {
+          "model": "contract_v1_runs",
+          "field": "garmin_recovery_hr"
+        }
+      ]
+    },
+    {
+      "metricId": "fitness.hr_band",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned hr band at the declared activity grain.",
+      "valueType": "string",
+      "canonicalUnit": "category",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.heart_rate",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_fitness",
+          "field": "hr_band"
+        },
+        {
+          "model": "contract_v1_fitness_trends",
+          "field": "hr_band"
+        }
+      ]
+    },
+    {
+      "metricId": "fitness.hr_drift_pct",
+      "metricVersion": "1.0.0",
+      "definition": "Second-half 250 m segment efficiency divided by first-half segment efficiency minus one; stored as a ratio.",
+      "valueType": "number",
+      "canonicalUnit": "ratio",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.heart_rate",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_fitness",
+          "field": "hr_drift_pct"
+        }
+      ]
+    },
+    {
+      "metricId": "fitness.rolling_4_run_efficiency_ratio",
+      "metricVersion": "1.0.0",
+      "definition": "Mean activity efficiency ratio over the current activity and previous three activities with available values.",
+      "valueType": "number",
+      "canonicalUnit": "km_per_hour_per_bpm",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "current_and_previous_3_runs"
+      ],
+      "sourceCapabilities": [
+        "fit.heart_rate",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_fitness",
+          "field": "rolling_4_run_efficiency_ratio"
+        }
+      ]
+    },
+    {
+      "metricId": "fitness.rolling_4_run_hr_drift_pct",
+      "metricVersion": "1.0.0",
+      "definition": "Mean heart-rate drift ratio over the current activity and previous three activities with available values.",
+      "valueType": "number",
+      "canonicalUnit": "ratio",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "current_and_previous_3_runs"
+      ],
+      "sourceCapabilities": [
+        "fit.heart_rate",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_fitness",
+          "field": "rolling_4_run_hr_drift_pct"
+        }
+      ]
+    },
+    {
+      "metricId": "fitness.speed_kmh",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned speed kmh at the declared activity grain.",
+      "valueType": "number",
+      "canonicalUnit": "km_per_hour",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_fitness",
+          "field": "speed_kmh"
+        }
+      ]
+    },
+    {
+      "metricId": "fitness_band.max_heart_rate_bpm",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned maximum heart rate bpm at the declared heart_rate_band_window grain.",
+      "valueType": "integer",
+      "canonicalUnit": "bpm",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "heart_rate_band_window"
+      ],
+      "supportedWindows": [
+        "latest_180_runs"
+      ],
+      "sourceCapabilities": [
+        "fit.heart_rate",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_fitness_trends",
+          "field": "max_heart_rate_bpm"
+        }
+      ]
+    },
+    {
+      "metricId": "fitness_band.min_heart_rate_bpm",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned minimum heart rate bpm at the declared heart_rate_band_window grain.",
+      "valueType": "integer",
+      "canonicalUnit": "bpm",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "heart_rate_band_window"
+      ],
+      "supportedWindows": [
+        "latest_180_runs"
+      ],
+      "sourceCapabilities": [
+        "fit.heart_rate",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_fitness_trends",
+          "field": "min_heart_rate_bpm"
+        }
+      ]
+    },
+    {
+      "metricId": "fitness_band.sample_count",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned sample count at the declared heart_rate_band_window grain.",
+      "valueType": "integer",
+      "canonicalUnit": "count",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "heart_rate_band_window"
+      ],
+      "supportedWindows": [
+        "latest_180_runs"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_fitness_trends",
+          "field": "sample_count"
+        }
+      ]
+    },
+    {
+      "metricId": "fitness_band.trend_pace_min_per_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-produced ordinary least-squares pace value at a returned trend endpoint for the named heart-rate band and latest-180-run window.",
+      "valueType": "number",
+      "canonicalUnit": "min_per_km",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "heart_rate_band_window"
+      ],
+      "supportedWindows": [
+        "latest_180_runs"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_fitness_trends",
+          "field": "trend_pace_min_per_km"
+        }
+      ]
+    },
+    {
+      "metricId": "freshness.latest_completed_date",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned latest completed date at the declared user_publication grain.",
+      "valueType": "date",
+      "canonicalUnit": "date",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "user_publication"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "pipeline.publication"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_freshness",
+          "field": "latest_completed_date"
+        },
+        {
+          "model": "contract_v1_training_summary",
+          "field": "latest_completed_date"
+        }
+      ]
+    },
+    {
+      "metricId": "monthly.active_days",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned active days under the completed-calendar consistency rules.",
+      "valueType": "integer",
+      "canonicalUnit": "count",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "calendar_month"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_monthly_training",
+          "field": "active_days"
+        }
+      ]
+    },
+    {
+      "metricId": "monthly.calendar_month",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned calendar month at the declared calendar_month grain.",
+      "valueType": "integer",
+      "canonicalUnit": "calendar_month",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "calendar_month"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_monthly_training",
+          "field": "calendar_month"
+        }
+      ]
+    },
+    {
+      "metricId": "monthly.calendar_year",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned calendar year at the declared calendar_month grain.",
+      "valueType": "integer",
+      "canonicalUnit": "calendar_year",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "calendar_month"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_monthly_training",
+          "field": "calendar_year"
+        }
+      ]
+    },
+    {
+      "metricId": "monthly.long_run_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Maximum single-activity distance at the declared calendar_month grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "calendar_month"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_monthly_training",
+          "field": "long_run_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "monthly.monthly_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned monthly distance km at the declared calendar_month grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "calendar_month"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_monthly_training",
+          "field": "monthly_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "monthly.monthly_duration_seconds",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned elapsed running duration at the declared calendar_month grain.",
+      "valueType": "number",
+      "canonicalUnit": "seconds",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "calendar_month"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_monthly_training",
+          "field": "monthly_duration_seconds"
+        }
+      ]
+    },
+    {
+      "metricId": "monthly.runs_per_month",
+      "metricVersion": "1.0.0",
+      "definition": "Count of accepted running activities at the declared calendar_month grain.",
+      "valueType": "integer",
+      "canonicalUnit": "count",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "calendar_month"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_monthly_training",
+          "field": "runs_per_month"
+        }
+      ]
+    },
+    {
+      "metricId": "profile.altitude_delta_m",
+      "metricVersion": "1.0.0",
+      "definition": "Producer-selected, ordered activity-profile altitude delta m; clients may render but not reconstruct it.",
+      "valueType": "number",
+      "canonicalUnit": "m",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_profile_point"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.altitude",
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_activity_profiles",
+          "field": "altitude_delta_m"
+        }
+      ]
+    },
+    {
+      "metricId": "profile.altitude_m",
+      "metricVersion": "1.0.0",
+      "definition": "Producer-selected, ordered activity-profile altitude m; clients may render but not reconstruct it.",
+      "valueType": "number",
+      "canonicalUnit": "m",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_profile_point"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.altitude",
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_activity_profiles",
+          "field": "altitude_m"
+        }
+      ]
+    },
+    {
+      "metricId": "profile.distance_delta_m",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned distance delta m at the declared activity_profile_point grain.",
+      "valueType": "number",
+      "canonicalUnit": "m",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_profile_point"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_activity_profiles",
+          "field": "distance_delta_m"
+        }
+      ]
+    },
+    {
+      "metricId": "profile.distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned distance km at the declared activity_profile_point grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_profile_point"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_activity_profiles",
+          "field": "distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "profile.distance_m",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned distance m at the declared activity_profile_point grain.",
+      "valueType": "number",
+      "canonicalUnit": "m",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_profile_point"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_activity_profiles",
+          "field": "distance_m"
+        }
+      ]
+    },
+    {
+      "metricId": "profile.elapsed_seconds",
+      "metricVersion": "1.0.0",
+      "definition": "Producer-selected, ordered activity-profile elapsed seconds; clients may render but not reconstruct it.",
+      "valueType": "number",
+      "canonicalUnit": "seconds",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_profile_point"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_activity_profiles",
+          "field": "elapsed_seconds"
+        }
+      ]
+    },
+    {
+      "metricId": "profile.heart_rate",
+      "metricVersion": "1.0.0",
+      "definition": "Producer-selected, ordered activity-profile heart rate; clients may render but not reconstruct it.",
+      "valueType": "number",
+      "canonicalUnit": "bpm",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_profile_point"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.heart_rate",
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_activity_profiles",
+          "field": "heart_rate"
+        }
+      ]
+    },
+    {
+      "metricId": "profile.pace_min_per_km",
+      "metricVersion": "1.0.0",
+      "definition": "Producer-selected, ordered activity-profile pace min per km; clients may render but not reconstruct it.",
+      "valueType": "number",
+      "canonicalUnit": "min_per_km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_profile_point"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_activity_profiles",
+          "field": "pace_min_per_km"
+        }
+      ]
+    },
+    {
+      "metricId": "profile.running_cadence",
+      "metricVersion": "1.0.0",
+      "definition": "Producer-selected, ordered activity-profile running cadence; clients may render but not reconstruct it.",
+      "valueType": "number",
+      "canonicalUnit": "steps_per_minute",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_profile_point"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.cadence",
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_activity_profiles",
+          "field": "running_cadence"
+        }
+      ]
+    },
+    {
+      "metricId": "profile.seconds_since_previous_record",
+      "metricVersion": "1.0.0",
+      "definition": "Producer-selected, ordered activity-profile seconds since previous record; clients may render but not reconstruct it.",
+      "valueType": "number",
+      "canonicalUnit": "seconds",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_profile_point"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_activity_profiles",
+          "field": "seconds_since_previous_record"
+        }
+      ]
+    },
+    {
+      "metricId": "profile.speed_kmh",
+      "metricVersion": "1.0.0",
+      "definition": "Producer-selected, ordered activity-profile speed kmh; clients may render but not reconstruct it.",
+      "valueType": "number",
+      "canonicalUnit": "km_per_hour",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_profile_point"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_activity_profiles",
+          "field": "speed_kmh"
+        }
+      ]
+    },
+    {
+      "metricId": "profile.speed_mps",
+      "metricVersion": "1.0.0",
+      "definition": "Producer-selected, ordered activity-profile speed mps; clients may render but not reconstruct it.",
+      "valueType": "number",
+      "canonicalUnit": "m_per_second",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_profile_point"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_activity_profiles",
+          "field": "speed_mps"
+        }
+      ]
+    },
+    {
+      "metricId": "profile.temperature",
+      "metricVersion": "1.0.0",
+      "definition": "Producer-selected, ordered activity-profile temperature; clients may render but not reconstruct it.",
+      "valueType": "number",
+      "canonicalUnit": "celsius",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_profile_point"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.record_telemetry",
+        "fit.session",
+        "fit.temperature"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_activity_profiles",
+          "field": "temperature_c"
+        }
+      ]
+    },
+    {
+      "metricId": "route.avg_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned mean distance km at the declared route grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_routes",
+          "field": "avg_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "route.avg_duration_seconds",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned mean duration seconds at the declared route grain.",
+      "valueType": "number",
+      "canonicalUnit": "seconds",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_routes",
+          "field": "avg_duration_seconds"
+        }
+      ]
+    },
+    {
+      "metricId": "route.avg_heart_rate",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned mean heart rate at the declared route grain.",
+      "valueType": "number",
+      "canonicalUnit": "bpm",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.heart_rate",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_routes",
+          "field": "avg_heart_rate"
+        }
+      ]
+    },
+    {
+      "metricId": "route.avg_pace_min_per_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned mean pace min per km at the declared route grain.",
+      "valueType": "number",
+      "canonicalUnit": "min_per_km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_routes",
+          "field": "avg_pace_min_per_km"
+        }
+      ]
+    },
+    {
+      "metricId": "route.avg_route_altitude_range_m",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned mean route altitude range m at the declared route grain.",
+      "valueType": "number",
+      "canonicalUnit": "m",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.altitude",
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_routes",
+          "field": "avg_route_altitude_range_m"
+        }
+      ]
+    },
+    {
+      "metricId": "route.avg_segment_grade",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned mean segment grade at the declared route grain.",
+      "valueType": "number",
+      "canonicalUnit": "ratio",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.altitude",
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_routes",
+          "field": "avg_segment_grade"
+        }
+      ]
+    },
+    {
+      "metricId": "route.avg_total_ascent",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned mean total ascent at the declared route grain.",
+      "valueType": "number",
+      "canonicalUnit": "m",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.altitude",
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_routes",
+          "field": "avg_total_ascent_m"
+        }
+      ]
+    },
+    {
+      "metricId": "route.avg_total_descent",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned mean total descent at the declared route grain.",
+      "valueType": "number",
+      "canonicalUnit": "m",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.altitude",
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_routes",
+          "field": "avg_total_descent_m"
+        }
+      ]
+    },
+    {
+      "metricId": "route.centroid_latitude_deg",
+      "metricVersion": "1.0.0",
+      "definition": "Latitude of the producer-selected route centroid.",
+      "valueType": "number",
+      "canonicalUnit": "degrees",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_routes",
+          "field": "centroid_latitude_deg"
+        }
+      ]
+    },
+    {
+      "metricId": "route.centroid_longitude_deg",
+      "metricVersion": "1.0.0",
+      "definition": "Longitude of the producer-selected route centroid.",
+      "valueType": "number",
+      "canonicalUnit": "degrees",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_routes",
+          "field": "centroid_longitude_deg"
+        }
+      ]
+    },
+    {
+      "metricId": "route.city_id",
+      "metricVersion": "1.0.0",
+      "definition": "Stable city grouping assigned in gold from the versioned geography reference.",
+      "valueType": "string",
+      "canonicalUnit": "category",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_routes",
+          "field": "city_id"
+        }
+      ]
+    },
+    {
+      "metricId": "route.country_code",
+      "metricVersion": "1.0.0",
+      "definition": "ISO alpha-3 country assigned in gold from the versioned geography reference.",
+      "valueType": "string",
+      "canonicalUnit": "category",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_routes",
+          "field": "country_code"
+        }
+      ]
+    },
+    {
+      "metricId": "route.max_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned maximum distance km at the declared route grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_routes",
+          "field": "max_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "route.min_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned minimum distance km at the declared route grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_routes",
+          "field": "min_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "route.route_distance_bucket_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned route distance bucket km at the declared route grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_routes",
+          "field": "route_distance_bucket_km"
+        }
+      ]
+    },
+    {
+      "metricId": "route.run_count",
+      "metricVersion": "1.0.0",
+      "definition": "Count of accepted running activities at the declared route grain.",
+      "valueType": "integer",
+      "canonicalUnit": "count",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "route"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_routes",
+          "field": "run_count"
+        }
+      ]
+    },
+    {
+      "metricId": "route_comparison.avg_heart_rate",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned mean heart rate at the declared route_activity grain.",
+      "valueType": "number",
+      "canonicalUnit": "bpm",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route_activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.heart_rate",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_route_comparisons",
+          "field": "avg_heart_rate"
+        }
+      ]
+    },
+    {
+      "metricId": "route_comparison.avg_pace_min_per_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned mean pace min per km at the declared route_activity grain.",
+      "valueType": "number",
+      "canonicalUnit": "min_per_km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route_activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_route_comparisons",
+          "field": "avg_pace_min_per_km"
+        }
+      ]
+    },
+    {
+      "metricId": "route_comparison.distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned distance km at the declared route_activity grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route_activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_route_comparisons",
+          "field": "distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "route_comparison.heart_rate_delta_from_prior_route_avg_bpm",
+      "metricVersion": "1.0.0",
+      "definition": "Activity average heart rate minus the mean heart rate of prior activities assigned to the same route; calculated in gold.",
+      "valueType": "number",
+      "canonicalUnit": "bpm",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route_activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.heart_rate",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_route_comparisons",
+          "field": "heart_rate_delta_from_prior_route_avg_bpm"
+        }
+      ]
+    },
+    {
+      "metricId": "route_comparison.pace_delta_from_prior_route_avg_min_per_km",
+      "metricVersion": "1.0.0",
+      "definition": "Activity pace minus the mean pace of prior activities assigned to the same route; calculated in gold.",
+      "valueType": "number",
+      "canonicalUnit": "min_per_km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route_activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_route_comparisons",
+          "field": "pace_delta_from_prior_route_avg_min_per_km"
+        }
+      ]
+    },
+    {
+      "metricId": "route_comparison.prior_route_avg_heart_rate",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned prior route avg heart rate using only completed history before the current activity.",
+      "valueType": "number",
+      "canonicalUnit": "bpm",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route_activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.heart_rate",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_route_comparisons",
+          "field": "prior_route_avg_heart_rate"
+        }
+      ]
+    },
+    {
+      "metricId": "route_comparison.prior_route_avg_pace_min_per_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned prior route avg pace min per km using only completed history before the current activity.",
+      "valueType": "number",
+      "canonicalUnit": "min_per_km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "route_activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_route_comparisons",
+          "field": "prior_route_avg_pace_min_per_km"
+        }
+      ]
+    },
+    {
+      "metricId": "route_comparison.prior_route_run_count",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned prior route run count using only completed history before the current activity.",
+      "valueType": "integer",
+      "canonicalUnit": "count",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "route_activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.gps",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_route_comparisons",
+          "field": "prior_route_run_count"
+        }
+      ]
+    },
+    {
+      "metricId": "run.avg_heart_rate",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned mean heart rate at the declared activity grain.",
+      "valueType": "number",
+      "canonicalUnit": "bpm",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.heart_rate",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_runs",
+          "field": "avg_heart_rate"
+        }
+      ]
+    },
+    {
+      "metricId": "run.avg_pace_min_per_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned mean pace min per km at the declared activity grain.",
+      "valueType": "number",
+      "canonicalUnit": "min_per_km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_runs",
+          "field": "avg_pace_min_per_km"
+        }
+      ]
+    },
+    {
+      "metricId": "run.avg_segment_grade",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned mean segment grade at the declared activity grain.",
+      "valueType": "number",
+      "canonicalUnit": "ratio",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.altitude",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_runs",
+          "field": "avg_segment_grade"
+        }
+      ]
+    },
+    {
+      "metricId": "run.distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned distance km at the declared activity grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_runs",
+          "field": "distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "run.duration_seconds",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned elapsed running duration at the declared activity grain.",
+      "valueType": "number",
+      "canonicalUnit": "seconds",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_runs",
+          "field": "duration_seconds"
+        }
+      ]
+    },
+    {
+      "metricId": "run.max_heart_rate",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned maximum heart rate at the declared activity grain.",
+      "valueType": "number",
+      "canonicalUnit": "bpm",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.heart_rate",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_runs",
+          "field": "max_heart_rate"
+        }
+      ]
+    },
+    {
+      "metricId": "run.prior_28d_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned prior 28d distance km using only completed history before the current activity.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "previous_28_completed_days"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_runs",
+          "field": "prior_28d_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "run.prior_7d_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned prior 7d distance km using only completed history before the current activity.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "previous_7_completed_days"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_runs",
+          "field": "prior_7d_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "run.record_distance_coverage_ratio",
+      "metricVersion": "1.0.0",
+      "definition": "Record-derived cumulative distance divided by FIT session distance when both are valid.",
+      "valueType": "number",
+      "canonicalUnit": "ratio",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_runs",
+          "field": "record_distance_coverage_ratio"
+        }
+      ]
+    },
+    {
+      "metricId": "run.route_altitude_range_m",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned route altitude range m at the declared activity grain.",
+      "valueType": "number",
+      "canonicalUnit": "m",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.altitude",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_runs",
+          "field": "route_altitude_range_m"
+        }
+      ]
+    },
+    {
+      "metricId": "run.route_distance_bucket_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned route distance bucket km at the declared activity grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_runs",
+          "field": "route_distance_bucket_km"
+        }
+      ]
+    },
+    {
+      "metricId": "run.segment_count",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned segment count at the declared activity grain.",
+      "valueType": "integer",
+      "canonicalUnit": "count",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_runs",
+          "field": "segment_count"
+        }
+      ]
+    },
+    {
+      "metricId": "run.speed_kmh",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned speed kmh at the declared activity grain.",
+      "valueType": "number",
+      "canonicalUnit": "km_per_hour",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_runs",
+          "field": "speed_kmh"
+        }
+      ]
+    },
+    {
+      "metricId": "run.total_ascent",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned total ascent at the declared activity grain.",
+      "valueType": "number",
+      "canonicalUnit": "m",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.altitude",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_runs",
+          "field": "total_ascent_m"
+        }
+      ]
+    },
+    {
+      "metricId": "run.total_descent",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned total descent at the declared activity grain.",
+      "valueType": "number",
+      "canonicalUnit": "m",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.altitude",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_runs",
+          "field": "total_descent_m"
+        }
+      ]
+    },
+    {
+      "metricId": "segment.avg_heart_rate",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned mean heart rate at the declared activity_segment grain.",
+      "valueType": "number",
+      "canonicalUnit": "bpm",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_segment"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.heart_rate",
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_segments",
+          "field": "avg_heart_rate"
+        }
+      ]
+    },
+    {
+      "metricId": "segment.avg_running_cadence",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned mean running cadence at the declared activity_segment grain.",
+      "valueType": "number",
+      "canonicalUnit": "steps_per_minute",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_segment"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.cadence",
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_segments",
+          "field": "avg_running_cadence"
+        }
+      ]
+    },
+    {
+      "metricId": "segment.avg_speed_kmh",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned mean speed kmh at the declared activity_segment grain.",
+      "valueType": "number",
+      "canonicalUnit": "km_per_hour",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_segment"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_segments",
+          "field": "avg_speed_kmh"
+        }
+      ]
+    },
+    {
+      "metricId": "segment.elevation_change_m",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned fixed-distance segment elevation change m after proportional record-interval allocation.",
+      "valueType": "number",
+      "canonicalUnit": "m",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_segment"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.altitude",
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_segments",
+          "field": "elevation_change_m"
+        }
+      ]
+    },
+    {
+      "metricId": "segment.max_altitude_m",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned maximum altitude m at the declared activity_segment grain.",
+      "valueType": "number",
+      "canonicalUnit": "m",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_segment"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.altitude",
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_segments",
+          "field": "max_altitude_m"
+        }
+      ]
+    },
+    {
+      "metricId": "segment.max_heart_rate",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned maximum heart rate at the declared activity_segment grain.",
+      "valueType": "number",
+      "canonicalUnit": "bpm",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_segment"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.heart_rate",
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_segments",
+          "field": "max_heart_rate"
+        }
+      ]
+    },
+    {
+      "metricId": "segment.min_altitude_m",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned minimum altitude m at the declared activity_segment grain.",
+      "valueType": "number",
+      "canonicalUnit": "m",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_segment"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.altitude",
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_segments",
+          "field": "min_altitude_m"
+        }
+      ]
+    },
+    {
+      "metricId": "segment.segment_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned segment distance km at the declared activity_segment grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_segment"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_segments",
+          "field": "segment_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "segment.segment_duration_seconds",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned elapsed running duration at the declared activity_segment grain.",
+      "valueType": "number",
+      "canonicalUnit": "seconds",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_segment"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_segments",
+          "field": "segment_duration_seconds"
+        }
+      ]
+    },
+    {
+      "metricId": "segment.segment_end_boundary_m",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned fixed-distance segment segment end boundary m after proportional record-interval allocation.",
+      "valueType": "number",
+      "canonicalUnit": "m",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_segment"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_segments",
+          "field": "segment_end_boundary_m"
+        }
+      ]
+    },
+    {
+      "metricId": "segment.segment_end_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned segment end distance km at the declared activity_segment grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_segment"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_segments",
+          "field": "segment_end_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "segment.segment_grade",
+      "metricVersion": "1.0.0",
+      "definition": "Segment elevation change in metres divided by segment distance in metres.",
+      "valueType": "number",
+      "canonicalUnit": "ratio",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_segment"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.altitude",
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_segments",
+          "field": "segment_grade"
+        }
+      ]
+    },
+    {
+      "metricId": "segment.segment_length_m",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned fixed-distance segment segment length m after proportional record-interval allocation.",
+      "valueType": "number",
+      "canonicalUnit": "m",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "activity_segment"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_segments",
+          "field": "segment_length_m"
+        }
+      ]
+    },
+    {
+      "metricId": "segment.segment_length_value",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned fixed-distance segment segment length value after proportional record-interval allocation.",
+      "valueType": "number",
+      "canonicalUnit": "unit_system_distance",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "activity_segment"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_segments",
+          "field": "segment_length_value"
+        }
+      ]
+    },
+    {
+      "metricId": "segment.segment_pace_min_per_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned fixed-distance segment segment pace min per km after proportional record-interval allocation.",
+      "valueType": "number",
+      "canonicalUnit": "min_per_km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_segment"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_segments",
+          "field": "segment_pace_min_per_km"
+        }
+      ]
+    },
+    {
+      "metricId": "segment.segment_start_boundary_m",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned fixed-distance segment segment start boundary m after proportional record-interval allocation.",
+      "valueType": "number",
+      "canonicalUnit": "m",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_segment"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_segments",
+          "field": "segment_start_boundary_m"
+        }
+      ]
+    },
+    {
+      "metricId": "segment.segment_start_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned segment start distance km at the declared activity_segment grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "activity_segment"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.record_telemetry",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_segments",
+          "field": "segment_start_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "summary.active_months",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned active months under the completed-calendar consistency rules.",
+      "valueType": "integer",
+      "canonicalUnit": "count",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "all_time"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_training_summary",
+          "field": "active_months"
+        }
+      ]
+    },
+    {
+      "metricId": "summary.active_weeks",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned active weeks under the completed-calendar consistency rules.",
+      "valueType": "integer",
+      "canonicalUnit": "count",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "all_time"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_training_summary",
+          "field": "active_weeks"
+        }
+      ]
+    },
+    {
+      "metricId": "summary.active_weeks_52w",
+      "metricVersion": "1.0.0",
+      "definition": "Count of active completed weeks in the trailing 52 completed weeks.",
+      "valueType": "integer",
+      "canonicalUnit": "count",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "trailing_52_completed_weeks"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_training_summary",
+          "field": "active_weeks_52w"
+        }
+      ]
+    },
+    {
+      "metricId": "summary.average_daily_run_streak_371d",
+      "metricVersion": "1.0.0",
+      "definition": "Mean length of active-day sequences within the trailing 371 completed days; null when no active sequence exists.",
+      "valueType": "number",
+      "canonicalUnit": "days",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "trailing_371_completed_days"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_training_summary",
+          "field": "average_daily_run_streak_371d"
+        }
+      ]
+    },
+    {
+      "metricId": "summary.average_training_break_371d",
+      "metricVersion": "1.0.0",
+      "definition": "Mean length of completed-day sequences without a run within the trailing 371 completed days; null when no break exists.",
+      "valueType": "number",
+      "canonicalUnit": "days",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "trailing_371_completed_days"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_training_summary",
+          "field": "average_training_break_371d"
+        }
+      ]
+    },
+    {
+      "metricId": "summary.average_weekly_distance_52w_km",
+      "metricVersion": "1.0.0",
+      "definition": "Mean weekly distance across the trailing 52 completed weeks represented in gold.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "trailing_52_completed_weeks"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_training_summary",
+          "field": "average_weekly_distance_52w_km"
+        }
+      ]
+    },
+    {
+      "metricId": "summary.current_daily_run_streak_371d",
+      "metricVersion": "1.0.0",
+      "definition": "Length of the active-day sequence ending on the latest completed day within the trailing 371 completed days.",
+      "valueType": "integer",
+      "canonicalUnit": "days",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "trailing_371_completed_days"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_training_summary",
+          "field": "current_daily_run_streak_371d"
+        }
+      ]
+    },
+    {
+      "metricId": "summary.hr_drift_available_runs_180",
+      "metricVersion": "1.0.0",
+      "definition": "Count of the latest 180 activities with a non-null heart-rate drift value.",
+      "valueType": "integer",
+      "canonicalUnit": "count",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "latest_180_runs"
+      ],
+      "sourceCapabilities": [
+        "fit.heart_rate",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_training_summary",
+          "field": "hr_drift_available_runs_180"
+        }
+      ]
+    },
+    {
+      "metricId": "summary.longest_daily_run_streak_371d",
+      "metricVersion": "1.0.0",
+      "definition": "Maximum length of an active-day sequence within the trailing 371 completed days.",
+      "valueType": "integer",
+      "canonicalUnit": "days",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "trailing_371_completed_days"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_training_summary",
+          "field": "longest_daily_run_streak_371d"
+        }
+      ]
+    },
+    {
+      "metricId": "summary.longest_run_distance_104w_km",
+      "metricVersion": "1.0.0",
+      "definition": "Maximum single-activity distance in the trailing 104 completed weeks.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "trailing_104_completed_weeks"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_training_summary",
+          "field": "longest_run_distance_104w_km"
+        }
+      ]
+    },
+    {
+      "metricId": "summary.longest_training_break_371d",
+      "metricVersion": "1.0.0",
+      "definition": "Maximum length of a completed-day sequence without a run within the trailing 371 completed days.",
+      "valueType": "integer",
+      "canonicalUnit": "days",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "trailing_371_completed_days"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_training_summary",
+          "field": "longest_training_break_371d"
+        }
+      ]
+    },
+    {
+      "metricId": "summary.recent_28d_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Sum of daily distance over the latest completed day and previous 27 completed days.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "trailing_28_completed_days"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_training_summary",
+          "field": "recent_28d_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "summary.recent_7d_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Sum of daily distance over the latest completed day and previous six completed days.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "trailing_7_completed_days"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_training_summary",
+          "field": "recent_7d_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "summary.recovery_hr_available_runs_180",
+      "metricVersion": "1.0.0",
+      "definition": "Count of the latest 180 activities with a non-null Garmin Recovery HR value.",
+      "valueType": "integer",
+      "canonicalUnit": "count",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "latest_180_runs"
+      ],
+      "sourceCapabilities": [
+        "fit.recovery_heart_rate",
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_training_summary",
+          "field": "recovery_hr_available_runs_180"
+        }
+      ]
+    },
+    {
+      "metricId": "summary.total_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned total distance km at the declared user grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "all_time"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_training_summary",
+          "field": "total_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "summary.total_runs",
+      "metricVersion": "1.0.0",
+      "definition": "Count of accepted running activities at the declared user grain.",
+      "valueType": "integer",
+      "canonicalUnit": "count",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "user"
+      ],
+      "supportedWindows": [
+        "all_time"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_training_summary",
+          "field": "total_runs"
+        }
+      ]
+    },
+    {
+      "metricId": "weekly.active_days",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned active days under the completed-calendar consistency rules.",
+      "valueType": "integer",
+      "canonicalUnit": "count",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "completed_week"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_weekly_training",
+          "field": "active_days"
+        }
+      ]
+    },
+    {
+      "metricId": "weekly.active_week_flag",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned active week flag under the completed-calendar consistency rules.",
+      "valueType": "boolean",
+      "canonicalUnit": "boolean",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "completed_week"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_weekly_training",
+          "field": "active_week_flag"
+        }
+      ]
+    },
+    {
+      "metricId": "weekly.active_week_streak",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned active week streak under the completed-calendar consistency rules.",
+      "valueType": "integer",
+      "canonicalUnit": "weeks",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "completed_week"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_weekly_training",
+          "field": "active_week_streak"
+        }
+      ]
+    },
+    {
+      "metricId": "weekly.average_run_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Weekly distance divided by runs_per_week in gold; null when the completed week contains no runs.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "completed_week"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_weekly_training",
+          "field": "average_run_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "weekly.avg_pace_min_per_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned mean pace min per km at the declared completed_week grain.",
+      "valueType": "number",
+      "canonicalUnit": "min_per_km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "completed_week"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_weekly_training",
+          "field": "avg_pace_min_per_km"
+        }
+      ]
+    },
+    {
+      "metricId": "weekly.long_run_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Maximum single-activity distance at the declared completed_week grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "completed_week"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_weekly_training",
+          "field": "long_run_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "weekly.long_run_share_of_week",
+      "metricVersion": "1.0.0",
+      "definition": "Longest single-run distance divided by weekly distance when weekly distance is positive.",
+      "valueType": "number",
+      "canonicalUnit": "ratio",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "completed_week"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_weekly_training",
+          "field": "long_run_share_of_week"
+        }
+      ]
+    },
+    {
+      "metricId": "weekly.missed_days",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned missed days under the completed-calendar consistency rules.",
+      "valueType": "integer",
+      "canonicalUnit": "count",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "completed_week"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_weekly_training",
+          "field": "missed_days"
+        }
+      ]
+    },
+    {
+      "metricId": "weekly.missed_weeks_12w",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned missed weeks 12w under the completed-calendar consistency rules.",
+      "valueType": "integer",
+      "canonicalUnit": "weeks",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "completed_week"
+      ],
+      "supportedWindows": [
+        "current_and_previous_11_completed_weeks"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_weekly_training",
+          "field": "missed_weeks_12w"
+        }
+      ]
+    },
+    {
+      "metricId": "weekly.remaining_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Weekly distance minus the longest single-run distance in gold, clamped to the valid non-negative weekly total.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "completed_week"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_weekly_training",
+          "field": "remaining_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "weekly.rolling_12w_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned rolling 12w distance km using the explicitly named rolling window.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "completed_week"
+      ],
+      "supportedWindows": [
+        "current_and_previous_11_completed_weeks"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_weekly_training",
+          "field": "rolling_12w_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "weekly.rolling_4w_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned rolling 4w distance km using the explicitly named rolling window.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "completed_week"
+      ],
+      "supportedWindows": [
+        "current_and_previous_3_completed_weeks"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_weekly_training",
+          "field": "rolling_4w_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "weekly.runs_per_week",
+      "metricVersion": "1.0.0",
+      "definition": "Count of accepted running activities at the declared completed_week grain.",
+      "valueType": "integer",
+      "canonicalUnit": "count",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "completed_week"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_weekly_training",
+          "field": "runs_per_week"
+        }
+      ]
+    },
+    {
+      "metricId": "weekly.weekly_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned weekly distance km at the declared completed_week grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "completed_week"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_weekly_training",
+          "field": "weekly_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "weekly.weekly_duration_seconds",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned elapsed running duration at the declared completed_week grain.",
+      "valueType": "number",
+      "canonicalUnit": "seconds",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "completed_week"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_weekly_training",
+          "field": "weekly_duration_seconds"
+        }
+      ]
+    },
+    {
+      "metricId": "yearly.active_days",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned active days under the completed-calendar consistency rules.",
+      "valueType": "integer",
+      "canonicalUnit": "count",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "calendar_year"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_yearly_training",
+          "field": "active_days"
+        }
+      ]
+    },
+    {
+      "metricId": "yearly.calendar_year",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned calendar year at the declared calendar_year grain.",
+      "valueType": "integer",
+      "canonicalUnit": "calendar_year",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "calendar_year"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_yearly_training",
+          "field": "calendar_year"
+        }
+      ]
+    },
+    {
+      "metricId": "yearly.long_run_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Maximum single-activity distance at the declared calendar_year grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": true,
+      "nullMeaning": "Required source telemetry or analytical history is unavailable for this row.",
+      "supportedGrains": [
+        "calendar_year"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_yearly_training",
+          "field": "long_run_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "yearly.runs_per_year",
+      "metricVersion": "1.0.0",
+      "definition": "Count of accepted running activities at the declared calendar_year grain.",
+      "valueType": "integer",
+      "canonicalUnit": "count",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "calendar_year"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_yearly_training",
+          "field": "runs_per_year"
+        }
+      ]
+    },
+    {
+      "metricId": "yearly.yearly_distance_km",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned yearly distance km at the declared calendar_year grain.",
+      "valueType": "number",
+      "canonicalUnit": "km",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "calendar_year"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_yearly_training",
+          "field": "yearly_distance_km"
+        }
+      ]
+    },
+    {
+      "metricId": "yearly.yearly_duration_seconds",
+      "metricVersion": "1.0.0",
+      "definition": "Gold-owned elapsed running duration at the declared calendar_year grain.",
+      "valueType": "number",
+      "canonicalUnit": "seconds",
+      "nullable": false,
+      "nullMeaning": null,
+      "supportedGrains": [
+        "calendar_year"
+      ],
+      "supportedWindows": [
+        "row_grain"
+      ],
+      "sourceCapabilities": [
+        "fit.session"
+      ],
+      "goldOwnership": [
+        {
+          "model": "contract_v1_yearly_training",
+          "field": "yearly_duration_seconds"
+        }
+      ]
+    }
+  ]
+}
+

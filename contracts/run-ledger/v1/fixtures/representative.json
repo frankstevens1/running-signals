@@ -1,0 +1,427 @@
+{
+  "artifactType": "representative-fixtures",
+  "contractVersion": "1.0.0",
+  "status": "compatible",
+  "runtimeTruth": true,
+  "description": "Representative producer-owned values for contract and consumer tests. All summaries, averages, windows, deltas, classifications, and trend points shown here are final gold outputs; consumers must not recalculate them.",
+  "fixtures": [
+    {
+      "id": "api.training_summary.populated",
+      "state": "populated",
+      "interface": "get_training_summary",
+      "schemaRef": "api-v1.json#/$defs/trainingSummarySuccess",
+      "value": {
+        "status": "success",
+        "contract_version": "1.0.0",
+        "correlation_id": "11111111-1111-4111-8111-111111111111",
+        "data_version": "dv_20260715_001",
+        "freshness": {
+          "availability": "populated",
+          "latest_completed_date": "2026-07-14",
+          "active_data_version": "dv_20260715_001",
+          "published_at": "2026-07-15T08:30:00Z",
+          "analytical_timezone": "Africa/Lusaka",
+          "refresh_state": "idle",
+          "source_max_activity_date": "2026-07-14"
+        },
+        "data": {
+          "data_state": "populated",
+          "latest_completed_date": "2026-07-14",
+          "total_runs": 284,
+          "total_distance_km": 2418.72,
+          "recent_7d_distance_km": 31.4,
+          "recent_28d_distance_km": 126.85,
+          "active_weeks": 96,
+          "active_months": 27,
+          "active_weeks_52w": 44,
+          "average_weekly_distance_52w_km": 31.62,
+          "current_daily_run_streak_371d": 2,
+          "longest_daily_run_streak_371d": 6,
+          "average_daily_run_streak_371d": 1.84,
+          "longest_training_break_371d": 12,
+          "average_training_break_371d": 2.73,
+          "longest_run_distance_104w_km": 32.18,
+          "recovery_hr_available_runs_180": 137,
+          "hr_drift_available_runs_180": 149,
+          "latest_run": {
+            "activity_id": "act_01JZ9T5X2N7W4H9A3Q6C",
+            "activity_date": "2026-07-14",
+            "start_time": "2026-07-14T04:42:13Z",
+            "distance_km": 10.12,
+            "duration_seconds": 3054,
+            "avg_pace_min_per_km": 5.0296,
+            "speed_kmh": 11.929,
+            "avg_heart_rate": 147,
+            "max_heart_rate": 168,
+            "total_ascent": 84,
+            "total_descent": 80,
+            "garmin_recovery_hr": 31,
+            "route_id": "route_01JZ9R9J6TZP",
+            "route_distance_bucket_km": 10,
+            "record_distance_coverage_ratio": 0.998,
+            "segment_count": 41,
+            "avg_segment_grade": 0.0017,
+            "route_altitude_range_m": 47.3,
+            "prior_7d_distance_km": 21.28,
+            "prior_28d_distance_km": 117.06
+          }
+        }
+      }
+    },
+    {
+      "id": "api.runs.empty",
+      "state": "empty",
+      "interface": "runs",
+      "schemaRef": "api-v1.json#/$defs/runListSuccess",
+      "value": {
+        "status": "success",
+        "contract_version": "1.0.0",
+        "correlation_id": "22222222-2222-4222-8222-222222222222",
+        "data_version": "dv_empty_001",
+        "freshness": {
+          "availability": "empty",
+          "latest_completed_date": null,
+          "active_data_version": "dv_empty_001",
+          "published_at": "2026-07-15T08:31:00Z",
+          "analytical_timezone": "Africa/Lusaka",
+          "refresh_state": "idle",
+          "source_max_activity_date": null
+        },
+        "data": {"items": [], "page": {"limit": 25, "total": 0, "next_cursor": null}}
+      }
+    },
+    {
+      "id": "api.activity_detail.nullable_telemetry",
+      "state": "nullable",
+      "interface": "get_activity_detail",
+      "schemaRef": "api-v1.json#/$defs/activityDetailSuccess",
+      "value": {
+        "status": "success",
+        "contract_version": "1.0.0",
+        "correlation_id": "33333333-3333-4333-8333-333333333333",
+        "data_version": "dv_20260715_001",
+        "freshness": {
+          "availability": "populated",
+          "latest_completed_date": "2026-07-14",
+          "active_data_version": "dv_20260715_001",
+          "published_at": "2026-07-15T08:30:00Z",
+          "analytical_timezone": "Africa/Lusaka",
+          "refresh_state": "idle",
+          "source_max_activity_date": "2026-07-14"
+        },
+        "data": {
+          "run": {
+            "activity_id": "act_without_optional_telemetry",
+            "activity_date": "2026-06-01",
+            "start_time": null,
+            "distance_km": 5,
+            "duration_seconds": 1800,
+            "avg_pace_min_per_km": 6,
+            "speed_kmh": 10,
+            "avg_heart_rate": null,
+            "max_heart_rate": null,
+            "total_ascent": null,
+            "total_descent": null,
+            "garmin_recovery_hr": null,
+            "route_id": null,
+            "route_distance_bucket_km": null,
+            "record_distance_coverage_ratio": null,
+            "segment_count": null,
+            "avg_segment_grade": null,
+            "route_altitude_range_m": null,
+            "prior_7d_distance_km": null,
+            "prior_28d_distance_km": null
+          },
+          "supported_segment_resolutions": [
+            {"unit_system": "metric", "segment_length_value": 0.25, "segment_length_m": 250, "segment_length_label": "250 m", "is_canonical": true},
+            {"unit_system": "imperial", "segment_length_value": 1, "segment_length_m": 1609.344, "segment_length_label": "1 mi", "is_canonical": false}
+          ]
+        }
+      }
+    },
+    {
+      "id": "api.volume_trend.weekly_precomputed",
+      "state": "populated",
+      "interface": "get_volume_trend",
+      "schemaRef": "api-v1.json#/$defs/volumeTrendSuccess",
+      "value": {
+        "status": "success",
+        "contract_version": "1.0.0",
+        "correlation_id": "44444444-4444-4444-8444-444444444444",
+        "data_version": "dv_20260715_001",
+        "freshness": {
+          "availability": "populated",
+          "latest_completed_date": "2026-07-14",
+          "active_data_version": "dv_20260715_001",
+          "published_at": "2026-07-15T08:30:00Z",
+          "analytical_timezone": "Africa/Lusaka",
+          "refresh_state": "idle",
+          "source_max_activity_date": "2026-07-14"
+        },
+        "data": {
+          "grain": "week",
+          "series": [
+            {
+              "week_start_date": "2026-07-06",
+              "week_end_date": "2026-07-12",
+              "runs_per_week": 3,
+              "weekly_distance_km": 28,
+              "weekly_duration_seconds": 9120,
+              "avg_pace_min_per_km": 5.4286,
+              "average_run_distance_km": 9.3333,
+              "long_run_distance_km": 12,
+              "remaining_distance_km": 16,
+              "long_run_share_of_week": 0.428571,
+              "active_days": 3,
+              "missed_days": 4,
+              "active_week_flag": true,
+              "rolling_4w_distance_km": 112.4,
+              "rolling_12w_distance_km": 326.8,
+              "active_week_streak": 5,
+              "missed_weeks_12w": 1
+            }
+          ],
+          "page": {"limit": 104, "total": 1, "next_cursor": null}
+        }
+      }
+    },
+    {
+      "id": "api.activity_profile.inline",
+      "state": "populated",
+      "interface": "get_activity_profile",
+      "schemaRef": "api-v1.json#/$defs/activityProfileSuccess",
+      "value": {
+        "status": "success",
+        "contract_version": "1.0.0",
+        "correlation_id": "55555555-5555-4555-8555-555555555555",
+        "data_version": "dv_20260715_001",
+        "freshness": {
+          "availability": "populated",
+          "latest_completed_date": "2026-07-14",
+          "active_data_version": "dv_20260715_001",
+          "published_at": "2026-07-15T08:30:00Z",
+          "analytical_timezone": "Africa/Lusaka",
+          "refresh_state": "idle",
+          "source_max_activity_date": "2026-07-14"
+        },
+        "data": {
+          "delivery_mode": "inline",
+          "point_count": 2,
+          "content": {
+            "activity_id": "act_01JZ9T5X2N7W4H9A3Q6C",
+            "activity_date": "2026-07-14",
+            "route_id": "route_01JZ9R9J6TZP",
+            "resolution": "display_v1",
+            "points": [
+              {"record_index": 1, "record_timestamp": "2026-07-14T04:42:13Z", "elapsed_seconds": 0, "seconds_since_previous_record": null, "distance_m": 0, "distance_km": 0, "distance_delta_m": null, "speed_mps": 0, "speed_kmh": 0, "pace_min_per_km": null, "heart_rate": 92, "running_cadence": 0, "altitude_m": 1278.2, "altitude_delta_m": null, "temperature": 16, "latitude_deg": -15.4162, "longitude_deg": 28.2814},
+              {"record_index": 2, "record_timestamp": "2026-07-14T04:42:18Z", "elapsed_seconds": 5, "seconds_since_previous_record": 5, "distance_m": 18.4, "distance_km": 0.0184, "distance_delta_m": 18.4, "speed_mps": 3.68, "speed_kmh": 13.248, "pace_min_per_km": 4.529, "heart_rate": 101, "running_cadence": 168, "altitude_m": 1278.8, "altitude_delta_m": 0.6, "temperature": 16, "latitude_deg": -15.4161, "longitude_deg": 28.2816}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "api.route_geometry.signed_reference",
+      "state": "populated",
+      "interface": "get_route_geometry",
+      "schemaRef": "api-v1.json#/$defs/routeGeometrySuccess",
+      "value": {
+        "status": "success",
+        "contract_version": "1.0.0",
+        "correlation_id": "66666666-6666-4666-8666-666666666666",
+        "data_version": "dv_20260715_001",
+        "freshness": {
+          "availability": "populated",
+          "latest_completed_date": "2026-07-14",
+          "active_data_version": "dv_20260715_001",
+          "published_at": "2026-07-15T08:30:00Z",
+          "analytical_timezone": "Africa/Lusaka",
+          "refresh_state": "idle",
+          "source_max_activity_date": "2026-07-14"
+        },
+        "data": {
+          "delivery_mode": "signed_reference",
+          "url": "https://storage.example.test/signed/route-geometry-001",
+          "expires_at": "2026-07-15T08:35:00Z",
+          "content_type": "application/vnd.running-signals.route-geometry.v1+json",
+          "content_encoding": "gzip",
+          "point_count": 2400,
+          "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        }
+      }
+    },
+    {
+      "id": "api.fitness_trend.precomputed_bands",
+      "state": "populated",
+      "interface": "get_fitness_trend",
+      "schemaRef": "api-v1.json#/$defs/fitnessTrendSuccess",
+      "value": {
+        "status": "success",
+        "contract_version": "1.0.0",
+        "correlation_id": "77777777-7777-4777-8777-777777777777",
+        "data_version": "dv_20260715_001",
+        "freshness": {
+          "availability": "populated",
+          "latest_completed_date": "2026-07-14",
+          "active_data_version": "dv_20260715_001",
+          "published_at": "2026-07-15T08:30:00Z",
+          "analytical_timezone": "Africa/Lusaka",
+          "refresh_state": "idle",
+          "source_max_activity_date": "2026-07-14"
+        },
+        "data": {
+          "window": "latest_180_runs",
+          "points": [
+            {"activity_id": "act_earlier", "activity_date": "2026-06-01", "distance_km": 8.2, "avg_pace_min_per_km": 5.42, "speed_kmh": 11.07, "avg_heart_rate": 145, "efficiency_ratio": 0.07634, "rolling_4_run_efficiency_ratio": 0.07591, "hr_drift_pct": -0.031, "rolling_4_run_hr_drift_pct": -0.027, "hr_band": "140-149", "garmin_recovery_hr": null}
+          ],
+          "bands": [
+            {"hr_band": "140-149", "min_heart_rate_bpm": 140, "max_heart_rate_bpm": 149, "sample_count": 34, "trend_points": [{"activity_date": "2025-12-01", "trend_pace_min_per_km": 5.61}, {"activity_date": "2026-07-14", "trend_pace_min_per_km": 5.29}]}
+          ]
+        }
+      }
+    },
+    {
+      "id": "api.profile.unavailable",
+      "state": "unavailable",
+      "interface": "get_activity_profile",
+      "schemaRef": "api-v1.json#/$defs/unavailableResponse",
+      "value": {
+        "status": "unavailable",
+        "contract_version": "1.0.0",
+        "correlation_id": "88888888-8888-4888-8888-888888888888",
+        "data_version": "dv_20260715_001",
+        "reason": {"code": "insufficient_source_data", "retryable": false, "retry_after_seconds": null}
+      }
+    },
+    {
+      "id": "api.runs.malformed_cursor",
+      "state": "error",
+      "interface": "runs",
+      "schemaRef": "api-v1.json#/$defs/errorResponse",
+      "value": {
+        "status": "error",
+        "contract_version": "1.0.0",
+        "correlation_id": "99999999-9999-4999-8999-999999999999",
+        "error": {"code": "malformed_cursor", "retryable": false, "retry_after_seconds": null, "field_errors": [{"field": "cursor", "code": "invalid_or_query_mismatch"}]}
+      }
+    },
+    {
+      "id": "event.import.completed_with_warnings",
+      "state": "populated",
+      "interface": "realtime_event",
+      "schemaRef": "event-envelope.schema.json",
+      "value": {
+        "contract_version": "1.0.0",
+        "event_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "event_type": "fit.import.completed_with_warnings",
+        "event_version": "1.0.0",
+        "stream": "analytics",
+        "sequence": 41,
+        "occurred_at": "2026-07-15T08:20:00Z",
+        "resource_type": "fit_import",
+        "resource_id": "import_01JZ9M",
+        "data_version": null,
+        "correlation_id": "abababab-abab-4bab-8bab-abababababab",
+        "payload": {"import_id": "import_01JZ9M", "state": "completed_with_warnings", "total_file_count": 10, "completed_file_count": 10, "accepted_file_count": 9, "rejected_file_count": 1, "warning_count": 1, "failure_code": null}
+      }
+    },
+    {
+      "id": "event.contract.data_published",
+      "state": "populated",
+      "interface": "realtime_event",
+      "schemaRef": "event-envelope.schema.json",
+      "value": {
+        "contract_version": "1.0.0",
+        "event_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "event_type": "contract.data_published",
+        "event_version": "1.0.0",
+        "stream": "analytics",
+        "sequence": 42,
+        "occurred_at": "2026-07-15T08:30:00Z",
+        "resource_type": "contract_generation",
+        "resource_id": "gen_20260715_001",
+        "data_version": "dv_20260715_001",
+        "correlation_id": "bcbcbcbc-bcbc-4cbc-8cbc-bcbcbcbcbcbc",
+        "payload": {"generation_id": "gen_20260715_001", "previous_data_version": "dv_20260701_004", "published_data_version": "dv_20260715_001", "availability": "populated", "changed_resources": ["training_summary", "runs", "weekly_training", "fitness", "freshness"]}
+      }
+    },
+    {
+      "id": "mcp.training_summary.empty_success",
+      "state": "empty",
+      "interface": "get_training_summary",
+      "schemaRef": "mcp-evidence.schema.json",
+      "value": {
+        "evidence_version": "1.0.0",
+        "contract_version": "1.0.0",
+        "tool_name": "get_training_summary",
+        "request_id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "correlation_id": "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd",
+        "status": "success",
+        "data_version": "dv_20260715_001",
+        "generated_at": "2026-07-15T08:31:00Z",
+        "analytical_timezone": "Africa/Lusaka",
+        "freshness": {"availability": "populated", "latest_completed_date": "2026-07-14", "active_data_version": "dv_20260715_001", "published_at": "2026-07-15T08:30:00Z", "analytical_timezone": "Africa/Lusaka", "refresh_state": "idle", "source_max_activity_date": "2026-07-14"},
+        "metric_references": [{"metric_id": "summary.total_runs", "metric_version": "1.0.0", "canonical_unit": "count"}, {"metric_id": "summary.total_distance_km", "metric_version": "1.0.0", "canonical_unit": "km"}],
+        "provenance": {"generation_id": "gen_20260715_001", "pipeline_run_id": "pipeline_20260715_001", "gold_models": ["contract_v1_training_summary", "contract_v1_runs"], "source_max_activity_date": "2026-07-14"},
+        "caveats": [{"code": "descriptive_not_prescriptive", "message": "These values describe observed running history and are not coaching or medical advice."}],
+        "visualization_intent": {"kind": "metric_cards", "x_axis_field": null, "series": [{"field": "total_runs", "metric_id": "summary.total_runs"}, {"field": "total_distance_km", "metric_id": "summary.total_distance_km"}]},
+        "evidence": {"data_state": "empty", "latest_completed_date": null, "total_runs": 0, "total_distance_km": 0, "recent_7d_distance_km": 0, "recent_28d_distance_km": 0, "active_weeks": 0, "active_months": 0, "active_weeks_52w": 0, "average_weekly_distance_52w_km": null, "current_daily_run_streak_371d": 0, "longest_daily_run_streak_371d": 0, "average_daily_run_streak_371d": null, "longest_training_break_371d": 0, "average_training_break_371d": null, "longest_run_distance_104w_km": null, "recovery_hr_available_runs_180": 0, "hr_drift_available_runs_180": 0, "latest_run": null}
+      }
+    },
+    {
+      "id": "mcp.volume_trend.unavailable",
+      "state": "unavailable",
+      "interface": "get_volume_trend",
+      "schemaRef": "mcp-evidence.schema.json",
+      "value": {
+        "evidence_version": "1.0.0",
+        "contract_version": "1.0.0",
+        "tool_name": "get_volume_trend",
+        "request_id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "correlation_id": "dededede-dede-4ede-8ede-dededededede",
+        "status": "unavailable",
+        "data_version": null,
+        "generated_at": "2026-07-15T08:31:00Z",
+        "analytical_timezone": null,
+        "freshness": null,
+        "metric_references": [],
+        "provenance": null,
+        "caveats": [],
+        "visualization_intent": null,
+        "evidence": null,
+        "unavailable_reason": {"code": "no_active_generation", "retryable": true, "retry_after_seconds": 30}
+      }
+    },
+    {
+      "id": "mcp.fitness_trend.error",
+      "state": "error",
+      "interface": "get_fitness_trend",
+      "schemaRef": "mcp-evidence.schema.json",
+      "value": {
+        "evidence_version": "1.0.0",
+        "contract_version": "1.0.0",
+        "tool_name": "get_fitness_trend",
+        "request_id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "correlation_id": "efefefef-efef-4fef-8fef-efefefefefef",
+        "status": "error",
+        "data_version": null,
+        "generated_at": "2026-07-15T08:31:00Z",
+        "analytical_timezone": null,
+        "freshness": null,
+        "metric_references": [],
+        "provenance": null,
+        "caveats": [],
+        "visualization_intent": null,
+        "evidence": null,
+        "error": {"code": "rate_limited", "retryable": true, "retry_after_seconds": 10}
+      }
+    }
+  ],
+  "capabilityFixtures": [
+    {"id": "health.hrv.source_not_uploaded", "capabilityId": "health.hrv", "expectedState": "source_not_uploaded"},
+    {"id": "health.resting_heart_rate.source_not_uploaded", "capabilityId": "health.resting_heart_rate", "expectedState": "source_not_uploaded"},
+    {"id": "health.daily_heart_rate.source_not_uploaded", "capabilityId": "health.daily_heart_rate", "expectedState": "source_not_uploaded"},
+    {"id": "health.sleep.source_not_uploaded", "capabilityId": "health.sleep", "expectedState": "source_not_uploaded"},
+    {"id": "health.coverage.source_not_uploaded", "capabilityId": "health.coverage", "expectedState": "source_not_uploaded"}
+  ]
+}

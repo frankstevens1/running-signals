@@ -1,0 +1,3568 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://running-signals.local/contracts/run-ledger/v1/api-v1.json",
+  "artifactType": "api-rpc-schemas",
+  "contractVersion": "1.0.0",
+  "status": "compatible",
+  "runtimeTruth": true,
+  "description": "Semantic contract for authenticated Run Ledger api_v1 analytical views and bounded RPCs. Run Ledger owns database deployment; Running Signals owns these fields and their analytical meaning.",
+  "conventions": {
+    "fieldCase": "snake_case",
+    "tenantScope": "The authenticated Supabase subject is the tenant. No analytical request accepts user_id.",
+    "dates": "ISO 8601 full-date values in the response analytical_timezone.",
+    "timestamps": "RFC 3339 UTC timestamps.",
+    "nulls": "Null means the documented source value or required analytical context is absent. Zero is never substituted for nullable source telemetry.",
+    "empty": "An active generation with no matching rows returns status=success with an empty array or zero-valued summary.",
+    "unavailable": "No active generation, suppressed resources, insufficient required source data, and unsupported contract selections return status=unavailable.",
+    "pagination": "Opaque cursor pagination. Cursors bind the contract version, request filters, ordering, and last unique ordering key and must not be parsed by clients.",
+    "allowedConsumerBehavior": [
+      "filter",
+      "sort",
+      "paginate",
+      "format",
+      "convert_documented_units",
+      "decode_artifact",
+      "render"
+    ],
+    "prohibitedConsumerBehavior": [
+      "aggregate_analytical_rows",
+      "calculate_streaks_or_breaks",
+      "calculate_rolling_windows",
+      "calculate_route_or_fitness_deltas",
+      "fit_regressions",
+      "classify_geography",
+      "select_or_smooth_profile_points"
+    ]
+  },
+  "limits": {
+    "runsPageDefault": 25,
+    "runsPageMaximum": 100,
+    "routesPageMaximum": 100,
+    "dailyRowsMaximum": 1200,
+    "weeklyRowsMaximum": 260,
+    "monthlyRowsMaximum": 120,
+    "yearlyRowsMaximum": 25,
+    "fitnessRowsMaximum": 500,
+    "segmentRowsMaximum": 5000,
+    "eventHistoryPageMaximum": 100,
+    "artifactInlinePointMaximum": 1000,
+    "artifactResourcePointMaximum": 5000,
+    "geometryBatchRouteMaximum": 50,
+    "geometryBatchPointMaximum": 100000
+  },
+  "interfaces": [
+    {
+      "name": "runs",
+      "kind": "view",
+      "requestSchema": "#/$defs/runsRequest",
+      "successSchema": "#/$defs/runListSuccess",
+      "order": [
+        "requested_sort",
+        "activity_date desc",
+        "start_time desc nulls last",
+        "activity_id desc"
+      ]
+    },
+    {
+      "name": "run_filter_bounds",
+      "kind": "view",
+      "requestSchema": "#/$defs/emptyRequest",
+      "successSchema": "#/$defs/runFilterBoundsSuccess"
+    },
+    {
+      "name": "daily_training",
+      "kind": "view",
+      "requestSchema": "#/$defs/trendRequest",
+      "successSchema": "#/$defs/dailyTrainingSuccess",
+      "order": [
+        "calendar_date asc"
+      ]
+    },
+    {
+      "name": "weekly_training",
+      "kind": "view",
+      "requestSchema": "#/$defs/trendRequest",
+      "successSchema": "#/$defs/weeklyTrainingSuccess",
+      "order": [
+        "week_start_date asc"
+      ]
+    },
+    {
+      "name": "monthly_training",
+      "kind": "view",
+      "requestSchema": "#/$defs/trendRequest",
+      "successSchema": "#/$defs/monthlyTrainingSuccess",
+      "order": [
+        "month_start_date asc"
+      ]
+    },
+    {
+      "name": "yearly_training",
+      "kind": "view",
+      "requestSchema": "#/$defs/trendRequest",
+      "successSchema": "#/$defs/yearlyTrainingSuccess",
+      "order": [
+        "year_start_date asc"
+      ]
+    },
+    {
+      "name": "routes",
+      "kind": "view",
+      "requestSchema": "#/$defs/routesRequest",
+      "successSchema": "#/$defs/routeListSuccess",
+      "order": [
+        "requested_sort",
+        "latest_observed_activity_date desc nulls last",
+        "route_id asc"
+      ]
+    },
+    {
+      "name": "segments",
+      "kind": "view",
+      "requestSchema": "#/$defs/segmentsRequest",
+      "successSchema": "#/$defs/segmentsSuccess",
+      "order": [
+        "segment_index asc"
+      ]
+    },
+    {
+      "name": "fitness",
+      "kind": "view",
+      "requestSchema": "#/$defs/fitnessRequest",
+      "successSchema": "#/$defs/fitnessSuccess",
+      "order": [
+        "activity_date asc",
+        "activity_id asc"
+      ]
+    },
+    {
+      "name": "metric_catalog",
+      "kind": "view",
+      "requestSchema": "#/$defs/emptyRequest",
+      "successSchema": "#/$defs/metricCatalogSuccess",
+      "order": [
+        "metric_id asc"
+      ]
+    },
+    {
+      "name": "freshness",
+      "kind": "view",
+      "requestSchema": "#/$defs/emptyRequest",
+      "successSchema": "#/$defs/freshnessSuccess"
+    },
+    {
+      "name": "event_history",
+      "kind": "view",
+      "requestSchema": "#/$defs/eventHistoryRequest",
+      "successSchema": "#/$defs/eventHistorySuccess",
+      "order": [
+        "sequence asc",
+        "event_id asc"
+      ]
+    },
+    {
+      "name": "get_training_summary",
+      "kind": "rpc",
+      "requestSchema": "#/$defs/emptyRequest",
+      "successSchema": "#/$defs/trainingSummarySuccess"
+    },
+    {
+      "name": "get_volume_trend",
+      "kind": "rpc",
+      "requestSchema": "#/$defs/volumeTrendRequest",
+      "successSchema": "#/$defs/volumeTrendSuccess"
+    },
+    {
+      "name": "get_activity_detail",
+      "kind": "rpc",
+      "requestSchema": "#/$defs/activityRequest",
+      "successSchema": "#/$defs/activityDetailSuccess"
+    },
+    {
+      "name": "get_activity_profile",
+      "kind": "rpc",
+      "requestSchema": "#/$defs/activityArtifactRequest",
+      "successSchema": "#/$defs/activityProfileSuccess"
+    },
+    {
+      "name": "compare_route_runs",
+      "kind": "rpc",
+      "requestSchema": "#/$defs/routeComparisonRequest",
+      "successSchema": "#/$defs/routeComparisonSuccess"
+    },
+    {
+      "name": "get_fitness_trend",
+      "kind": "rpc",
+      "requestSchema": "#/$defs/fitnessTrendRequest",
+      "successSchema": "#/$defs/fitnessTrendSuccess"
+    },
+    {
+      "name": "get_route_geometry",
+      "kind": "rpc",
+      "requestSchema": "#/$defs/routeGeometryRequest",
+      "successSchema": "#/$defs/routeGeometrySuccess"
+    }
+  ],
+  "responseAlternatives": {
+    "unavailable": "#/$defs/unavailableResponse",
+    "error": "#/$defs/errorResponse"
+  },
+  "parityCoverage": [
+    {
+      "section": "status_and_dashboard",
+      "legacyFields": [
+        "DataResult.data",
+        "PaginatedResult.items",
+        "PaginatedResult.total",
+        "PaginatedResult.limit",
+        "VolumeData.weeks",
+        "VolumeData.months",
+        "VolumeData.years",
+        "latestCompletedDate",
+        "totalRuns",
+        "totalDistanceKm",
+        "recent7dDistanceKm",
+        "recent28dDistanceKm",
+        "activeWeeks",
+        "activeMonths",
+        "latestRun"
+      ],
+      "interfaces": [
+        "freshness",
+        "runs",
+        "get_training_summary",
+        "get_volume_trend"
+      ]
+    },
+    {
+      "section": "run_and_filter",
+      "legacyFields": [
+        "activityId",
+        "activityDate",
+        "startTime",
+        "distanceKm",
+        "durationSeconds",
+        "avgPaceMinPerKm",
+        "speedKmh",
+        "avgHeartRate",
+        "maxHeartRate",
+        "totalAscent",
+        "totalDescent",
+        "garminRecoveryHr",
+        "routeId",
+        "routeDistanceBucketKm",
+        "recordDistanceCoverageRatio",
+        "segmentCount",
+        "avgSegmentGrade",
+        "routeAltitudeRangeM",
+        "prior7dDistanceKm",
+        "prior28dDistanceKm",
+        "minActivityDate",
+        "maxActivityDate",
+        "minDistanceKm",
+        "maxDistanceKm",
+        "minPaceMinPerKm",
+        "maxPaceMinPerKm",
+        "minAvgHeartRate",
+        "maxAvgHeartRate",
+        "minGpsCoverage",
+        "maxGpsCoverage"
+      ],
+      "interfaces": [
+        "runs",
+        "run_filter_bounds",
+        "get_activity_detail"
+      ]
+    },
+    {
+      "section": "route_and_activity_profile",
+      "legacyFields": [
+        "routeId",
+        "firstObservedActivityDate",
+        "latestObservedActivityDate",
+        "runCount",
+        "avgDistanceKm",
+        "minDistanceKm",
+        "maxDistanceKm",
+        "avgDurationSeconds",
+        "avgPaceMinPerKm",
+        "avgHeartRate",
+        "avgTotalAscent",
+        "avgTotalDescent",
+        "avgSegmentGrade",
+        "avgRouteAltitudeRangeM",
+        "routeDistanceBucketKm",
+        "RouteGeometryRecord.recordIndex",
+        "RouteGeometryRecord.latitudeDeg",
+        "RouteGeometryRecord.longitudeDeg",
+        "ActivityRecord.activityId",
+        "ActivityRecord.activityDate",
+        "ActivityRecord.routeId",
+        "recordTimestamp",
+        "recordIndex",
+        "elapsedSeconds",
+        "secondsSincePreviousRecord",
+        "distanceM",
+        "distanceKm",
+        "distanceDeltaM",
+        "speedMps",
+        "speedKmh",
+        "paceMinPerKm",
+        "heartRate",
+        "runningCadence",
+        "altitudeM",
+        "altitudeDeltaM",
+        "temperature",
+        "latitudeDeg",
+        "longitudeDeg"
+      ],
+      "interfaces": [
+        "routes",
+        "get_activity_profile",
+        "get_route_geometry"
+      ]
+    },
+    {
+      "section": "segments",
+      "legacyFields": [
+        "routeId",
+        "activityDate",
+        "unitSystem",
+        "segmentLengthValue",
+        "segmentLengthM",
+        "segmentLengthLabel",
+        "isCanonical",
+        "segmentIndex",
+        "segmentDistanceKm",
+        "segmentDurationSeconds",
+        "segmentPaceMinPerKm",
+        "avgSpeedKmh",
+        "avgHeartRate",
+        "maxHeartRate",
+        "avgRunningCadence",
+        "minAltitudeM",
+        "maxAltitudeM",
+        "elevationChangeM",
+        "segmentGrade",
+        "segmentStartDistanceKm",
+        "segmentEndDistanceKm",
+        "segmentStartBoundaryM",
+        "segmentEndBoundaryM",
+        "segmentStartLatitudeDeg",
+        "segmentStartLongitudeDeg",
+        "segmentEndLatitudeDeg",
+        "segmentEndLongitudeDeg"
+      ],
+      "interfaces": [
+        "segments",
+        "get_activity_detail"
+      ]
+    },
+    {
+      "section": "calendar_and_volume",
+      "legacyFields": [
+        "calendarDate",
+        "runCount",
+        "distanceKm",
+        "durationSeconds",
+        "longRunDistanceKm",
+        "activeDayFlag",
+        "rolling7dDistanceKm",
+        "rolling28dDistanceKm",
+        "weekStartDate",
+        "weekEndDate",
+        "runsPerWeek",
+        "weeklyDistanceKm",
+        "weeklyDurationSeconds",
+        "WeekRollup.avgPaceMinPerKm",
+        "WeekRollup.longRunDistanceKm",
+        "longRunShareOfWeek",
+        "activeDays",
+        "missedDays",
+        "activeWeekFlag",
+        "rolling4wDistanceKm",
+        "rolling12wDistanceKm",
+        "activeWeekStreak",
+        "missedWeeks12w",
+        "monthStartDate",
+        "MonthRollup.calendarYear",
+        "calendarMonth",
+        "runsPerMonth",
+        "monthlyDistanceKm",
+        "monthlyDurationSeconds",
+        "MonthRollup.longRunDistanceKm",
+        "yearStartDate",
+        "YearRollup.calendarYear",
+        "runsPerYear",
+        "yearlyDistanceKm",
+        "yearlyDurationSeconds",
+        "YearRollup.longRunDistanceKm"
+      ],
+      "interfaces": [
+        "daily_training",
+        "weekly_training",
+        "monthly_training",
+        "yearly_training",
+        "get_volume_trend"
+      ]
+    },
+    {
+      "section": "fitness",
+      "legacyFields": [
+        "activityId",
+        "activityDate",
+        "distanceKm",
+        "avgPaceMinPerKm",
+        "speedKmh",
+        "avgHeartRate",
+        "efficiencyRatio",
+        "rolling4RunEfficiencyRatio",
+        "hrDriftPct",
+        "rolling4RunHrDriftPct",
+        "hrBand",
+        "garminRecoveryHr"
+      ],
+      "interfaces": [
+        "fitness",
+        "get_fitness_trend"
+      ]
+    }
+  ],
+  "visualParityCoverage": [
+    {
+      "behavior": "landing_availability_and_freshness",
+      "contractFields": [
+        "freshness.availability",
+        "freshness.latest_completed_date"
+      ]
+    },
+    {
+      "behavior": "run_filters_sorting_and_count",
+      "contractFields": [
+        "runs.items",
+        "runs.page.total",
+        "run_filter_bounds"
+      ]
+    },
+    {
+      "behavior": "dashboard_cards",
+      "contractFields": [
+        "get_training_summary"
+      ]
+    },
+    {
+      "behavior": "active_weeks_and_mean_weekly_volume",
+      "contractFields": [
+        "summary.active_weeks_52w",
+        "summary.average_weekly_distance_52w_km"
+      ]
+    },
+    {
+      "behavior": "daily_streaks",
+      "contractFields": [
+        "summary.current_daily_run_streak_371d",
+        "summary.longest_daily_run_streak_371d",
+        "summary.average_daily_run_streak_371d"
+      ]
+    },
+    {
+      "behavior": "training_breaks",
+      "contractFields": [
+        "summary.longest_training_break_371d",
+        "summary.average_training_break_371d"
+      ]
+    },
+    {
+      "behavior": "volume_trends",
+      "contractFields": [
+        "get_volume_trend.series"
+      ]
+    },
+    {
+      "behavior": "weekly_structure",
+      "contractFields": [
+        "weekly.average_run_distance_km",
+        "weekly.long_run_distance_km",
+        "weekly.remaining_distance_km"
+      ]
+    },
+    {
+      "behavior": "segments",
+      "contractFields": [
+        "segments"
+      ]
+    },
+    {
+      "behavior": "activity_profiles",
+      "contractFields": [
+        "activity_profile.delivery"
+      ]
+    },
+    {
+      "behavior": "route_geometry",
+      "contractFields": [
+        "route_geometry.delivery"
+      ]
+    },
+    {
+      "behavior": "route_geography",
+      "contractFields": [
+        "routes.country_code",
+        "routes.city_id",
+        "routes.geography_reference_version"
+      ]
+    },
+    {
+      "behavior": "route_comparison",
+      "contractFields": [
+        "compare_route_runs.comparisons"
+      ]
+    },
+    {
+      "behavior": "fitness_series",
+      "contractFields": [
+        "fitness"
+      ]
+    },
+    {
+      "behavior": "heart_rate_bands_and_regression",
+      "contractFields": [
+        "get_fitness_trend.bands"
+      ]
+    },
+    {
+      "behavior": "calendar_intensity",
+      "presentationOnly": true
+    },
+    {
+      "behavior": "axes_ticks_colors_legends_formatting",
+      "presentationOnly": true
+    }
+  ],
+  "$defs": {
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "nullableDate": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "nullableTimestamp": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "opaqueId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "nullableNumber": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "nullableNonNegativeNumber": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "nullableNonNegativeInteger": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "emptyRequest": {
+      "type": "object",
+      "additionalProperties": false
+    },
+    "pageRequest": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 25
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 2048
+        }
+      },
+      "additionalProperties": false
+    },
+    "pageMetadata": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Exact authorized count for the active query; pagination metadata, not a training metric."
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "limit",
+        "total",
+        "next_cursor"
+      ],
+      "additionalProperties": false
+    },
+    "freshness": {
+      "type": "object",
+      "properties": {
+        "availability": {
+          "type": "string",
+          "enum": [
+            "empty",
+            "populated",
+            "updating"
+          ],
+          "x-gold-owner": "contract_v1_freshness.availability"
+        },
+        "latest_completed_date": {
+          "$ref": "#/$defs/nullableDate",
+          "x-gold-owner": "contract_v1_freshness.latest_completed_date",
+          "x-metric-id": "freshness.latest_completed_date",
+          "x-unit": "date"
+        },
+        "active_data_version": {
+          "type": "string",
+          "minLength": 1,
+          "x-gold-owner": "contract_v1_freshness.data_version"
+        },
+        "published_at": {
+          "$ref": "#/$defs/timestamp",
+          "x-gold-owner": "contract_v1_freshness.published_at",
+          "x-unit": "timestamp_utc"
+        },
+        "analytical_timezone": {
+          "type": "string",
+          "minLength": 1,
+          "x-gold-owner": "contract_v1_freshness.analytical_timezone"
+        },
+        "refresh_state": {
+          "type": "string",
+          "enum": [
+            "idle",
+            "queued",
+            "processing",
+            "failed"
+          ],
+          "x-gold-owner": "contract_v1_freshness.refresh_state"
+        },
+        "source_max_activity_date": {
+          "$ref": "#/$defs/nullableDate",
+          "x-gold-owner": "contract_v1_freshness.source_max_activity_date",
+          "x-unit": "date"
+        }
+      },
+      "required": [
+        "availability",
+        "latest_completed_date",
+        "active_data_version",
+        "published_at",
+        "analytical_timezone",
+        "refresh_state",
+        "source_max_activity_date"
+      ],
+      "additionalProperties": false
+    },
+    "responseMetadata": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "success"
+        },
+        "contract_version": {
+          "const": "1.0.0"
+        },
+        "correlation_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "data_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "freshness": {
+          "$ref": "#/$defs/freshness"
+        }
+      },
+      "required": [
+        "status",
+        "contract_version",
+        "correlation_id",
+        "data_version",
+        "freshness"
+      ]
+    },
+    "unavailableResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "unavailable"
+        },
+        "contract_version": {
+          "const": "1.0.0"
+        },
+        "correlation_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "data_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "no_active_generation",
+                "resource_suppressed",
+                "insufficient_source_data",
+                "refresh_pending",
+                "unsupported_window",
+                "unsupported_resolution",
+                "history_gap"
+              ]
+            },
+            "retryable": {
+              "type": "boolean"
+            },
+            "retry_after_seconds": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
+          },
+          "required": [
+            "code",
+            "retryable",
+            "retry_after_seconds"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "status",
+        "contract_version",
+        "correlation_id",
+        "data_version",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "errorResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "error"
+        },
+        "contract_version": {
+          "const": "1.0.0"
+        },
+        "correlation_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "unauthenticated",
+                "forbidden",
+                "not_found",
+                "validation_error",
+                "malformed_cursor",
+                "unsupported_contract_version",
+                "rate_limited",
+                "quota_exceeded",
+                "artifact_expired",
+                "internal_error"
+              ]
+            },
+            "retryable": {
+              "type": "boolean"
+            },
+            "retry_after_seconds": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "field_errors": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "field": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "field",
+                  "code"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "code",
+            "retryable",
+            "retry_after_seconds",
+            "field_errors"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "status",
+        "contract_version",
+        "correlation_id",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "run": {
+      "type": "object",
+      "properties": {
+        "activity_id": {
+          "$ref": "#/$defs/opaqueId",
+          "x-gold-owner": "contract_v1_runs.activity_id",
+          "x-unit": "opaque_id"
+        },
+        "activity_date": {
+          "$ref": "#/$defs/date",
+          "x-gold-owner": "contract_v1_runs.activity_date",
+          "x-unit": "date"
+        },
+        "start_time": {
+          "$ref": "#/$defs/nullableTimestamp",
+          "x-gold-owner": "contract_v1_runs.start_time",
+          "x-unit": "timestamp_utc"
+        },
+        "distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_runs.distance_km",
+          "x-metric-id": "run.distance_km",
+          "x-unit": "km"
+        },
+        "duration_seconds": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_runs.duration_seconds",
+          "x-metric-id": "run.duration_seconds",
+          "x-unit": "seconds"
+        },
+        "avg_pace_min_per_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_runs.avg_pace_min_per_km",
+          "x-metric-id": "run.avg_pace_min_per_km",
+          "x-unit": "min_per_km"
+        },
+        "speed_kmh": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_runs.speed_kmh",
+          "x-metric-id": "run.speed_kmh",
+          "x-unit": "km_per_hour"
+        },
+        "avg_heart_rate": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_runs.avg_heart_rate",
+          "x-metric-id": "run.avg_heart_rate",
+          "x-unit": "bpm"
+        },
+        "max_heart_rate": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_runs.max_heart_rate",
+          "x-metric-id": "run.max_heart_rate",
+          "x-unit": "bpm"
+        },
+        "total_ascent": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_runs.total_ascent_m",
+          "x-metric-id": "run.total_ascent",
+          "x-unit": "m"
+        },
+        "total_descent": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_runs.total_descent_m",
+          "x-metric-id": "run.total_descent",
+          "x-unit": "m"
+        },
+        "garmin_recovery_hr": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_runs.garmin_recovery_hr",
+          "x-metric-id": "fitness.garmin_recovery_hr",
+          "x-unit": "bpm"
+        },
+        "route_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-gold-owner": "contract_v1_runs.route_id",
+          "x-unit": "opaque_id"
+        },
+        "route_distance_bucket_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_runs.route_distance_bucket_km",
+          "x-metric-id": "run.route_distance_bucket_km",
+          "x-unit": "km"
+        },
+        "record_distance_coverage_ratio": {
+          "$ref": "#/$defs/nullableNumber",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_runs.record_distance_coverage_ratio",
+          "x-metric-id": "run.record_distance_coverage_ratio",
+          "x-unit": "ratio"
+        },
+        "segment_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_runs.segment_count",
+          "x-metric-id": "run.segment_count",
+          "x-unit": "count"
+        },
+        "avg_segment_grade": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_runs.avg_segment_grade",
+          "x-metric-id": "run.avg_segment_grade",
+          "x-unit": "ratio"
+        },
+        "route_altitude_range_m": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_runs.route_altitude_range_m",
+          "x-metric-id": "run.route_altitude_range_m",
+          "x-unit": "m"
+        },
+        "prior_7d_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_runs.prior_7d_distance_km",
+          "x-metric-id": "run.prior_7d_distance_km",
+          "x-unit": "km"
+        },
+        "prior_28d_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_runs.prior_28d_distance_km",
+          "x-metric-id": "run.prior_28d_distance_km",
+          "x-unit": "km"
+        }
+      },
+      "required": [
+        "activity_id",
+        "activity_date",
+        "start_time",
+        "distance_km",
+        "duration_seconds",
+        "avg_pace_min_per_km",
+        "speed_kmh",
+        "avg_heart_rate",
+        "max_heart_rate",
+        "total_ascent",
+        "total_descent",
+        "garmin_recovery_hr",
+        "route_id",
+        "route_distance_bucket_km",
+        "record_distance_coverage_ratio",
+        "segment_count",
+        "avg_segment_grade",
+        "route_altitude_range_m",
+        "prior_7d_distance_km",
+        "prior_28d_distance_km"
+      ],
+      "additionalProperties": false
+    },
+    "runFilterBounds": {
+      "type": "object",
+      "properties": {
+        "min_activity_date": {
+          "$ref": "#/$defs/nullableDate",
+          "x-gold-owner": "contract_v1_run_filter_bounds.min_activity_date",
+          "x-metric-id": "filter.min_activity_date",
+          "x-unit": "date"
+        },
+        "max_activity_date": {
+          "$ref": "#/$defs/nullableDate",
+          "x-gold-owner": "contract_v1_run_filter_bounds.max_activity_date",
+          "x-metric-id": "filter.max_activity_date",
+          "x-unit": "date"
+        },
+        "min_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_run_filter_bounds.min_distance_km",
+          "x-metric-id": "filter.min_distance_km",
+          "x-unit": "km"
+        },
+        "max_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_run_filter_bounds.max_distance_km",
+          "x-metric-id": "filter.max_distance_km",
+          "x-unit": "km"
+        },
+        "min_pace_min_per_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_run_filter_bounds.min_pace_min_per_km",
+          "x-metric-id": "filter.min_pace_min_per_km",
+          "x-unit": "min_per_km"
+        },
+        "max_pace_min_per_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_run_filter_bounds.max_pace_min_per_km",
+          "x-metric-id": "filter.max_pace_min_per_km",
+          "x-unit": "min_per_km"
+        },
+        "min_avg_heart_rate": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_run_filter_bounds.min_avg_heart_rate",
+          "x-metric-id": "filter.min_avg_heart_rate",
+          "x-unit": "bpm"
+        },
+        "max_avg_heart_rate": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_run_filter_bounds.max_avg_heart_rate",
+          "x-metric-id": "filter.max_avg_heart_rate",
+          "x-unit": "bpm"
+        },
+        "min_gps_coverage": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_run_filter_bounds.min_gps_coverage",
+          "x-metric-id": "filter.min_gps_coverage",
+          "x-unit": "ratio"
+        },
+        "max_gps_coverage": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_run_filter_bounds.max_gps_coverage",
+          "x-metric-id": "filter.max_gps_coverage",
+          "x-unit": "ratio"
+        }
+      },
+      "required": [
+        "min_activity_date",
+        "max_activity_date",
+        "min_distance_km",
+        "max_distance_km",
+        "min_pace_min_per_km",
+        "max_pace_min_per_km",
+        "min_avg_heart_rate",
+        "max_avg_heart_rate",
+        "min_gps_coverage",
+        "max_gps_coverage"
+      ],
+      "additionalProperties": false
+    },
+    "trainingSummary": {
+      "type": "object",
+      "properties": {
+        "data_state": {
+          "type": "string",
+          "enum": [
+            "empty",
+            "populated"
+          ],
+          "x-gold-owner": "contract_v1_training_summary.data_state"
+        },
+        "latest_completed_date": {
+          "$ref": "#/$defs/nullableDate",
+          "x-gold-owner": "contract_v1_training_summary.latest_completed_date",
+          "x-metric-id": "freshness.latest_completed_date",
+          "x-unit": "date"
+        },
+        "total_runs": {
+          "type": "integer",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_training_summary.total_runs",
+          "x-metric-id": "summary.total_runs",
+          "x-unit": "count"
+        },
+        "total_distance_km": {
+          "type": "number",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_training_summary.total_distance_km",
+          "x-metric-id": "summary.total_distance_km",
+          "x-unit": "km"
+        },
+        "recent_7d_distance_km": {
+          "type": "number",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_training_summary.recent_7d_distance_km",
+          "x-metric-id": "summary.recent_7d_distance_km",
+          "x-unit": "km"
+        },
+        "recent_28d_distance_km": {
+          "type": "number",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_training_summary.recent_28d_distance_km",
+          "x-metric-id": "summary.recent_28d_distance_km",
+          "x-unit": "km"
+        },
+        "active_weeks": {
+          "type": "integer",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_training_summary.active_weeks",
+          "x-metric-id": "summary.active_weeks",
+          "x-unit": "count"
+        },
+        "active_months": {
+          "type": "integer",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_training_summary.active_months",
+          "x-metric-id": "summary.active_months",
+          "x-unit": "count"
+        },
+        "active_weeks_52w": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 52,
+          "x-gold-owner": "contract_v1_training_summary.active_weeks_52w",
+          "x-metric-id": "summary.active_weeks_52w",
+          "x-unit": "count"
+        },
+        "average_weekly_distance_52w_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_training_summary.average_weekly_distance_52w_km",
+          "x-metric-id": "summary.average_weekly_distance_52w_km",
+          "x-unit": "km"
+        },
+        "current_daily_run_streak_371d": {
+          "type": "integer",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_training_summary.current_daily_run_streak_371d",
+          "x-metric-id": "summary.current_daily_run_streak_371d",
+          "x-unit": "days"
+        },
+        "longest_daily_run_streak_371d": {
+          "type": "integer",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_training_summary.longest_daily_run_streak_371d",
+          "x-metric-id": "summary.longest_daily_run_streak_371d",
+          "x-unit": "days"
+        },
+        "average_daily_run_streak_371d": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_training_summary.average_daily_run_streak_371d",
+          "x-metric-id": "summary.average_daily_run_streak_371d",
+          "x-unit": "days"
+        },
+        "longest_training_break_371d": {
+          "type": "integer",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_training_summary.longest_training_break_371d",
+          "x-metric-id": "summary.longest_training_break_371d",
+          "x-unit": "days"
+        },
+        "average_training_break_371d": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_training_summary.average_training_break_371d",
+          "x-metric-id": "summary.average_training_break_371d",
+          "x-unit": "days"
+        },
+        "longest_run_distance_104w_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_training_summary.longest_run_distance_104w_km",
+          "x-metric-id": "summary.longest_run_distance_104w_km",
+          "x-unit": "km"
+        },
+        "recovery_hr_available_runs_180": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 180,
+          "x-gold-owner": "contract_v1_training_summary.recovery_hr_available_runs_180",
+          "x-metric-id": "summary.recovery_hr_available_runs_180",
+          "x-unit": "count"
+        },
+        "hr_drift_available_runs_180": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 180,
+          "x-gold-owner": "contract_v1_training_summary.hr_drift_available_runs_180",
+          "x-metric-id": "summary.hr_drift_available_runs_180",
+          "x-unit": "count"
+        },
+        "latest_run": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/run"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-gold-owner": "contract_v1_training_summary.latest_activity_id -> contract_v1_runs"
+        }
+      },
+      "required": [
+        "data_state",
+        "latest_completed_date",
+        "total_runs",
+        "total_distance_km",
+        "recent_7d_distance_km",
+        "recent_28d_distance_km",
+        "active_weeks",
+        "active_months",
+        "active_weeks_52w",
+        "average_weekly_distance_52w_km",
+        "current_daily_run_streak_371d",
+        "longest_daily_run_streak_371d",
+        "average_daily_run_streak_371d",
+        "longest_training_break_371d",
+        "average_training_break_371d",
+        "longest_run_distance_104w_km",
+        "recovery_hr_available_runs_180",
+        "hr_drift_available_runs_180",
+        "latest_run"
+      ],
+      "additionalProperties": false
+    },
+    "dailyTraining": {
+      "type": "object",
+      "properties": {
+        "calendar_date": {
+          "$ref": "#/$defs/date",
+          "x-gold-owner": "contract_v1_daily_training.calendar_date",
+          "x-unit": "date"
+        },
+        "run_count": {
+          "type": "integer",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_daily_training.run_count",
+          "x-metric-id": "daily.run_count",
+          "x-unit": "count"
+        },
+        "distance_km": {
+          "type": "number",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_daily_training.distance_km",
+          "x-metric-id": "daily.distance_km",
+          "x-unit": "km"
+        },
+        "duration_seconds": {
+          "type": "number",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_daily_training.duration_seconds",
+          "x-metric-id": "daily.duration_seconds",
+          "x-unit": "seconds"
+        },
+        "long_run_distance_km": {
+          "type": "number",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_daily_training.long_run_distance_km",
+          "x-metric-id": "daily.long_run_distance_km",
+          "x-unit": "km"
+        },
+        "active_day_flag": {
+          "type": "boolean",
+          "x-gold-owner": "contract_v1_daily_training.active_day_flag",
+          "x-metric-id": "daily.active_day_flag",
+          "x-unit": "boolean"
+        },
+        "rolling_7d_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_daily_training.rolling_7d_distance_km",
+          "x-metric-id": "daily.rolling_7d_distance_km",
+          "x-unit": "km"
+        },
+        "rolling_28d_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_daily_training.rolling_28d_distance_km",
+          "x-metric-id": "daily.rolling_28d_distance_km",
+          "x-unit": "km"
+        }
+      },
+      "required": [
+        "calendar_date",
+        "run_count",
+        "distance_km",
+        "duration_seconds",
+        "long_run_distance_km",
+        "active_day_flag",
+        "rolling_7d_distance_km",
+        "rolling_28d_distance_km"
+      ],
+      "additionalProperties": false
+    },
+    "weeklyTraining": {
+      "type": "object",
+      "properties": {
+        "week_start_date": {
+          "$ref": "#/$defs/date",
+          "x-gold-owner": "contract_v1_weekly_training.week_start_date",
+          "x-unit": "date"
+        },
+        "week_end_date": {
+          "$ref": "#/$defs/date",
+          "x-gold-owner": "contract_v1_weekly_training.week_end_date",
+          "x-unit": "date"
+        },
+        "runs_per_week": {
+          "type": "integer",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_weekly_training.runs_per_week",
+          "x-metric-id": "weekly.runs_per_week",
+          "x-unit": "count"
+        },
+        "weekly_distance_km": {
+          "type": "number",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_weekly_training.weekly_distance_km",
+          "x-metric-id": "weekly.weekly_distance_km",
+          "x-unit": "km"
+        },
+        "weekly_duration_seconds": {
+          "type": "number",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_weekly_training.weekly_duration_seconds",
+          "x-metric-id": "weekly.weekly_duration_seconds",
+          "x-unit": "seconds"
+        },
+        "avg_pace_min_per_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_weekly_training.avg_pace_min_per_km",
+          "x-metric-id": "weekly.avg_pace_min_per_km",
+          "x-unit": "min_per_km"
+        },
+        "average_run_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_weekly_training.average_run_distance_km",
+          "x-metric-id": "weekly.average_run_distance_km",
+          "x-unit": "km"
+        },
+        "long_run_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_weekly_training.long_run_distance_km",
+          "x-metric-id": "weekly.long_run_distance_km",
+          "x-unit": "km"
+        },
+        "remaining_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_weekly_training.remaining_distance_km",
+          "x-metric-id": "weekly.remaining_distance_km",
+          "x-unit": "km"
+        },
+        "long_run_share_of_week": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_weekly_training.long_run_share_of_week",
+          "x-metric-id": "weekly.long_run_share_of_week",
+          "x-unit": "ratio"
+        },
+        "active_days": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 7,
+          "x-gold-owner": "contract_v1_weekly_training.active_days",
+          "x-metric-id": "weekly.active_days",
+          "x-unit": "count"
+        },
+        "missed_days": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 7,
+          "x-gold-owner": "contract_v1_weekly_training.missed_days",
+          "x-metric-id": "weekly.missed_days",
+          "x-unit": "count"
+        },
+        "active_week_flag": {
+          "type": "boolean",
+          "x-gold-owner": "contract_v1_weekly_training.active_week_flag",
+          "x-metric-id": "weekly.active_week_flag",
+          "x-unit": "boolean"
+        },
+        "rolling_4w_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_weekly_training.rolling_4w_distance_km",
+          "x-metric-id": "weekly.rolling_4w_distance_km",
+          "x-unit": "km"
+        },
+        "rolling_12w_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_weekly_training.rolling_12w_distance_km",
+          "x-metric-id": "weekly.rolling_12w_distance_km",
+          "x-unit": "km"
+        },
+        "active_week_streak": {
+          "$ref": "#/$defs/nullableNonNegativeInteger",
+          "x-gold-owner": "contract_v1_weekly_training.active_week_streak",
+          "x-metric-id": "weekly.active_week_streak",
+          "x-unit": "weeks"
+        },
+        "missed_weeks_12w": {
+          "$ref": "#/$defs/nullableNonNegativeInteger",
+          "x-gold-owner": "contract_v1_weekly_training.missed_weeks_12w",
+          "x-metric-id": "weekly.missed_weeks_12w",
+          "x-unit": "weeks"
+        }
+      },
+      "required": [
+        "week_start_date",
+        "week_end_date",
+        "runs_per_week",
+        "weekly_distance_km",
+        "weekly_duration_seconds",
+        "avg_pace_min_per_km",
+        "average_run_distance_km",
+        "long_run_distance_km",
+        "remaining_distance_km",
+        "long_run_share_of_week",
+        "active_days",
+        "missed_days",
+        "active_week_flag",
+        "rolling_4w_distance_km",
+        "rolling_12w_distance_km",
+        "active_week_streak",
+        "missed_weeks_12w"
+      ],
+      "additionalProperties": false
+    },
+    "monthlyTraining": {
+      "type": "object",
+      "properties": {
+        "month_start_date": {
+          "$ref": "#/$defs/date",
+          "x-gold-owner": "contract_v1_monthly_training.month_start_date",
+          "x-unit": "date"
+        },
+        "calendar_year": {
+          "type": "integer",
+          "x-gold-owner": "contract_v1_monthly_training.calendar_year",
+          "x-metric-id": "monthly.calendar_year",
+          "x-unit": "calendar_year"
+        },
+        "calendar_month": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12,
+          "x-gold-owner": "contract_v1_monthly_training.calendar_month",
+          "x-metric-id": "monthly.calendar_month",
+          "x-unit": "calendar_month"
+        },
+        "runs_per_month": {
+          "type": "integer",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_monthly_training.runs_per_month",
+          "x-metric-id": "monthly.runs_per_month",
+          "x-unit": "count"
+        },
+        "monthly_distance_km": {
+          "type": "number",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_monthly_training.monthly_distance_km",
+          "x-metric-id": "monthly.monthly_distance_km",
+          "x-unit": "km"
+        },
+        "monthly_duration_seconds": {
+          "type": "number",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_monthly_training.monthly_duration_seconds",
+          "x-metric-id": "monthly.monthly_duration_seconds",
+          "x-unit": "seconds"
+        },
+        "long_run_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_monthly_training.long_run_distance_km",
+          "x-metric-id": "monthly.long_run_distance_km",
+          "x-unit": "km"
+        },
+        "active_days": {
+          "type": "integer",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_monthly_training.active_days",
+          "x-metric-id": "monthly.active_days",
+          "x-unit": "count"
+        }
+      },
+      "required": [
+        "month_start_date",
+        "calendar_year",
+        "calendar_month",
+        "runs_per_month",
+        "monthly_distance_km",
+        "monthly_duration_seconds",
+        "long_run_distance_km",
+        "active_days"
+      ],
+      "additionalProperties": false
+    },
+    "yearlyTraining": {
+      "type": "object",
+      "properties": {
+        "year_start_date": {
+          "$ref": "#/$defs/date",
+          "x-gold-owner": "contract_v1_yearly_training.year_start_date",
+          "x-unit": "date"
+        },
+        "calendar_year": {
+          "type": "integer",
+          "x-gold-owner": "contract_v1_yearly_training.calendar_year",
+          "x-metric-id": "yearly.calendar_year",
+          "x-unit": "calendar_year"
+        },
+        "runs_per_year": {
+          "type": "integer",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_yearly_training.runs_per_year",
+          "x-metric-id": "yearly.runs_per_year",
+          "x-unit": "count"
+        },
+        "yearly_distance_km": {
+          "type": "number",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_yearly_training.yearly_distance_km",
+          "x-metric-id": "yearly.yearly_distance_km",
+          "x-unit": "km"
+        },
+        "yearly_duration_seconds": {
+          "type": "number",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_yearly_training.yearly_duration_seconds",
+          "x-metric-id": "yearly.yearly_duration_seconds",
+          "x-unit": "seconds"
+        },
+        "long_run_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_yearly_training.long_run_distance_km",
+          "x-metric-id": "yearly.long_run_distance_km",
+          "x-unit": "km"
+        },
+        "active_days": {
+          "type": "integer",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_yearly_training.active_days",
+          "x-metric-id": "yearly.active_days",
+          "x-unit": "count"
+        }
+      },
+      "required": [
+        "year_start_date",
+        "calendar_year",
+        "runs_per_year",
+        "yearly_distance_km",
+        "yearly_duration_seconds",
+        "long_run_distance_km",
+        "active_days"
+      ],
+      "additionalProperties": false
+    },
+    "route": {
+      "type": "object",
+      "properties": {
+        "route_id": {
+          "$ref": "#/$defs/opaqueId",
+          "x-gold-owner": "contract_v1_routes.route_id",
+          "x-unit": "opaque_id"
+        },
+        "first_observed_activity_date": {
+          "$ref": "#/$defs/nullableDate",
+          "x-gold-owner": "contract_v1_routes.first_observed_activity_date",
+          "x-unit": "date"
+        },
+        "latest_observed_activity_date": {
+          "$ref": "#/$defs/nullableDate",
+          "x-gold-owner": "contract_v1_routes.latest_observed_activity_date",
+          "x-unit": "date"
+        },
+        "run_count": {
+          "type": "integer",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_routes.run_count",
+          "x-metric-id": "route.run_count",
+          "x-unit": "count"
+        },
+        "avg_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_routes.avg_distance_km",
+          "x-metric-id": "route.avg_distance_km",
+          "x-unit": "km"
+        },
+        "min_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_routes.min_distance_km",
+          "x-metric-id": "route.min_distance_km",
+          "x-unit": "km"
+        },
+        "max_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_routes.max_distance_km",
+          "x-metric-id": "route.max_distance_km",
+          "x-unit": "km"
+        },
+        "avg_duration_seconds": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_routes.avg_duration_seconds",
+          "x-metric-id": "route.avg_duration_seconds",
+          "x-unit": "seconds"
+        },
+        "avg_pace_min_per_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_routes.avg_pace_min_per_km",
+          "x-metric-id": "route.avg_pace_min_per_km",
+          "x-unit": "min_per_km"
+        },
+        "avg_heart_rate": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_routes.avg_heart_rate",
+          "x-metric-id": "route.avg_heart_rate",
+          "x-unit": "bpm"
+        },
+        "avg_total_ascent": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_routes.avg_total_ascent_m",
+          "x-metric-id": "route.avg_total_ascent",
+          "x-unit": "m"
+        },
+        "avg_total_descent": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_routes.avg_total_descent_m",
+          "x-metric-id": "route.avg_total_descent",
+          "x-unit": "m"
+        },
+        "avg_segment_grade": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_routes.avg_segment_grade",
+          "x-metric-id": "route.avg_segment_grade",
+          "x-unit": "ratio"
+        },
+        "avg_route_altitude_range_m": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_routes.avg_route_altitude_range_m",
+          "x-metric-id": "route.avg_route_altitude_range_m",
+          "x-unit": "m"
+        },
+        "route_distance_bucket_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_routes.route_distance_bucket_km",
+          "x-metric-id": "route.route_distance_bucket_km",
+          "x-unit": "km"
+        },
+        "country_code": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-Z]{3}$",
+          "x-gold-owner": "contract_v1_routes.country_code",
+          "x-metric-id": "route.country_code",
+          "x-unit": "category"
+        },
+        "country_name": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-gold-owner": "contract_v1_routes.country_name"
+        },
+        "city_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-gold-owner": "contract_v1_routes.city_id",
+          "x-metric-id": "route.city_id",
+          "x-unit": "category"
+        },
+        "city_name": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-gold-owner": "contract_v1_routes.city_name"
+        },
+        "centroid_latitude_deg": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_routes.centroid_latitude_deg",
+          "x-metric-id": "route.centroid_latitude_deg",
+          "x-unit": "degrees"
+        },
+        "centroid_longitude_deg": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_routes.centroid_longitude_deg",
+          "x-metric-id": "route.centroid_longitude_deg",
+          "x-unit": "degrees"
+        },
+        "geography_reference_version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-gold-owner": "contract_v1_routes.geography_reference_version"
+        }
+      },
+      "required": [
+        "route_id",
+        "first_observed_activity_date",
+        "latest_observed_activity_date",
+        "run_count",
+        "avg_distance_km",
+        "min_distance_km",
+        "max_distance_km",
+        "avg_duration_seconds",
+        "avg_pace_min_per_km",
+        "avg_heart_rate",
+        "avg_total_ascent",
+        "avg_total_descent",
+        "avg_segment_grade",
+        "avg_route_altitude_range_m",
+        "route_distance_bucket_km",
+        "country_code",
+        "country_name",
+        "city_id",
+        "city_name",
+        "centroid_latitude_deg",
+        "centroid_longitude_deg",
+        "geography_reference_version"
+      ],
+      "additionalProperties": false
+    },
+    "segment": {
+      "type": "object",
+      "properties": {
+        "activity_id": {
+          "$ref": "#/$defs/opaqueId",
+          "x-gold-owner": "contract_v1_segments.activity_id",
+          "x-unit": "opaque_id"
+        },
+        "route_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-gold-owner": "contract_v1_segments.route_id",
+          "x-unit": "opaque_id"
+        },
+        "activity_date": {
+          "$ref": "#/$defs/date",
+          "x-gold-owner": "contract_v1_segments.activity_date",
+          "x-unit": "date"
+        },
+        "unit_system": {
+          "type": "string",
+          "enum": [
+            "metric",
+            "imperial"
+          ],
+          "x-gold-owner": "contract_v1_segments.unit_system"
+        },
+        "segment_length_value": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-gold-owner": "contract_v1_segments.segment_length_value",
+          "x-metric-id": "segment.segment_length_value",
+          "x-unit": "unit_system_distance"
+        },
+        "segment_length_m": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-gold-owner": "contract_v1_segments.segment_length_m",
+          "x-metric-id": "segment.segment_length_m",
+          "x-unit": "m"
+        },
+        "segment_length_label": {
+          "type": "string",
+          "minLength": 1,
+          "x-gold-owner": "contract_v1_segments.segment_length_label"
+        },
+        "is_canonical": {
+          "type": "boolean",
+          "x-gold-owner": "contract_v1_segments.is_canonical"
+        },
+        "segment_index": {
+          "type": "integer",
+          "minimum": 1,
+          "x-gold-owner": "contract_v1_segments.segment_index",
+          "x-unit": "ordinal"
+        },
+        "segment_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_segments.segment_distance_km",
+          "x-metric-id": "segment.segment_distance_km",
+          "x-unit": "km"
+        },
+        "segment_duration_seconds": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_segments.segment_duration_seconds",
+          "x-metric-id": "segment.segment_duration_seconds",
+          "x-unit": "seconds"
+        },
+        "segment_pace_min_per_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_segments.segment_pace_min_per_km",
+          "x-metric-id": "segment.segment_pace_min_per_km",
+          "x-unit": "min_per_km"
+        },
+        "avg_speed_kmh": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_segments.avg_speed_kmh",
+          "x-metric-id": "segment.avg_speed_kmh",
+          "x-unit": "km_per_hour"
+        },
+        "avg_heart_rate": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_segments.avg_heart_rate",
+          "x-metric-id": "segment.avg_heart_rate",
+          "x-unit": "bpm"
+        },
+        "max_heart_rate": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_segments.max_heart_rate",
+          "x-metric-id": "segment.max_heart_rate",
+          "x-unit": "bpm"
+        },
+        "avg_running_cadence": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_segments.avg_running_cadence",
+          "x-metric-id": "segment.avg_running_cadence",
+          "x-unit": "steps_per_minute"
+        },
+        "min_altitude_m": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_segments.min_altitude_m",
+          "x-metric-id": "segment.min_altitude_m",
+          "x-unit": "m"
+        },
+        "max_altitude_m": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_segments.max_altitude_m",
+          "x-metric-id": "segment.max_altitude_m",
+          "x-unit": "m"
+        },
+        "elevation_change_m": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_segments.elevation_change_m",
+          "x-metric-id": "segment.elevation_change_m",
+          "x-unit": "m"
+        },
+        "segment_grade": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_segments.segment_grade",
+          "x-metric-id": "segment.segment_grade",
+          "x-unit": "ratio"
+        },
+        "segment_start_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_segments.segment_start_distance_km",
+          "x-metric-id": "segment.segment_start_distance_km",
+          "x-unit": "km"
+        },
+        "segment_end_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_segments.segment_end_distance_km",
+          "x-metric-id": "segment.segment_end_distance_km",
+          "x-unit": "km"
+        },
+        "segment_start_boundary_m": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_segments.segment_start_boundary_m",
+          "x-metric-id": "segment.segment_start_boundary_m",
+          "x-unit": "m"
+        },
+        "segment_end_boundary_m": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_segments.segment_end_boundary_m",
+          "x-metric-id": "segment.segment_end_boundary_m",
+          "x-unit": "m"
+        },
+        "segment_start_latitude_deg": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_segments.segment_start_latitude_deg",
+          "x-unit": "degrees"
+        },
+        "segment_start_longitude_deg": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_segments.segment_start_longitude_deg",
+          "x-unit": "degrees"
+        },
+        "segment_end_latitude_deg": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_segments.segment_end_latitude_deg",
+          "x-unit": "degrees"
+        },
+        "segment_end_longitude_deg": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_segments.segment_end_longitude_deg",
+          "x-unit": "degrees"
+        }
+      },
+      "required": [
+        "activity_id",
+        "route_id",
+        "activity_date",
+        "unit_system",
+        "segment_length_value",
+        "segment_length_m",
+        "segment_length_label",
+        "is_canonical",
+        "segment_index",
+        "segment_distance_km",
+        "segment_duration_seconds",
+        "segment_pace_min_per_km",
+        "avg_speed_kmh",
+        "avg_heart_rate",
+        "max_heart_rate",
+        "avg_running_cadence",
+        "min_altitude_m",
+        "max_altitude_m",
+        "elevation_change_m",
+        "segment_grade",
+        "segment_start_distance_km",
+        "segment_end_distance_km",
+        "segment_start_boundary_m",
+        "segment_end_boundary_m",
+        "segment_start_latitude_deg",
+        "segment_start_longitude_deg",
+        "segment_end_latitude_deg",
+        "segment_end_longitude_deg"
+      ],
+      "additionalProperties": false
+    },
+    "fitnessPoint": {
+      "type": "object",
+      "properties": {
+        "activity_id": {
+          "$ref": "#/$defs/opaqueId",
+          "x-gold-owner": "contract_v1_fitness.activity_id",
+          "x-unit": "opaque_id"
+        },
+        "activity_date": {
+          "$ref": "#/$defs/date",
+          "x-gold-owner": "contract_v1_fitness.activity_date",
+          "x-unit": "date"
+        },
+        "distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_fitness.distance_km",
+          "x-metric-id": "fitness.distance_km",
+          "x-unit": "km"
+        },
+        "avg_pace_min_per_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_fitness.avg_pace_min_per_km",
+          "x-metric-id": "fitness.avg_pace_min_per_km",
+          "x-unit": "min_per_km"
+        },
+        "speed_kmh": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_fitness.speed_kmh",
+          "x-metric-id": "fitness.speed_kmh",
+          "x-unit": "km_per_hour"
+        },
+        "avg_heart_rate": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_fitness.avg_heart_rate",
+          "x-metric-id": "fitness.avg_heart_rate",
+          "x-unit": "bpm"
+        },
+        "efficiency_ratio": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_fitness.efficiency_ratio",
+          "x-metric-id": "fitness.efficiency_ratio",
+          "x-unit": "km_per_hour_per_bpm"
+        },
+        "rolling_4_run_efficiency_ratio": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_fitness.rolling_4_run_efficiency_ratio",
+          "x-metric-id": "fitness.rolling_4_run_efficiency_ratio",
+          "x-unit": "km_per_hour_per_bpm"
+        },
+        "hr_drift_pct": {
+          "$ref": "#/$defs/nullableNumber",
+          "description": "Canonical ratio; 0.05 is displayed as 5%.",
+          "x-gold-owner": "contract_v1_fitness.hr_drift_pct",
+          "x-metric-id": "fitness.hr_drift_pct",
+          "x-unit": "ratio"
+        },
+        "rolling_4_run_hr_drift_pct": {
+          "$ref": "#/$defs/nullableNumber",
+          "description": "Canonical ratio; 0.05 is displayed as 5%.",
+          "x-gold-owner": "contract_v1_fitness.rolling_4_run_hr_drift_pct",
+          "x-metric-id": "fitness.rolling_4_run_hr_drift_pct",
+          "x-unit": "ratio"
+        },
+        "hr_band": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-gold-owner": "contract_v1_fitness.hr_band",
+          "x-metric-id": "fitness.hr_band",
+          "x-unit": "category"
+        },
+        "garmin_recovery_hr": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_fitness.garmin_recovery_hr",
+          "x-metric-id": "fitness.garmin_recovery_hr",
+          "x-unit": "bpm"
+        }
+      },
+      "required": [
+        "activity_id",
+        "activity_date",
+        "distance_km",
+        "avg_pace_min_per_km",
+        "speed_kmh",
+        "avg_heart_rate",
+        "efficiency_ratio",
+        "rolling_4_run_efficiency_ratio",
+        "hr_drift_pct",
+        "rolling_4_run_hr_drift_pct",
+        "hr_band",
+        "garmin_recovery_hr"
+      ],
+      "additionalProperties": false
+    },
+    "profilePoint": {
+      "type": "object",
+      "properties": {
+        "record_index": {
+          "type": "integer",
+          "minimum": 1,
+          "x-gold-owner": "contract_v1_activity_profiles.record_index",
+          "x-unit": "ordinal"
+        },
+        "record_timestamp": {
+          "$ref": "#/$defs/nullableTimestamp",
+          "x-gold-owner": "contract_v1_activity_profiles.record_timestamp",
+          "x-unit": "timestamp_utc"
+        },
+        "elapsed_seconds": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_activity_profiles.elapsed_seconds",
+          "x-metric-id": "profile.elapsed_seconds",
+          "x-unit": "seconds"
+        },
+        "seconds_since_previous_record": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_activity_profiles.seconds_since_previous_record",
+          "x-metric-id": "profile.seconds_since_previous_record",
+          "x-unit": "seconds"
+        },
+        "distance_m": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_activity_profiles.distance_m",
+          "x-metric-id": "profile.distance_m",
+          "x-unit": "m"
+        },
+        "distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_activity_profiles.distance_km",
+          "x-metric-id": "profile.distance_km",
+          "x-unit": "km"
+        },
+        "distance_delta_m": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_activity_profiles.distance_delta_m",
+          "x-metric-id": "profile.distance_delta_m",
+          "x-unit": "m"
+        },
+        "speed_mps": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_activity_profiles.speed_mps",
+          "x-metric-id": "profile.speed_mps",
+          "x-unit": "m_per_second"
+        },
+        "speed_kmh": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_activity_profiles.speed_kmh",
+          "x-metric-id": "profile.speed_kmh",
+          "x-unit": "km_per_hour"
+        },
+        "pace_min_per_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_activity_profiles.pace_min_per_km",
+          "x-metric-id": "profile.pace_min_per_km",
+          "x-unit": "min_per_km"
+        },
+        "heart_rate": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_activity_profiles.heart_rate",
+          "x-metric-id": "profile.heart_rate",
+          "x-unit": "bpm"
+        },
+        "running_cadence": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_activity_profiles.running_cadence",
+          "x-metric-id": "profile.running_cadence",
+          "x-unit": "steps_per_minute"
+        },
+        "altitude_m": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_activity_profiles.altitude_m",
+          "x-metric-id": "profile.altitude_m",
+          "x-unit": "m"
+        },
+        "altitude_delta_m": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_activity_profiles.altitude_delta_m",
+          "x-metric-id": "profile.altitude_delta_m",
+          "x-unit": "m"
+        },
+        "temperature": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_activity_profiles.temperature_c",
+          "x-metric-id": "profile.temperature",
+          "x-unit": "celsius"
+        },
+        "latitude_deg": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_activity_profiles.latitude_deg",
+          "x-unit": "degrees"
+        },
+        "longitude_deg": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_activity_profiles.longitude_deg",
+          "x-unit": "degrees"
+        }
+      },
+      "required": [
+        "record_index",
+        "record_timestamp",
+        "elapsed_seconds",
+        "seconds_since_previous_record",
+        "distance_m",
+        "distance_km",
+        "distance_delta_m",
+        "speed_mps",
+        "speed_kmh",
+        "pace_min_per_km",
+        "heart_rate",
+        "running_cadence",
+        "altitude_m",
+        "altitude_delta_m",
+        "temperature",
+        "latitude_deg",
+        "longitude_deg"
+      ],
+      "additionalProperties": false
+    },
+    "geometryPoint": {
+      "type": "object",
+      "properties": {
+        "record_index": {
+          "type": "integer",
+          "minimum": 1,
+          "x-gold-owner": "contract_v1_route_geometry.record_index",
+          "x-unit": "ordinal"
+        },
+        "latitude_deg": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90,
+          "x-gold-owner": "contract_v1_route_geometry.latitude_deg",
+          "x-unit": "degrees"
+        },
+        "longitude_deg": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180,
+          "x-gold-owner": "contract_v1_route_geometry.longitude_deg",
+          "x-unit": "degrees"
+        }
+      },
+      "required": [
+        "record_index",
+        "latitude_deg",
+        "longitude_deg"
+      ],
+      "additionalProperties": false
+    },
+    "profileArtifactContent": {
+      "type": "object",
+      "properties": {
+        "activity_id": {
+          "$ref": "#/$defs/opaqueId",
+          "x-gold-owner": "contract_v1_activity_profiles.activity_id"
+        },
+        "activity_date": {
+          "$ref": "#/$defs/date",
+          "x-gold-owner": "contract_v1_activity_profiles.activity_date"
+        },
+        "route_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-gold-owner": "contract_v1_activity_profiles.route_id"
+        },
+        "resolution": {
+          "const": "display_v1",
+          "x-gold-owner": "contract_v1_activity_profiles.resolution"
+        },
+        "points": {
+          "type": "array",
+          "maxItems": 5000,
+          "items": {
+            "$ref": "#/$defs/profilePoint"
+          }
+        }
+      },
+      "required": [
+        "activity_id",
+        "activity_date",
+        "route_id",
+        "resolution",
+        "points"
+      ],
+      "additionalProperties": false
+    },
+    "geometryArtifactContent": {
+      "type": "object",
+      "properties": {
+        "resolution": {
+          "const": "display_v1",
+          "x-gold-owner": "contract_v1_route_geometry.resolution"
+        },
+        "routes": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "properties": {
+              "route_id": {
+                "$ref": "#/$defs/opaqueId",
+                "x-gold-owner": "contract_v1_route_geometry.route_id"
+              },
+              "activity_id": {
+                "$ref": "#/$defs/opaqueId",
+                "x-gold-owner": "contract_v1_route_geometry.activity_id"
+              },
+              "points": {
+                "type": "array",
+                "maxItems": 5000,
+                "items": {
+                  "$ref": "#/$defs/geometryPoint"
+                }
+              }
+            },
+            "required": [
+              "route_id",
+              "activity_id",
+              "points"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "resolution",
+        "routes"
+      ],
+      "additionalProperties": false
+    },
+    "artifactReference": {
+      "type": "object",
+      "properties": {
+        "delivery_mode": {
+          "const": "signed_reference"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Sensitive, short-lived URL. Clients must not persist or share it."
+        },
+        "expires_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "content_type": {
+          "type": "string",
+          "enum": [
+            "application/vnd.running-signals.activity-profile.v1+json",
+            "application/vnd.running-signals.route-geometry.v1+json"
+          ]
+        },
+        "content_encoding": {
+          "type": "string",
+          "enum": [
+            "identity",
+            "gzip"
+          ]
+        },
+        "point_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "delivery_mode",
+        "url",
+        "expires_at",
+        "content_type",
+        "content_encoding",
+        "point_count",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "inlineProfileArtifact": {
+      "type": "object",
+      "properties": {
+        "delivery_mode": {
+          "const": "inline"
+        },
+        "point_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "content": {
+          "$ref": "#/$defs/profileArtifactContent"
+        }
+      },
+      "required": [
+        "delivery_mode",
+        "point_count",
+        "content"
+      ],
+      "additionalProperties": false
+    },
+    "inlineGeometryArtifact": {
+      "type": "object",
+      "properties": {
+        "delivery_mode": {
+          "const": "inline"
+        },
+        "point_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "content": {
+          "$ref": "#/$defs/geometryArtifactContent"
+        }
+      },
+      "required": [
+        "delivery_mode",
+        "point_count",
+        "content"
+      ],
+      "additionalProperties": false
+    },
+    "routeComparison": {
+      "type": "object",
+      "properties": {
+        "activity_id": {
+          "$ref": "#/$defs/opaqueId",
+          "x-gold-owner": "contract_v1_route_comparisons.activity_id"
+        },
+        "activity_date": {
+          "$ref": "#/$defs/date",
+          "x-gold-owner": "contract_v1_route_comparisons.activity_date"
+        },
+        "distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_route_comparisons.distance_km",
+          "x-metric-id": "route_comparison.distance_km",
+          "x-unit": "km"
+        },
+        "avg_pace_min_per_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_route_comparisons.avg_pace_min_per_km",
+          "x-metric-id": "route_comparison.avg_pace_min_per_km",
+          "x-unit": "min_per_km"
+        },
+        "avg_heart_rate": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_route_comparisons.avg_heart_rate",
+          "x-metric-id": "route_comparison.avg_heart_rate",
+          "x-unit": "bpm"
+        },
+        "prior_route_run_count": {
+          "type": "integer",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_route_comparisons.prior_route_run_count",
+          "x-metric-id": "route_comparison.prior_route_run_count",
+          "x-unit": "count"
+        },
+        "prior_route_avg_pace_min_per_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_route_comparisons.prior_route_avg_pace_min_per_km",
+          "x-metric-id": "route_comparison.prior_route_avg_pace_min_per_km",
+          "x-unit": "min_per_km"
+        },
+        "pace_delta_from_prior_route_avg_min_per_km": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_route_comparisons.pace_delta_from_prior_route_avg_min_per_km",
+          "x-metric-id": "route_comparison.pace_delta_from_prior_route_avg_min_per_km",
+          "x-unit": "min_per_km"
+        },
+        "prior_route_avg_heart_rate": {
+          "$ref": "#/$defs/nullableNonNegativeNumber",
+          "x-gold-owner": "contract_v1_route_comparisons.prior_route_avg_heart_rate",
+          "x-metric-id": "route_comparison.prior_route_avg_heart_rate",
+          "x-unit": "bpm"
+        },
+        "heart_rate_delta_from_prior_route_avg_bpm": {
+          "$ref": "#/$defs/nullableNumber",
+          "x-gold-owner": "contract_v1_route_comparisons.heart_rate_delta_from_prior_route_avg_bpm",
+          "x-metric-id": "route_comparison.heart_rate_delta_from_prior_route_avg_bpm",
+          "x-unit": "bpm"
+        }
+      },
+      "required": [
+        "activity_id",
+        "activity_date",
+        "distance_km",
+        "avg_pace_min_per_km",
+        "avg_heart_rate",
+        "prior_route_run_count",
+        "prior_route_avg_pace_min_per_km",
+        "pace_delta_from_prior_route_avg_min_per_km",
+        "prior_route_avg_heart_rate",
+        "heart_rate_delta_from_prior_route_avg_bpm"
+      ],
+      "additionalProperties": false
+    },
+    "fitnessBand": {
+      "type": "object",
+      "properties": {
+        "hr_band": {
+          "type": "string",
+          "minLength": 1,
+          "x-gold-owner": "contract_v1_fitness_trends.hr_band",
+          "x-metric-id": "fitness.hr_band",
+          "x-unit": "category"
+        },
+        "min_heart_rate_bpm": {
+          "type": "integer",
+          "minimum": 1,
+          "x-gold-owner": "contract_v1_fitness_trends.min_heart_rate_bpm",
+          "x-metric-id": "fitness_band.min_heart_rate_bpm",
+          "x-unit": "bpm"
+        },
+        "max_heart_rate_bpm": {
+          "type": "integer",
+          "minimum": 1,
+          "x-gold-owner": "contract_v1_fitness_trends.max_heart_rate_bpm",
+          "x-metric-id": "fitness_band.max_heart_rate_bpm",
+          "x-unit": "bpm"
+        },
+        "sample_count": {
+          "type": "integer",
+          "minimum": 0,
+          "x-gold-owner": "contract_v1_fitness_trends.sample_count",
+          "x-metric-id": "fitness_band.sample_count",
+          "x-unit": "count"
+        },
+        "trend_points": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "properties": {
+              "activity_date": {
+                "$ref": "#/$defs/date",
+                "x-gold-owner": "contract_v1_fitness_trends.activity_date",
+                "x-unit": "date"
+              },
+              "trend_pace_min_per_km": {
+                "type": "number",
+                "minimum": 0,
+                "x-gold-owner": "contract_v1_fitness_trends.trend_pace_min_per_km",
+                "x-metric-id": "fitness_band.trend_pace_min_per_km",
+                "x-unit": "min_per_km"
+              }
+            },
+            "required": [
+              "activity_date",
+              "trend_pace_min_per_km"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "hr_band",
+        "min_heart_rate_bpm",
+        "max_heart_rate_bpm",
+        "sample_count",
+        "trend_points"
+      ],
+      "additionalProperties": false
+    },
+    "runsRequest": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 25
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "date_from": {
+          "$ref": "#/$defs/nullableDate"
+        },
+        "date_to": {
+          "$ref": "#/$defs/nullableDate"
+        },
+        "min_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber"
+        },
+        "max_distance_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber"
+        },
+        "min_pace_min_per_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber"
+        },
+        "max_pace_min_per_km": {
+          "$ref": "#/$defs/nullableNonNegativeNumber"
+        },
+        "min_avg_heart_rate": {
+          "$ref": "#/$defs/nullableNonNegativeNumber"
+        },
+        "max_avg_heart_rate": {
+          "$ref": "#/$defs/nullableNonNegativeNumber"
+        },
+        "route_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "has_recovery_hr": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "min_gps_coverage": {
+          "$ref": "#/$defs/nullableNumber"
+        },
+        "sort": {
+          "type": "string",
+          "enum": [
+            "activity_date",
+            "distance_km",
+            "avg_pace_min_per_km",
+            "avg_heart_rate",
+            "total_ascent",
+            "prior_7d_distance_km",
+            "prior_28d_distance_km",
+            "route_id",
+            "record_distance_coverage_ratio"
+          ]
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "asc",
+            "desc"
+          ]
+        }
+      },
+      "required": [
+        "limit",
+        "cursor",
+        "sort",
+        "direction"
+      ],
+      "additionalProperties": false
+    },
+    "trendRequest": {
+      "type": "object",
+      "properties": {
+        "date_from": {
+          "$ref": "#/$defs/nullableDate"
+        },
+        "date_to": {
+          "$ref": "#/$defs/nullableDate"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1200
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "date_from",
+        "date_to",
+        "limit",
+        "cursor"
+      ],
+      "additionalProperties": false
+    },
+    "routesRequest": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2048
+        },
+        "country_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "city_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "distance_class": {
+          "type": "string",
+          "enum": [
+            "all",
+            "under_5km",
+            "5_to_10km",
+            "10km_and_over"
+          ]
+        },
+        "sort": {
+          "type": "string",
+          "enum": [
+            "recent",
+            "distance",
+            "pace",
+            "heart_rate"
+          ]
+        }
+      },
+      "required": [
+        "limit",
+        "cursor",
+        "country_code",
+        "city_id",
+        "distance_class",
+        "sort"
+      ],
+      "additionalProperties": false
+    },
+    "segmentsRequest": {
+      "type": "object",
+      "properties": {
+        "activity_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "unit_system": {
+          "type": "string",
+          "enum": [
+            "metric",
+            "imperial"
+          ]
+        },
+        "segment_length_value": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5000
+        }
+      },
+      "required": [
+        "activity_id",
+        "unit_system",
+        "segment_length_value",
+        "limit"
+      ],
+      "additionalProperties": false
+    },
+    "fitnessRequest": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "limit",
+        "cursor"
+      ],
+      "additionalProperties": false
+    },
+    "eventHistoryRequest": {
+      "type": "object",
+      "properties": {
+        "after_sequence": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "after_sequence",
+        "limit",
+        "cursor"
+      ],
+      "additionalProperties": false
+    },
+    "volumeTrendRequest": {
+      "type": "object",
+      "properties": {
+        "grain": {
+          "type": "string",
+          "enum": [
+            "day",
+            "week",
+            "month",
+            "year"
+          ]
+        },
+        "date_from": {
+          "$ref": "#/$defs/nullableDate"
+        },
+        "date_to": {
+          "$ref": "#/$defs/nullableDate"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1200
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "grain",
+        "date_from",
+        "date_to",
+        "limit",
+        "cursor"
+      ],
+      "additionalProperties": false
+    },
+    "activityRequest": {
+      "type": "object",
+      "properties": {
+        "activity_id": {
+          "$ref": "#/$defs/opaqueId"
+        }
+      },
+      "required": [
+        "activity_id"
+      ],
+      "additionalProperties": false
+    },
+    "activityArtifactRequest": {
+      "type": "object",
+      "properties": {
+        "activity_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "resolution": {
+          "const": "display_v1"
+        },
+        "delivery_preference": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "inline",
+            "signed_reference"
+          ]
+        }
+      },
+      "required": [
+        "activity_id",
+        "resolution",
+        "delivery_preference"
+      ],
+      "additionalProperties": false
+    },
+    "routeComparisonRequest": {
+      "type": "object",
+      "properties": {
+        "route_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "route_id",
+        "limit",
+        "cursor"
+      ],
+      "additionalProperties": false
+    },
+    "fitnessTrendRequest": {
+      "type": "object",
+      "properties": {
+        "window": {
+          "const": "latest_180_runs"
+        },
+        "hr_band": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "window",
+        "hr_band"
+      ],
+      "additionalProperties": false
+    },
+    "routeGeometryRequest": {
+      "type": "object",
+      "properties": {
+        "activity_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "route_ids": {
+          "type": "array",
+          "maxItems": 50,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/opaqueId"
+          }
+        },
+        "resolution": {
+          "const": "display_v1"
+        },
+        "delivery_preference": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "inline",
+            "signed_reference"
+          ]
+        }
+      },
+      "required": [
+        "activity_id",
+        "route_ids",
+        "resolution",
+        "delivery_preference"
+      ],
+      "oneOf": [
+        {
+          "properties": {
+            "activity_id": {
+              "type": "string"
+            },
+            "route_ids": {
+              "maxItems": 0
+            }
+          }
+        },
+        {
+          "properties": {
+            "activity_id": {
+              "type": "null"
+            },
+            "route_ids": {
+              "minItems": 1
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "runListSuccess": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/responseMetadata"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/run"
+                  }
+                },
+                "page": {
+                  "$ref": "#/$defs/pageMetadata"
+                }
+              },
+              "required": [
+                "items",
+                "page"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "runFilterBoundsSuccess": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/responseMetadata"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/runFilterBounds"
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "trainingSummarySuccess": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/responseMetadata"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/trainingSummary"
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "dailyTrainingSuccess": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/responseMetadata"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "array",
+              "maxItems": 1200,
+              "items": {
+                "$ref": "#/$defs/dailyTraining"
+              }
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "weeklyTrainingSuccess": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/responseMetadata"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "array",
+              "maxItems": 260,
+              "items": {
+                "$ref": "#/$defs/weeklyTraining"
+              }
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "monthlyTrainingSuccess": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/responseMetadata"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "array",
+              "maxItems": 120,
+              "items": {
+                "$ref": "#/$defs/monthlyTraining"
+              }
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "yearlyTrainingSuccess": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/responseMetadata"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "array",
+              "maxItems": 25,
+              "items": {
+                "$ref": "#/$defs/yearlyTraining"
+              }
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "routeListSuccess": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/responseMetadata"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "maxItems": 100,
+                  "items": {
+                    "$ref": "#/$defs/route"
+                  }
+                },
+                "page": {
+                  "$ref": "#/$defs/pageMetadata"
+                }
+              },
+              "required": [
+                "items",
+                "page"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "segmentsSuccess": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/responseMetadata"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "array",
+              "maxItems": 5000,
+              "items": {
+                "$ref": "#/$defs/segment"
+              }
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "fitnessSuccess": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/responseMetadata"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/fitnessPoint"
+              }
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "metricCatalogSuccess": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/responseMetadata"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "metric_id": {
+                    "type": "string"
+                  },
+                  "metric_version": {
+                    "const": "1.0.0"
+                  },
+                  "canonical_unit": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "metric_id",
+                  "metric_version",
+                  "canonical_unit"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "freshnessSuccess": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/responseMetadata"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/freshness"
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "eventHistorySuccess": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/responseMetadata"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "maxItems": 100,
+                  "items": {
+                    "$ref": "event-envelope.schema.json"
+                  }
+                },
+                "page": {
+                  "$ref": "#/$defs/pageMetadata"
+                }
+              },
+              "required": [
+                "items",
+                "page"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "volumeTrendSuccess": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/responseMetadata"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "grain": {
+                  "type": "string",
+                  "enum": [
+                    "day",
+                    "week",
+                    "month",
+                    "year"
+                  ]
+                },
+                "series": {
+                  "type": "array",
+                  "maxItems": 1200,
+                  "items": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/$defs/dailyTraining"
+                      },
+                      {
+                        "$ref": "#/$defs/weeklyTraining"
+                      },
+                      {
+                        "$ref": "#/$defs/monthlyTraining"
+                      },
+                      {
+                        "$ref": "#/$defs/yearlyTraining"
+                      }
+                    ]
+                  }
+                },
+                "page": {
+                  "$ref": "#/$defs/pageMetadata"
+                }
+              },
+              "required": [
+                "grain",
+                "series",
+                "page"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "activityDetailSuccess": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/responseMetadata"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "run": {
+                  "$ref": "#/$defs/run"
+                },
+                "supported_segment_resolutions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "unit_system": {
+                        "type": "string",
+                        "enum": [
+                          "metric",
+                          "imperial"
+                        ]
+                      },
+                      "segment_length_value": {
+                        "type": "number"
+                      },
+                      "segment_length_m": {
+                        "type": "number"
+                      },
+                      "segment_length_label": {
+                        "type": "string"
+                      },
+                      "is_canonical": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "unit_system",
+                      "segment_length_value",
+                      "segment_length_m",
+                      "segment_length_label",
+                      "is_canonical"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "run",
+                "supported_segment_resolutions"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "activityProfileSuccess": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/responseMetadata"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/inlineProfileArtifact"
+                },
+                {
+                  "$ref": "#/$defs/artifactReference"
+                }
+              ]
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "routeGeometrySuccess": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/responseMetadata"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/inlineGeometryArtifact"
+                },
+                {
+                  "$ref": "#/$defs/artifactReference"
+                }
+              ]
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "routeComparisonSuccess": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/responseMetadata"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "route_id": {
+                  "$ref": "#/$defs/opaqueId"
+                },
+                "comparisons": {
+                  "type": "array",
+                  "maxItems": 100,
+                  "items": {
+                    "$ref": "#/$defs/routeComparison"
+                  }
+                },
+                "page": {
+                  "$ref": "#/$defs/pageMetadata"
+                }
+              },
+              "required": [
+                "route_id",
+                "comparisons",
+                "page"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "fitnessTrendSuccess": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/responseMetadata"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "window": {
+                  "const": "latest_180_runs"
+                },
+                "points": {
+                  "type": "array",
+                  "maxItems": 180,
+                  "items": {
+                    "$ref": "#/$defs/fitnessPoint"
+                  }
+                },
+                "bands": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/fitnessBand"
+                  }
+                }
+              },
+              "required": [
+                "window",
+                "points",
+                "bands"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  }
+}
