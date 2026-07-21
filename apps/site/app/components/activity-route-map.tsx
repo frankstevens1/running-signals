@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import maplibregl, { type GeoJSONSource } from "maplibre-gl";
 
-import type { ActivityRecord } from "@/app/lib/types";
+import type { MapProfileRecord } from "@/app/lib/types";
 
 type Position = [number, number];
 
@@ -44,7 +44,7 @@ function rasterPaint(theme: MapTheme) {
   } as const;
 }
 
-function recordPosition(record: ActivityRecord): Position | null {
+function recordPosition(record: MapProfileRecord): Position | null {
   const { latitudeDeg, longitudeDeg } = record;
   if (
     latitudeDeg === null ||
@@ -59,7 +59,7 @@ function recordPosition(record: ActivityRecord): Position | null {
   return [longitudeDeg, latitudeDeg];
 }
 
-function coordinateSequences(records: ActivityRecord[]): Position[][] {
+function coordinateSequences(records: MapProfileRecord[]): Position[][] {
   const sequences: Position[][] = [];
   let current: Position[] = [];
 
@@ -162,7 +162,7 @@ export function ActivityRouteMap({
   className = "",
   radiusClassName = "rounded-none",
 }: {
-  records: ActivityRecord[];
+  records: MapProfileRecord[];
   interactive?: boolean;
   compact?: boolean;
   className?: string;

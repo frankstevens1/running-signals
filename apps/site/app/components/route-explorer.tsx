@@ -14,6 +14,7 @@ import {
 
 import { RouteMap, type MapFocus } from "@/app/components/route-map";
 import { useDistanceUnit } from "@/app/components/distance-unit-provider";
+import { useRouteRecords } from "@/app/components/route-records-client";
 import {
   COUNTRY_BOUNDARIES_URL,
   countryBoundariesFromGeoJson,
@@ -29,7 +30,7 @@ import {
   formatPace,
   formatRouteId,
 } from "@/app/lib/format";
-import type { RouteGeometryRecord, RouteSummary } from "@/app/lib/types";
+import type { RouteSummary } from "@/app/lib/types";
 
 type RouteFilter = "all" | "short" | "medium" | "long";
 type RouteSort = "recent" | "distance" | "pace" | "heartRate";
@@ -101,11 +102,9 @@ function replaceRouteParam(routeId: string | null) {
 
 export function RouteExplorer({
   routes,
-  records,
   initialSelectedRouteId,
 }: {
   routes: RouteSummary[];
-  records: RouteGeometryRecord[];
   initialSelectedRouteId: string | null;
 }) {
   const { unit } = useDistanceUnit();
@@ -169,8 +168,8 @@ export function RouteExplorer({
   }, []);
 
   const geography = useMemo(
-    () => deriveRouteGeography(records, countryBoundaries),
-    [countryBoundaries, records],
+    () => deriveRouteGeography(routes, countryBoundaries),
+    [countryBoundaries, routes],
   );
   const selectedCountry = useMemo(
     () => findArea(geography.countries, selectedCountryId),
@@ -202,10 +201,6 @@ export function RouteExplorer({
     () => new Set(visibleRoutes.map((route) => route.routeId)),
     [visibleRoutes],
   );
-  const visibleRecords = useMemo(
-    () => records.filter((record) => visibleRouteIds.has(record.routeId)),
-    [records, visibleRouteIds],
-  );
   const countryFeatures = useMemo(
     () =>
       countryBoundaries.length > 0
@@ -219,6 +214,7 @@ export function RouteExplorer({
   );
   const activeSelectedRouteId =
     selectedRouteId && visibleRouteIds.has(selectedRouteId) ? selectedRouteId : null;
+  const routeRecordState = useRouteRecords(activeSelectedRouteId);
 
   useEffect(() => {
     if (!activeSelectedRouteId) return;
@@ -404,8 +400,10 @@ export function RouteExplorer({
 
         <RouteMap
           routes={visibleRoutes}
-          records={visibleRecords}
+          records={routeRecordState.records ?? []}
           selectedRouteId={activeSelectedRouteId}
+          isGeometryLoading={routeRecordState.isLoading}
+          geometryError={routeRecordState.error}
           selectedCountryId={selectedCountryId}
           countryFeatures={countryFeatures}
           focus={focus}

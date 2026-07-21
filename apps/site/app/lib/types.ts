@@ -91,42 +91,19 @@ export type RouteSummary = {
   avgSegmentGrade: number | null;
   avgRouteAltitudeRangeM: number | null;
   routeDistanceBucketKm: number | null;
+  representativeRouteCentroidLatitudeDeg: number | null;
+  representativeRouteCentroidLongitudeDeg: number | null;
 };
 
-export type RouteGeometryRecord = {
-  routeId: string;
-  runId: string;
+export type MapProfileRecord = {
   recordIndex: number;
+  distanceKm: number | null;
+  altitudeM: number | null;
   latitudeDeg: number | null;
   longitudeDeg: number | null;
 };
 
 export type UnitSystem = "metric" | "imperial";
-
-export type ActivityRecord = {
-  activityId: string;
-  activityDate: string;
-  runId: string;
-  routeId: string | null;
-  isRouteRepresentative: boolean;
-  recordTimestamp: string | null;
-  recordIndex: number;
-  elapsedSeconds: number | null;
-  secondsSincePreviousRecord: number | null;
-  distanceM: number | null;
-  distanceKm: number | null;
-  distanceDeltaM: number | null;
-  speedMps: number | null;
-  speedKmh: number | null;
-  paceMinPerKm: number | null;
-  heartRate: number | null;
-  runningCadence: number | null;
-  altitudeM: number | null;
-  altitudeDeltaM: number | null;
-  temperature: number | null;
-  latitudeDeg: number | null;
-  longitudeDeg: number | null;
-};
 
 export type RunSegment = {
   runId: string;

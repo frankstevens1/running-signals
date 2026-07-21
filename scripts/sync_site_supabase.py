@@ -793,6 +793,8 @@ EXPORTS: tuple[TableExport, ...] = (
             "avg_route_altitude_range_m",
             "route_distance_bucket_km",
             "route_h3_signature",
+            "representative_route_centroid_latitude_deg",
+            "representative_route_centroid_longitude_deg",
         ),
         statement=lambda config: f"""
             select
@@ -814,7 +816,9 @@ EXPORTS: tuple[TableExport, ...] = (
               avg_segment_grade,
               avg_route_altitude_range_m,
               route_distance_bucket_km,
-              route_h3_signature
+              route_h3_signature,
+              representative_route_centroid_latitude_deg,
+              representative_route_centroid_longitude_deg
             from {gold_table(config, "mart_routes")}
         """,
     ),

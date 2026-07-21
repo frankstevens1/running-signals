@@ -1,4 +1,4 @@
-import type { RouteGeometryRecord } from "@/app/lib/types";
+import type { RouteSummary } from "@/app/lib/types";
 
 export type MapPosition = [number, number];
 export type MapBounds = [number, number, number, number];
@@ -238,33 +238,24 @@ export function countryBoundariesFromGeoJson(value: unknown): CountryBoundary[] 
   });
 }
 
-function routeCentroids(records: RouteGeometryRecord[]) {
-  const totals = new Map<string, { longitude: number; latitude: number; count: number }>();
-
-  for (const record of records) {
-    if (
-      record.longitudeDeg === null ||
-      record.latitudeDeg === null ||
-      record.longitudeDeg < -180 ||
-      record.longitudeDeg > 180 ||
-      record.latitudeDeg < -90 ||
-      record.latitudeDeg > 90
-    ) {
-      continue;
-    }
-
-    const current = totals.get(record.routeId) ?? { longitude: 0, latitude: 0, count: 0 };
-    current.longitude += record.longitudeDeg;
-    current.latitude += record.latitudeDeg;
-    current.count += 1;
-    totals.set(record.routeId, current);
-  }
-
+function routeCentroids(routes: RouteSummary[]) {
   return new Map(
-    Array.from(totals, ([routeId, total]) => [
-      routeId,
-      [total.longitude / total.count, total.latitude / total.count] as MapPosition,
-    ]),
+    routes.flatMap((route) => {
+      const longitude = route.representativeRouteCentroidLongitudeDeg;
+      const latitude = route.representativeRouteCentroidLatitudeDeg;
+      if (
+        longitude === null ||
+        latitude === null ||
+        longitude < -180 ||
+        longitude > 180 ||
+        latitude < -90 ||
+        latitude > 90
+      ) {
+        return [];
+      }
+
+      return [[route.routeId, [longitude, latitude] as MapPosition]];
+    }),
   );
 }
 
@@ -298,13 +289,13 @@ function cityName(center: MapPosition) {
 }
 
 export function deriveRouteGeography(
-  records: RouteGeometryRecord[],
+  routes: RouteSummary[],
   countryBoundaries: CountryBoundary[],
 ): RouteGeography {
   const routeCountryIds = new Map<string, string>();
   const countryRoutes = new Map<string, Array<{ routeId: string; position: MapPosition }>>();
 
-  for (const [routeId, position] of routeCentroids(records)) {
+  for (const [routeId, position] of routeCentroids(routes)) {
     const country = countryBoundaries.find((boundary) => countryContainsPosition(boundary, position));
     if (!country) continue;
 

@@ -68,10 +68,10 @@ function getConfig(): SupabaseConfig {
 }
 
 function getRevalidateSeconds(): number {
-  const configured = Number(process.env.SITE_DATA_REVALIDATE_SECONDS ?? "300");
+  const configured = Number(process.env.SITE_DATA_REVALIDATE_SECONDS ?? "900");
 
   if (!Number.isFinite(configured) || configured < 0) {
-    return 300;
+    return 900;
   }
 
   return Math.floor(configured);

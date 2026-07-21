@@ -2,7 +2,7 @@ import { AppShell } from "@/app/components/app-shell";
 import { DataState } from "@/app/components/data-state";
 import { RouteExplorer } from "@/app/components/route-explorer";
 import { SectionHeading } from "@/app/components/section-heading";
-import { getRouteRecords, getRoutes } from "@/app/lib/data";
+import { getRoutes } from "@/app/lib/data";
 import { explorerPages } from "@/app/lib/page-metadata";
 import { getSearchParam } from "@/app/lib/query";
 
@@ -14,10 +14,6 @@ export default async function RoutesPage({
   const resolved = await searchParams;
   const routeId = getSearchParam(resolved, "routeId");
   const routes = await getRoutes(100);
-  const records =
-    routes.status === "ok"
-      ? await getRouteRecords(routes.data.map((route) => route.routeId))
-      : null;
 
   return (
     <AppShell>
@@ -30,17 +26,7 @@ export default async function RoutesPage({
         />
         <DataState result={routes}>
           {(routeData) => (
-            records ? (
-              <DataState result={records}>
-                {(recordData) => (
-                  <RouteExplorer
-                    routes={routeData}
-                    records={recordData}
-                    initialSelectedRouteId={routeId}
-                  />
-                )}
-              </DataState>
-            ) : null
+            <RouteExplorer routes={routeData} initialSelectedRouteId={routeId} />
           )}
         </DataState>
       </div>

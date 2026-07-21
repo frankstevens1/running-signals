@@ -6,6 +6,33 @@ import {
   countryFeaturesWithRouteCounts,
   deriveRouteGeography,
 } from "./route-geography";
+import type { RouteSummary } from "./types";
+
+function routeSummary(
+  routeId: string,
+  latitude: number | null,
+  longitude: number | null,
+): RouteSummary {
+  return {
+    routeId,
+    firstObservedActivityDate: null,
+    latestObservedActivityDate: null,
+    runCount: 1,
+    avgDistanceKm: null,
+    minDistanceKm: null,
+    maxDistanceKm: null,
+    avgDurationSeconds: null,
+    avgPaceMinPerKm: null,
+    avgHeartRate: null,
+    avgTotalAscent: null,
+    avgTotalDescent: null,
+    avgSegmentGrade: null,
+    avgRouteAltitudeRangeM: null,
+    routeDistanceBucketKm: null,
+    representativeRouteCentroidLatitudeDeg: latitude,
+    representativeRouteCentroidLongitudeDeg: longitude,
+  };
+}
 
 const countryBoundaries = countryBoundariesFromGeoJson({
   type: "FeatureCollection",
@@ -51,27 +78,9 @@ describe("route geography", () => {
   it("assigns route centroids to countries and groups nearby routes into city choices", () => {
     const geography = deriveRouteGeography(
       [
-        {
-          routeId: "route-north-1",
-          runId: "run-1",
-          recordIndex: 1,
-          latitudeDeg: 1,
-          longitudeDeg: 1,
-        },
-        {
-          routeId: "route-north-2",
-          runId: "run-2",
-          recordIndex: 1,
-          latitudeDeg: 1.1,
-          longitudeDeg: 1.1,
-        },
-        {
-          routeId: "route-south",
-          runId: "run-3",
-          recordIndex: 1,
-          latitudeDeg: 11,
-          longitudeDeg: 11,
-        },
+        routeSummary("route-north-1", 1, 1),
+        routeSummary("route-north-2", 1.1, 1.1),
+        routeSummary("route-south", 11, 11),
       ],
       countryBoundaries,
     );
@@ -88,20 +97,8 @@ describe("route geography", () => {
   it("adds counts for only the routes currently visible on the map", () => {
     const geography = deriveRouteGeography(
       [
-        {
-          routeId: "route-north",
-          runId: "run-1",
-          recordIndex: 1,
-          latitudeDeg: 1,
-          longitudeDeg: 1,
-        },
-        {
-          routeId: "route-south",
-          runId: "run-2",
-          recordIndex: 1,
-          latitudeDeg: 11,
-          longitudeDeg: 11,
-        },
+        routeSummary("route-north", 1, 1),
+        routeSummary("route-south", 11, 11),
       ],
       countryBoundaries,
     );

@@ -1,9 +1,8 @@
 import type {
-  ActivityRecord,
   DayRollup,
   FitnessPoint,
+  MapProfileRecord,
   MonthRollup,
-  RouteGeometryRecord,
   RunFilterBounds,
   RunSegment,
   RouteSummary,
@@ -96,43 +95,24 @@ export function mapRoute(row: Record<string, unknown>): RouteSummary {
     avgSegmentGrade: numberValue(row, "avg_segment_grade"),
     avgRouteAltitudeRangeM: numberValue(row, "avg_route_altitude_range_m"),
     routeDistanceBucketKm: numberValue(row, "route_distance_bucket_km"),
+    representativeRouteCentroidLatitudeDeg: numberValue(
+      row,
+      "representative_route_centroid_latitude_deg",
+    ),
+    representativeRouteCentroidLongitudeDeg: numberValue(
+      row,
+      "representative_route_centroid_longitude_deg",
+    ),
   };
 }
 
-export function mapRouteGeometryRecord(
+export function mapMapProfileRecord(
   row: Record<string, unknown>,
-): RouteGeometryRecord {
+): MapProfileRecord {
   return {
-    routeId: stringValue(row, "route_id") ?? "",
-    runId: stringValue(row, "run_id") ?? "",
     recordIndex: numberValue(row, "record_index") ?? 0,
-    latitudeDeg: numberValue(row, "position_lat_deg"),
-    longitudeDeg: numberValue(row, "position_long_deg"),
-  };
-}
-
-export function mapActivityRecord(row: Record<string, unknown>): ActivityRecord {
-  return {
-    activityId: stringValue(row, "activity_id") ?? "",
-    activityDate: stringValue(row, "activity_date") ?? "",
-    runId: stringValue(row, "run_id") ?? "",
-    routeId: stringValue(row, "route_id"),
-    isRouteRepresentative: booleanValue(row, "is_route_representative"),
-    recordTimestamp: stringValue(row, "record_timestamp"),
-    recordIndex: numberValue(row, "record_index") ?? 0,
-    elapsedSeconds: numberValue(row, "elapsed_seconds"),
-    secondsSincePreviousRecord: numberValue(row, "seconds_since_previous_record"),
-    distanceM: numberValue(row, "record_distance_m"),
     distanceKm: numberValue(row, "record_distance_km"),
-    distanceDeltaM: numberValue(row, "distance_delta_m"),
-    speedMps: numberValue(row, "speed_mps"),
-    speedKmh: numberValue(row, "speed_kmh"),
-    paceMinPerKm: numberValue(row, "pace_min_per_km"),
-    heartRate: numberValue(row, "heart_rate"),
-    runningCadence: numberValue(row, "running_cadence"),
     altitudeM: numberValue(row, "altitude_m"),
-    altitudeDeltaM: numberValue(row, "altitude_delta_m"),
-    temperature: numberValue(row, "temperature"),
     latitudeDeg: numberValue(row, "position_lat_deg"),
     longitudeDeg: numberValue(row, "position_long_deg"),
   };

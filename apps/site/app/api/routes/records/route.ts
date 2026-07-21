@@ -11,5 +11,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "routeId is required." }, { status: 400 });
   }
 
-  return jsonResult(await getRouteRecords([routeId]));
+  return jsonResult(await getRouteRecords(routeId));
 }

@@ -485,6 +485,10 @@ models:
         tests:
           - not_null
           - unique
+      - name: representative_route_centroid_latitude_deg
+        description: Mean valid GPS latitude from the route's representative run, used for route-map overview placement.
+      - name: representative_route_centroid_longitude_deg
+        description: Mean valid GPS longitude from the route's representative run, used for route-map overview placement.
 
   - name: mart_route_prediction_features
     description: One row per run-route observation with route features, recent training context, prior route context, and outcome labels.

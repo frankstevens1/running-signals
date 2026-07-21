@@ -30,7 +30,7 @@ import {
   formatRouteId,
   formatSpeed,
 } from "@/app/lib/format";
-import type { ActivityRecord, RunSegment, RunSession } from "@/app/lib/types";
+import type { MapProfileRecord, RunSegment, RunSession } from "@/app/lib/types";
 
 import { ActivityRouteMap } from "./activity-route-map";
 import { useDistanceUnit } from "./distance-unit-provider";
@@ -60,7 +60,7 @@ function statItems(run: RunSession, unit: DistanceUnit) {
   ] as const;
 }
 
-function profilePoints(records: ActivityRecord[], unit: DistanceUnit) {
+function profilePoints(records: MapProfileRecord[], unit: DistanceUnit) {
   return records.flatMap((record) => {
     if (record.distanceKm === null || record.altitudeM === null) return [];
     return [{ distance: distanceFromKm(record.distanceKm, unit), altitudeM: record.altitudeM }];

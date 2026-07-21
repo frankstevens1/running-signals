@@ -9,11 +9,10 @@ import {
 } from "./supabase";
 import {
   mapDay,
-  mapActivityRecord,
   mapFitness,
+  mapMapProfileRecord,
   mapMonth,
   mapRoute,
-  mapRouteGeometryRecord,
   mapRunFilterBounds,
   mapRun,
   mapSegment,
@@ -24,14 +23,13 @@ import {
 } from "./mappers";
 import type { RunFilters } from "./query";
 import type {
-  ActivityRecord,
   DashboardSummary,
   DataResult,
   DayRollup,
   FitnessPoint,
   LandingStatus,
   PaginatedResult,
-  RouteGeometryRecord,
+  MapProfileRecord,
   RunFilterBounds,
   RouteSummary,
   RunSegment,
@@ -40,6 +38,7 @@ import type {
   WeekRollup,
   UnitSystem,
 } from "./types";
+import { sampleMapProfileRecords } from "./map-records";
 
 type SiteDataSource = "supabase" | "databricks";
 
@@ -226,29 +225,6 @@ const RUN_SEGMENT_SELECT = `
   segments.segment_start_longitude_deg,
   segments.segment_end_latitude_deg,
   segments.segment_end_longitude_deg
-`;
-
-const ACTIVITY_RECORD_SELECT = `
-  records.activity_id,
-  cast(records.activity_date as string) as activity_date,
-  records.run_id,
-  cast(records.record_timestamp as string) as record_timestamp,
-  records.record_index,
-  records.elapsed_seconds,
-  records.seconds_since_previous_record,
-  records.record_distance_m,
-  records.record_distance_km,
-  records.distance_delta_m,
-  records.speed_mps,
-  records.speed_kmh,
-  records.pace_min_per_km,
-  records.heart_rate,
-  records.running_cadence,
-  records.altitude_m,
-  records.altitude_delta_m,
-  records.temperature,
-  records.position_lat_deg,
-  records.position_long_deg
 `;
 
 async function queryLandingStatusFromDatabricks(): Promise<LandingStatus> {
@@ -496,7 +472,9 @@ async function queryRoutesFromDatabricks(limit = 50): Promise<RouteSummary[]> {
       avg_total_descent,
       avg_segment_grade,
       avg_route_altitude_range_m,
-      route_distance_bucket_km
+      route_distance_bucket_km,
+      representative_route_centroid_latitude_deg,
+      representative_route_centroid_longitude_deg
     from ${goldTable("mart_routes")}
     order by run_count desc, latest_observed_activity_date desc
     limit ${safeLimit}
@@ -518,116 +496,72 @@ async function queryRoutesFromSupabase(limit = 50): Promise<RouteSummary[]> {
   return result.rows.map(mapRoute);
 }
 
-async function queryRouteRecordsFromDatabricks(
-  routeIds: readonly string[],
-): Promise<RouteGeometryRecord[]> {
-  if (routeIds.length === 0) return [];
-
-  const routeIdList = routeIds.map(sqlString).join(", ");
+async function queryRouteRecordsFromDatabricks(routeId: string): Promise<MapProfileRecord[]> {
   const rows = await queryDatabricks(`
     select
-      records.run_id,
-      routes.route_id,
       records.record_index,
+      records.record_distance_km,
+      records.altitude_m,
       records.position_lat_deg,
       records.position_long_deg
     from ${goldTable("mart_activity_records")} as records
     inner join ${goldTable("mart_routes")} as routes
       on records.run_id = routes.route_representative_run_id
-    where routes.route_id in (${routeIdList})
-    order by routes.route_id, records.run_id, records.record_index
-  `);
-
-  return rows.map(mapRouteGeometryRecord);
-}
-
-const ROUTE_ID_CHUNK_SIZE = 25;
-const ROUTE_RECORD_PAGE_SIZE = 1000;
-
-function routeIdChunks(routeIds: readonly string[]): string[][] {
-  const uniqueRouteIds = Array.from(new Set(routeIds.filter(Boolean))).slice(0, 100);
-  const chunks: string[][] = [];
-
-  for (let index = 0; index < uniqueRouteIds.length; index += ROUTE_ID_CHUNK_SIZE) {
-    chunks.push(uniqueRouteIds.slice(index, index + ROUTE_ID_CHUNK_SIZE));
-  }
-
-  return chunks;
-}
-
-function compareRouteGeometryRecords(
-  left: RouteGeometryRecord,
-  right: RouteGeometryRecord,
-): number {
-  if (left.routeId !== right.routeId) return left.routeId < right.routeId ? -1 : 1;
-  if (left.runId !== right.runId) return left.runId < right.runId ? -1 : 1;
-  return left.recordIndex - right.recordIndex;
-}
-
-async function queryRouteRecordChunkFromSupabase(
-  routeIds: readonly string[],
-): Promise<Record<string, unknown>[]> {
-  const rows: Record<string, unknown>[] = [];
-
-  while (true) {
-    const result = await querySupabase("site_activity_records", {
-      select: "route_id,run_id,record_index,position_lat_deg,position_long_deg",
-      filters: [
-        { column: "is_route_representative", operator: "eq", value: true },
-        { column: "route_id", operator: "in", value: routeIds },
-      ],
-      order: [
-        { column: "route_id", direction: "asc", nulls: "last" },
-        { column: "run_id", direction: "asc", nulls: "last" },
-        { column: "record_index", direction: "asc", nulls: "last" },
-      ],
-      limit: ROUTE_RECORD_PAGE_SIZE,
-      offset: rows.length,
-    });
-
-    rows.push(...result.rows);
-    if (result.rows.length < ROUTE_RECORD_PAGE_SIZE) break;
-  }
-
-  return rows;
-}
-
-async function queryRouteRecordsFromSupabase(
-  routeIds: readonly string[],
-): Promise<RouteGeometryRecord[]> {
-  const chunks = routeIdChunks(routeIds);
-  if (chunks.length === 0) return [];
-
-  const chunkRows = await Promise.all(chunks.map(queryRouteRecordChunkFromSupabase));
-  return chunkRows.flat().map(mapRouteGeometryRecord).sort(compareRouteGeometryRecords);
-}
-
-async function queryRunRecordsFromDatabricks(
-  runId: string,
-): Promise<ActivityRecord[]> {
-  const rows = await queryDatabricks(`
-    select
-      ${ACTIVITY_RECORD_SELECT},
-      sessions.route_id,
-      records.run_id = sessions.route_representative_run_id as is_route_representative
-    from ${goldTable("mart_activity_records")} as records
-    left join ${goldTable("mart_run_sessions")} as sessions
-      on records.run_id = sessions.run_id
-    where records.run_id = ${sqlString(runId)}
+    where routes.route_id = ${sqlString(routeId)}
     order by records.record_index
   `);
 
-  return rows.map(mapActivityRecord);
+  return sampleMapProfileRecords(rows.map(mapMapProfileRecord));
 }
 
-async function queryRunRecordsFromSupabase(
-  runId: string,
-): Promise<ActivityRecord[]> {
+async function queryRouteRecordsFromSupabase(routeId: string): Promise<MapProfileRecord[]> {
   const pageSize = 1000;
   const rows: Record<string, unknown>[] = [];
 
   while (true) {
     const result = await querySupabase("site_activity_records", {
+      select:
+        "record_index,record_distance_km,altitude_m,position_lat_deg,position_long_deg",
+      filters: [
+        { column: "is_route_representative", operator: "eq", value: true },
+        { column: "route_id", operator: "eq", value: routeId },
+      ],
+      order: [{ column: "record_index", direction: "asc", nulls: "last" }],
+      limit: pageSize,
+      offset: rows.length,
+    });
+
+    rows.push(...result.rows);
+    if (result.rows.length < pageSize) break;
+  }
+
+  return sampleMapProfileRecords(rows.map(mapMapProfileRecord));
+}
+
+async function queryRunRecordsFromDatabricks(runId: string): Promise<MapProfileRecord[]> {
+  const rows = await queryDatabricks(`
+    select
+      records.record_index,
+      records.record_distance_km,
+      records.altitude_m,
+      records.position_lat_deg,
+      records.position_long_deg
+    from ${goldTable("mart_activity_records")} as records
+    where records.run_id = ${sqlString(runId)}
+    order by records.record_index
+  `);
+
+  return sampleMapProfileRecords(rows.map(mapMapProfileRecord));
+}
+
+async function queryRunRecordsFromSupabase(runId: string): Promise<MapProfileRecord[]> {
+  const pageSize = 1000;
+  const rows: Record<string, unknown>[] = [];
+
+  while (true) {
+    const result = await querySupabase("site_activity_records", {
+      select:
+        "record_index,record_distance_km,altitude_m,position_lat_deg,position_long_deg",
       filters: [{ column: "run_id", operator: "eq", value: runId }],
       order: [{ column: "record_index", direction: "asc", nulls: "last" }],
       limit: pageSize,
@@ -638,7 +572,7 @@ async function queryRunRecordsFromSupabase(
     if (result.rows.length < pageSize) break;
   }
 
-  return rows.map(mapActivityRecord);
+  return sampleMapProfileRecords(rows.map(mapMapProfileRecord));
 }
 
 async function queryRunSegmentsFromDatabricks(
@@ -894,14 +828,13 @@ function queryRoutes(limit?: number): Promise<RouteSummary[]> {
     : queryRoutesFromSupabase(limit);
 }
 
-function queryRouteRecords(routeIds: readonly string[]): Promise<RouteGeometryRecord[]> {
-  const requestedRouteIds = routeIdChunks(routeIds).flat();
+function queryRouteRecords(routeId: string): Promise<MapProfileRecord[]> {
   return getSiteDataSource() === "databricks"
-    ? queryRouteRecordsFromDatabricks(requestedRouteIds)
-    : queryRouteRecordsFromSupabase(requestedRouteIds);
+    ? queryRouteRecordsFromDatabricks(routeId)
+    : queryRouteRecordsFromSupabase(routeId);
 }
 
-function queryRunRecords(runId: string): Promise<ActivityRecord[]> {
+function queryRunRecords(runId: string): Promise<MapProfileRecord[]> {
   return getSiteDataSource() === "databricks"
     ? queryRunRecordsFromDatabricks(runId)
     : queryRunRecordsFromSupabase(runId);
@@ -962,13 +895,11 @@ export function getRoutes(limit?: number): Promise<DataResult<RouteSummary[]>> {
   return asResult(queryRoutes(limit));
 }
 
-export function getRouteRecords(
-  routeIds: readonly string[],
-): Promise<DataResult<RouteGeometryRecord[]>> {
-  return asResult(queryRouteRecords(routeIds));
+export function getRouteRecords(routeId: string): Promise<DataResult<MapProfileRecord[]>> {
+  return asResult(queryRouteRecords(routeId));
 }
 
-export function getRunRecords(runId: string): Promise<DataResult<ActivityRecord[]>> {
+export function getRunRecords(runId: string): Promise<DataResult<MapProfileRecord[]>> {
   return asResult(queryRunRecords(runId));
 }
 

@@ -244,6 +244,24 @@ def test_site_activity_records_export_includes_ordered_presentation_telemetry() 
     assert "where" not in statement.lower()
 
 
+def test_site_routes_export_includes_representative_route_centroids() -> None:
+    export = next(
+        table_export
+        for table_export in sync_site_supabase.EXPORTS
+        if table_export.table_name == "site_routes"
+    )
+
+    assert export.columns[-2:] == (
+        "representative_route_centroid_latitude_deg",
+        "representative_route_centroid_longitude_deg",
+    )
+
+    statement = export.statement(databricks_config())
+
+    assert "representative_route_centroid_latitude_deg" in statement
+    assert "representative_route_centroid_longitude_deg" in statement
+
+
 def test_site_route_segments_export_includes_resolution_and_detail_columns() -> None:
     export = next(
         table_export
@@ -327,3 +345,12 @@ def test_supabase_migration_uses_resolution_aware_keys_and_public_read_policy() 
         "add primary key (run_id, unit_system, segment_length_value, segment_index)"
         in migration
     )
+
+
+def test_route_centroid_migration_adds_nullable_site_route_coordinates() -> None:
+    migration = (
+        Path(__file__).parents[1] / "supabase/migrations/202607210001_route_centroids.sql"
+    ).read_text()
+
+    assert "add column representative_route_centroid_latitude_deg double precision" in migration
+    assert "add column representative_route_centroid_longitude_deg double precision" in migration

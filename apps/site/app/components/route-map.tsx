@@ -13,13 +13,13 @@ import {
   type MapBounds,
   type MapPosition,
 } from "@/app/lib/route-geography";
-import type { RouteGeometryRecord, RouteSummary } from "@/app/lib/types";
+import type { MapProfileRecord, RouteSummary } from "@/app/lib/types";
 
 type LineCollection = {
   type: "FeatureCollection";
   features: Array<{
     type: "Feature";
-    properties: { routeId: string; runId: string };
+    properties: Record<string, never>;
     geometry: { type: "LineString"; coordinates: MapPosition[] };
   }>;
 };
@@ -31,12 +31,6 @@ type PointCollection = {
     properties: { routeId: string; runCount: number };
     geometry: { type: "Point"; coordinates: MapPosition };
   }>;
-};
-
-type RouteAccumulator = {
-  longitudeTotal: number;
-  latitudeTotal: number;
-  coordinateCount: number;
 };
 
 type MapTheme = {
@@ -82,7 +76,7 @@ function rasterPaint(theme: MapTheme) {
   } as const;
 }
 
-function isValidPosition(record: RouteGeometryRecord) {
+function isValidPosition(record: MapProfileRecord) {
   return (
     record.latitudeDeg !== null &&
     record.latitudeDeg >= -90 &&
@@ -93,7 +87,7 @@ function isValidPosition(record: RouteGeometryRecord) {
   );
 }
 
-function fitRecords(map: maplibregl.Map, records: RouteGeometryRecord[], duration = 500) {
+function fitRecords(map: maplibregl.Map, records: MapProfileRecord[], duration = 500) {
   const bounds = new maplibregl.LngLatBounds();
 
   records.forEach((record) => {
@@ -103,6 +97,19 @@ function fitRecords(map: maplibregl.Map, records: RouteGeometryRecord[], duratio
 
   if (!bounds.isEmpty()) {
     map.fitBounds(bounds, { padding: 54, maxZoom: 14, duration });
+  }
+}
+
+function fitPositions(map: maplibregl.Map, positions: MapPosition[], duration = 500) {
+  if (positions.length === 1) {
+    map.easeTo({ center: positions[0], zoom: 12, duration });
+    return;
+  }
+
+  const bounds = new maplibregl.LngLatBounds();
+  positions.forEach((position) => bounds.extend(position));
+  if (!bounds.isEmpty()) {
+    map.fitBounds(bounds, { padding: 54, maxZoom: 11, duration });
   }
 }
 
@@ -116,17 +123,15 @@ function fitBounds(map: maplibregl.Map, bounds: MapBounds) {
   );
 }
 
-function routeLineFeatures(records: RouteGeometryRecord[]): LineCollection["features"] {
+function routeLineFeatures(records: MapProfileRecord[]): LineCollection["features"] {
   const features: LineCollection["features"] = [];
-  let routeId: string | null = null;
-  let runId: string | null = null;
   let coordinates: MapPosition[] = [];
 
   const closeSequence = () => {
-    if (routeId && runId && coordinates.length >= 2) {
+    if (coordinates.length >= 2) {
       features.push({
         type: "Feature",
-        properties: { routeId, runId },
+        properties: {},
         geometry: { type: "LineString", coordinates },
       });
     }
@@ -134,12 +139,6 @@ function routeLineFeatures(records: RouteGeometryRecord[]): LineCollection["feat
   };
 
   for (const record of records) {
-    if (record.routeId !== routeId || record.runId !== runId) {
-      closeSequence();
-      routeId = record.routeId;
-      runId = record.runId;
-    }
-
     if (!isValidPosition(record)) {
       closeSequence();
       continue;
@@ -228,12 +227,8 @@ function applyMapTheme(
     );
   }
 
-  if (map.getLayer("route-lines")) {
-    map.setPaintProperty("route-lines", "line-color", theme.accent);
-  }
-
-  if (map.getLayer("selected-route-lines")) {
-    map.setPaintProperty("selected-route-lines", "line-color", theme.signalWarn);
+  if (map.getLayer("route-line")) {
+    map.setPaintProperty("route-line", "line-color", theme.signalWarn);
   }
 
   if (map.getLayer("route-clusters")) {
@@ -271,6 +266,8 @@ export function RouteMap({
   routes,
   records,
   selectedRouteId,
+  isGeometryLoading,
+  geometryError,
   selectedCountryId,
   countryFeatures,
   focus,
@@ -278,8 +275,10 @@ export function RouteMap({
   onSelectCountry,
 }: {
   routes: RouteSummary[];
-  records: RouteGeometryRecord[];
+  records: MapProfileRecord[];
   selectedRouteId: string | null;
+  isGeometryLoading: boolean;
+  geometryError: string | null;
   selectedCountryId: string | null;
   countryFeatures: CountryFeatureCollection | null;
   focus: MapFocus | null;
@@ -294,10 +293,6 @@ export function RouteMap({
   const [ready, setReady] = useState(false);
   const [countryOverview, setCountryOverview] = useState(false);
   const usableRecords = useMemo(() => records.filter(isValidPosition), [records]);
-  const routeRunCounts = useMemo(
-    () => new Map(routes.map((route) => [route.routeId, route.runCount])),
-    [routes],
-  );
   const countryLabels = useMemo(
     () => (countryFeatures ? countryLabelFeatures(countryFeatures) : null),
     [countryFeatures],
@@ -316,45 +311,38 @@ export function RouteMap({
     [records],
   );
 
-  const pointCollection = useMemo<PointCollection>(() => {
-    const accumulators = new Map<string, RouteAccumulator>();
-
-    usableRecords.forEach((record) => {
-      const routeId = record.routeId;
-      if (!routeId) return;
-
-      const current =
-        accumulators.get(routeId) ??
-        ({
-          longitudeTotal: 0,
-          latitudeTotal: 0,
-          coordinateCount: 0,
-        } satisfies RouteAccumulator);
-
-      current.longitudeTotal += record.longitudeDeg ?? 0;
-      current.latitudeTotal += record.latitudeDeg ?? 0;
-      current.coordinateCount += 1;
-      accumulators.set(routeId, current);
-    });
-
-    return {
+  const pointCollection = useMemo<PointCollection>(
+    () => ({
       type: "FeatureCollection",
-      features: Array.from(accumulators.entries()).map(([routeId, accumulator]) => ({
-        type: "Feature",
-        properties: {
-          routeId,
-          runCount: routeRunCounts.get(routeId) ?? 1,
-        },
-        geometry: {
-          type: "Point",
-          coordinates: [
-            accumulator.longitudeTotal / accumulator.coordinateCount,
-            accumulator.latitudeTotal / accumulator.coordinateCount,
-          ],
-        },
-      })),
-    };
-  }, [routeRunCounts, usableRecords]);
+      features: routes.flatMap((route) => {
+        const longitude = route.representativeRouteCentroidLongitudeDeg;
+        const latitude = route.representativeRouteCentroidLatitudeDeg;
+        if (
+          longitude === null ||
+          latitude === null ||
+          longitude < -180 ||
+          longitude > 180 ||
+          latitude < -90 ||
+          latitude > 90
+        ) {
+          return [];
+        }
+
+        return [
+          {
+            type: "Feature",
+            properties: { routeId: route.routeId, runCount: route.runCount },
+            geometry: { type: "Point", coordinates: [longitude, latitude] },
+          },
+        ];
+      }),
+    }),
+    [routes],
+  );
+  const centroidPositions = useMemo(
+    () => pointCollection.features.map((feature) => feature.geometry.coordinates),
+    [pointCollection],
+  );
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -440,23 +428,12 @@ export function RouteMap({
     if (!map || !ready) return;
     const theme = readMapTheme();
 
-    if (!map.getSource("route-lines")) {
-      map.addSource("route-lines", { type: "geojson", data: lineCollection as never });
+    if (!map.getSource("route-line")) {
+      map.addSource("route-line", { type: "geojson", data: lineCollection as never });
       map.addLayer({
-        id: "route-lines",
+        id: "route-line",
         type: "line",
-        source: "route-lines",
-        paint: {
-          "line-color": theme.accent,
-          "line-opacity": 0.34,
-          "line-width": 1.75,
-        },
-      });
-      map.addLayer({
-        id: "selected-route-lines",
-        type: "line",
-        source: "route-lines",
-        filter: ["==", ["get", "routeId"], selectedRouteId ?? ""],
+        source: "route-line",
         paint: {
           "line-color": theme.signalWarn,
           "line-opacity": 0.95,
@@ -464,7 +441,7 @@ export function RouteMap({
         },
       });
     } else {
-      (map.getSource("route-lines") as GeoJSONSource).setData(lineCollection as never);
+      (map.getSource("route-line") as GeoJSONSource).setData(lineCollection as never);
     }
 
     if (!map.getSource("route-centroids")) {
@@ -535,7 +512,6 @@ export function RouteMap({
       (map.getSource("route-centroids") as GeoJSONSource).setData(pointCollection as never);
     }
 
-    map.setFilter("selected-route-lines", ["==", ["get", "routeId"], selectedRouteId ?? ""]);
     applyMapTheme(map, theme, selectedRouteId, selectedCountryId);
   }, [lineCollection, pointCollection, ready, selectedCountryId, selectedRouteId]);
 
@@ -608,27 +584,36 @@ export function RouteMap({
     ["country-fill", "country-outline", "country-count"].forEach((layerId) =>
       setLayerVisibility(map, layerId, showCountryOverview),
     );
-    ["route-lines", "selected-route-lines", "route-clusters", "cluster-count", "route-points", "route-point-count"].forEach(
+    ["route-line", "route-clusters", "cluster-count", "route-points", "route-point-count"].forEach(
       (layerId) => setLayerVisibility(map, layerId, !showCountryOverview),
     );
   }, [countryFeatures, countryOverview, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !ready || fittedInitialRoutesRef.current || usableRecords.length === 0) return;
+    if (!map || !ready || fittedInitialRoutesRef.current || centroidPositions.length === 0) return;
 
-    fitRecords(map, usableRecords, 0);
+    fitPositions(map, centroidPositions, 0);
     fittedInitialRoutesRef.current = true;
-  }, [ready, usableRecords]);
+  }, [centroidPositions, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready || !selectedRouteId) return;
 
-    fitRecords(
-      map,
-      usableRecords.filter((record) => record.routeId === selectedRouteId),
-    );
+    const route = routes.find((item) => item.routeId === selectedRouteId);
+    const longitude = route?.representativeRouteCentroidLongitudeDeg;
+    const latitude = route?.representativeRouteCentroidLatitudeDeg;
+    if (longitude !== null && longitude !== undefined && latitude !== null && latitude !== undefined) {
+      map.easeTo({ center: [longitude, latitude], zoom: 12, duration: 500 });
+    }
+  }, [ready, routes, selectedRouteId]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !selectedRouteId || usableRecords.length === 0) return;
+
+    fitRecords(map, usableRecords);
   }, [ready, selectedRouteId, usableRecords]);
 
   useEffect(() => {
@@ -717,13 +702,29 @@ export function RouteMap({
     };
   }, [countryFeatures, onSelectCountry, ready]);
 
-  if (usableRecords.length === 0) {
-    return (
-      <div className="flex h-[520px] items-center justify-center p-6 text-center font-mono text-sm text-(--text-soft) lg:h-[620px]">
-        No complete GPS route records are available for mapping.
-      </div>
-    );
-  }
-
-  return <div ref={containerRef} className="h-[520px] w-full lg:h-[620px]" />;
+  return (
+    <div className="relative h-[520px] w-full lg:h-[620px]">
+      <div ref={containerRef} className="h-full w-full" />
+      {selectedRouteId && isGeometryLoading ? (
+        <div className="pointer-events-none absolute inset-x-4 top-4 border border-(--border) bg-(--surface)/95 px-3 py-2 font-mono text-xs text-(--text-soft) shadow-sm">
+          Loading selected route geometry…
+        </div>
+      ) : null}
+      {selectedRouteId && geometryError ? (
+        <div className="absolute inset-x-4 top-4 border border-dashed border-(--border) bg-(--surface)/95 px-3 py-2 font-mono text-xs text-(--text-soft)" role="status">
+          Route geometry could not be loaded: {geometryError}
+        </div>
+      ) : null}
+      {selectedRouteId && !isGeometryLoading && !geometryError && records.length === 0 ? (
+        <div className="pointer-events-none absolute inset-x-4 top-4 border border-dashed border-(--border) bg-(--surface)/95 px-3 py-2 font-mono text-xs text-(--text-soft)">
+          No sampled GPS records are available for this route.
+        </div>
+      ) : null}
+      {centroidPositions.length === 0 && !selectedRouteId ? (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6 text-center font-mono text-sm text-(--text-soft)">
+          No route centroids are available for mapping.
+        </div>
+      ) : null}
+    </div>
+  );
 }

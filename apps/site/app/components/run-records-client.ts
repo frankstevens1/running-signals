@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 
-import type { ActivityRecord } from "@/app/lib/types";
+import type { MapProfileRecord } from "@/app/lib/types";
 
-const recordCache = new Map<string, ActivityRecord[]>();
-const requestCache = new Map<string, Promise<ActivityRecord[]>>();
+const recordCache = new Map<string, MapProfileRecord[]>();
+const requestCache = new Map<string, Promise<MapProfileRecord[]>>();
 
-async function fetchRunRecords(runId: string): Promise<ActivityRecord[]> {
+async function fetchRunRecords(runId: string): Promise<MapProfileRecord[]> {
   const existing = recordCache.get(runId);
   if (existing) return existing;
 
@@ -22,7 +22,7 @@ async function fetchRunRecords(runId: string): Promise<ActivityRecord[]> {
         const payload = (await response.json().catch(() => null)) as { error?: string } | null;
         throw new Error(payload?.error ?? `Failed to load activity records (${response.status}).`);
       }
-      return (await response.json()) as ActivityRecord[];
+      return (await response.json()) as MapProfileRecord[];
     })
     .then((records) => {
       recordCache.set(runId, records);
@@ -40,7 +40,10 @@ async function fetchRunRecords(runId: string): Promise<ActivityRecord[]> {
 
 export function useRunRecords(runId: string, enabled: boolean) {
   const cachedRecords = recordCache.get(runId) ?? null;
-  const [fetched, setFetched] = useState<{ runId: string; records: ActivityRecord[] } | null>(null);
+  const [fetched, setFetched] = useState<{
+    runId: string;
+    records: MapProfileRecord[];
+  } | null>(null);
   const [errorState, setErrorState] = useState<{ runId: string; message: string } | null>(null);
 
   useEffect(() => {
