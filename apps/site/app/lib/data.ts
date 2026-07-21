@@ -4,6 +4,7 @@ import { goldTable, isDatabricksNotConfigured, queryDatabricks } from "./databri
 import {
   isSupabaseNotConfigured,
   querySupabase,
+  querySupabaseRpc,
   type SupabaseFilter,
   type SupabaseOrder,
 } from "./supabase";
@@ -498,79 +499,118 @@ async function queryRoutesFromSupabase(limit = 50): Promise<RouteSummary[]> {
 
 async function queryRouteRecordsFromDatabricks(routeId: string): Promise<MapProfileRecord[]> {
   const rows = await queryDatabricks(`
-    select
-      records.record_index,
-      records.record_distance_km,
-      records.altitude_m,
-      records.position_lat_deg,
-      records.position_long_deg
-    from ${goldTable("mart_activity_records")} as records
-    inner join ${goldTable("mart_routes")} as routes
-      on records.run_id = routes.route_representative_run_id
-    where routes.route_id = ${sqlString(routeId)}
-    order by records.record_index
+    with ordered_records as (
+      select
+        records.record_index,
+        records.record_distance_km,
+        records.altitude_m,
+        records.position_lat_deg,
+        records.position_long_deg,
+        row_number() over (order by records.record_index) as record_order,
+        count(*) over () as record_count
+      from ${goldTable("mart_activity_records")} as records
+      inner join ${goldTable("mart_routes")} as routes
+        on records.run_id = routes.route_representative_run_id
+      where routes.route_id = ${sqlString(routeId)}
+    ),
+    sample_offsets as (
+      select explode(sequence(0, 499)) as sample_index
+    ),
+    sampled_records as (
+      select
+        record_index,
+        record_distance_km,
+        altitude_m,
+        position_lat_deg,
+        position_long_deg
+      from ordered_records
+      where record_count <= 500
+
+      union all
+
+      select
+        records.record_index,
+        records.record_distance_km,
+        records.altitude_m,
+        records.position_lat_deg,
+        records.position_long_deg
+      from ordered_records as records
+      inner join sample_offsets
+        on records.record_order = cast(
+          floor(sample_offsets.sample_index * (records.record_count - 1) / 499.0) as bigint
+        ) + 1
+      where records.record_count > 500
+    )
+    select *
+    from sampled_records
+    order by record_index
   `);
 
   return sampleMapProfileRecords(rows.map(mapMapProfileRecord));
 }
 
 async function queryRouteRecordsFromSupabase(routeId: string): Promise<MapProfileRecord[]> {
-  const pageSize = 1000;
-  const rows: Record<string, unknown>[] = [];
-
-  while (true) {
-    const result = await querySupabase("site_activity_records", {
-      select:
-        "record_index,record_distance_km,altitude_m,position_lat_deg,position_long_deg",
-      filters: [
-        { column: "is_route_representative", operator: "eq", value: true },
-        { column: "route_id", operator: "eq", value: routeId },
-      ],
-      order: [{ column: "record_index", direction: "asc", nulls: "last" }],
-      limit: pageSize,
-      offset: rows.length,
-    });
-
-    rows.push(...result.rows);
-    if (result.rows.length < pageSize) break;
-  }
+  const rows = await querySupabaseRpc("site_map_profile_records", {
+    p_route_id: routeId,
+  });
 
   return sampleMapProfileRecords(rows.map(mapMapProfileRecord));
 }
 
 async function queryRunRecordsFromDatabricks(runId: string): Promise<MapProfileRecord[]> {
   const rows = await queryDatabricks(`
-    select
-      records.record_index,
-      records.record_distance_km,
-      records.altitude_m,
-      records.position_lat_deg,
-      records.position_long_deg
-    from ${goldTable("mart_activity_records")} as records
-    where records.run_id = ${sqlString(runId)}
-    order by records.record_index
+    with ordered_records as (
+      select
+        records.record_index,
+        records.record_distance_km,
+        records.altitude_m,
+        records.position_lat_deg,
+        records.position_long_deg,
+        row_number() over (order by records.record_index) as record_order,
+        count(*) over () as record_count
+      from ${goldTable("mart_activity_records")} as records
+      where records.run_id = ${sqlString(runId)}
+    ),
+    sample_offsets as (
+      select explode(sequence(0, 499)) as sample_index
+    ),
+    sampled_records as (
+      select
+        record_index,
+        record_distance_km,
+        altitude_m,
+        position_lat_deg,
+        position_long_deg
+      from ordered_records
+      where record_count <= 500
+
+      union all
+
+      select
+        records.record_index,
+        records.record_distance_km,
+        records.altitude_m,
+        records.position_lat_deg,
+        records.position_long_deg
+      from ordered_records as records
+      inner join sample_offsets
+        on records.record_order = cast(
+          floor(sample_offsets.sample_index * (records.record_count - 1) / 499.0) as bigint
+        ) + 1
+      where records.record_count > 500
+    )
+    select *
+    from sampled_records
+    order by record_index
   `);
 
   return sampleMapProfileRecords(rows.map(mapMapProfileRecord));
 }
 
 async function queryRunRecordsFromSupabase(runId: string): Promise<MapProfileRecord[]> {
-  const pageSize = 1000;
-  const rows: Record<string, unknown>[] = [];
-
-  while (true) {
-    const result = await querySupabase("site_activity_records", {
-      select:
-        "record_index,record_distance_km,altitude_m,position_lat_deg,position_long_deg",
-      filters: [{ column: "run_id", operator: "eq", value: runId }],
-      order: [{ column: "record_index", direction: "asc", nulls: "last" }],
-      limit: pageSize,
-      offset: rows.length,
-    });
-
-    rows.push(...result.rows);
-    if (result.rows.length < pageSize) break;
-  }
+  const rows = await querySupabaseRpc("site_map_profile_records", {
+    p_run_id: runId,
+  });
 
   return sampleMapProfileRecords(rows.map(mapMapProfileRecord));
 }

@@ -354,3 +354,13 @@ def test_route_centroid_migration_adds_nullable_site_route_coordinates() -> None
 
     assert "add column representative_route_centroid_latitude_deg double precision" in migration
     assert "add column representative_route_centroid_longitude_deg double precision" in migration
+
+
+def test_map_profile_records_migration_samples_in_the_database() -> None:
+    migration = (
+        Path(__file__).parents[1]
+        / "supabase/migrations/202607210002_sampled_map_profile_records.sql"
+    ).read_text()
+
+    assert "create or replace function public.site_map_profile_records" in migration
+    assert "row_number() over (order by record_index)" in migration

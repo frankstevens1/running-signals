@@ -39,6 +39,8 @@ export type SupabaseQueryResult = {
   count: number | null;
 };
 
+export type SupabaseRpcParameters = Record<string, SupabaseScalar>;
+
 const NOT_CONFIGURED_MESSAGE =
   "Supabase is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.";
 const LOCAL_SUPABASE_URL = "http://127.0.0.1:54321";
@@ -173,6 +175,36 @@ export async function querySupabase(
     rows: (await response.json()) as Record<string, unknown>[],
     count: parseCount(response.headers.get("content-range")),
   };
+}
+
+export async function querySupabaseRpc(
+  functionName: string,
+  parameters: SupabaseRpcParameters,
+): Promise<Record<string, unknown>[]> {
+  const config = getConfig();
+  const url = new URL(`${config.url}/rest/v1/rpc/${functionName}`);
+
+  for (const [name, value] of Object.entries(parameters)) {
+    if (value === null) continue;
+    url.searchParams.set(name, supabaseValue(value));
+  }
+
+  const response = await fetch(url, {
+    headers: {
+      apikey: config.anonKey,
+      Authorization: `Bearer ${config.anonKey}`,
+    },
+    ...fetchCacheOptions(),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(
+      `Supabase RPC ${functionName} failed with HTTP ${response.status}: ${message}`,
+    );
+  }
+
+  return (await response.json()) as Record<string, unknown>[];
 }
 
 export function isSupabaseNotConfigured(error: unknown): boolean {
