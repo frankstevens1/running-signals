@@ -1,0 +1,302 @@
+@import "tailwindcss";
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+:root,
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #080b09;
+  --foreground: #e8efe9;
+  --text: #e8efe9;
+  --text-soft: #a6b1a8;
+  --text-faint: #748078;
+  --surface: #0d120f;
+  --surface-muted: #121a15;
+  --surface-raised: #172019;
+  --border: #283229;
+  --border-strong: #3c493e;
+  --accent: #69e58c;
+  --accent-foreground: #071008;
+  --accent-strong: #91f0aa;
+  --accent-soft: #122d1a;
+  --signal: #e8b15c;
+  --signal-ok: #69e58c;
+  --signal-warn: #e8b15c;
+  --signal-error: #ff8a85;
+  --chart-1: #69e58c;
+  --chart-2: #e8b15c;
+  --chart-3: #62c7cf;
+  --chart-4: #b6a3ea;
+  --chart-5: #ef8585;
+  --chart-blue: #5ba7ff;
+  --chart-magenta: #ed77cf;
+  --focus-ring: #76eb95;
+  --grid-line: rgba(105, 229, 140, 0.045);
+  --ambient-glow: rgba(105, 229, 140, 0.1);
+  --map-control-bg: rgba(13, 18, 15, 0.92);
+  --shadow-header: 0 8px 28px rgba(0, 0, 0, 0.24);
+  --shadow-dialog: 0 24px 80px rgba(0, 0, 0, 0.48);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+    --background: #f3f5f1;
+    --foreground: #162018;
+    --text: #162018;
+    --text-soft: #536158;
+    --text-faint: #657268;
+    --surface: #fafbf8;
+    --surface-muted: #e9ede7;
+    --surface-raised: #ffffff;
+    --border: #c6cec4;
+    --border-strong: #9fab9e;
+    --accent: #147536;
+    --accent-foreground: #ffffff;
+    --accent-strong: #0d5a28;
+    --accent-soft: #dceee0;
+    --signal: #9a5b0b;
+    --signal-ok: #147536;
+    --signal-warn: #9a5b0b;
+    --signal-error: #b63834;
+    --chart-1: #147536;
+    --chart-2: #9a5b0b;
+    --chart-3: #147986;
+    --chart-4: #7058a5;
+    --chart-5: #b63834;
+    --chart-blue: #2166b1;
+    --chart-magenta: #a93482;
+    --focus-ring: #147536;
+    --grid-line: rgba(20, 117, 54, 0.05);
+    --ambient-glow: rgba(20, 117, 54, 0.09);
+    --map-control-bg: rgba(250, 251, 248, 0.94);
+    --shadow-header: 0 8px 28px rgba(35, 49, 39, 0.08);
+    --shadow-dialog: 0 24px 80px rgba(35, 49, 39, 0.22);
+  }
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+  --background: #f3f5f1;
+  --foreground: #162018;
+  --text: #162018;
+  --text-soft: #536158;
+  --text-faint: #657268;
+  --surface: #fafbf8;
+  --surface-muted: #e9ede7;
+  --surface-raised: #ffffff;
+  --border: #c6cec4;
+  --border-strong: #9fab9e;
+  --accent: #147536;
+  --accent-foreground: #ffffff;
+  --accent-strong: #0d5a28;
+  --accent-soft: #dceee0;
+  --signal: #9a5b0b;
+  --signal-ok: #147536;
+  --signal-warn: #9a5b0b;
+  --signal-error: #b63834;
+  --chart-1: #147536;
+  --chart-2: #9a5b0b;
+  --chart-3: #147986;
+  --chart-4: #7058a5;
+  --chart-5: #b63834;
+  --chart-blue: #2166b1;
+  --chart-magenta: #a93482;
+  --focus-ring: #147536;
+  --grid-line: rgba(20, 117, 54, 0.05);
+  --ambient-glow: rgba(20, 117, 54, 0.09);
+  --map-control-bg: rgba(250, 251, 248, 0.94);
+  --shadow-header: 0 8px 28px rgba(35, 49, 39, 0.08);
+  --shadow-dialog: 0 24px 80px rgba(35, 49, 39, 0.22);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-text: var(--text);
+  --color-text-soft: var(--text-soft);
+  --color-text-faint: var(--text-faint);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-signal: var(--signal);
+  --color-signal-ok: var(--signal-ok);
+  --color-signal-warn: var(--signal-warn);
+  --color-signal-error: var(--signal-error);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-blue: var(--chart-blue);
+  --color-chart-magenta: var(--chart-magenta);
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Code", "Roboto Mono", Consolas,
+    "Liberation Mono", monospace;
+}
+
+* {
+  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-width: thin;
+}
+
+html {
+  min-width: 320px;
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+}
+
+body {
+  min-width: 320px;
+  background-color: var(--background);
+  background-image:
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px),
+    radial-gradient(circle at 82% -12rem, var(--ambient-glow), transparent 34rem);
+  background-attachment: fixed;
+  background-size:
+    100% 32px,
+    auto;
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+:where(
+  a,
+  button,
+  input:not(.command-palette-input),
+  select,
+  textarea,
+  summary,
+  [tabindex]
+):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.command-palette-input,
+.command-palette-input:focus,
+.command-palette-input:focus-visible {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 0;
+  outline: none;
+  box-shadow: none;
+}
+
+:where(button, input, select, textarea) {
+  font: inherit;
+}
+
+:where(button:not(:disabled), summary) {
+  cursor: pointer;
+}
+
+dialog {
+  color: var(--text);
+}
+
+dialog::backdrop {
+  backdrop-filter: blur(5px);
+}
+
+.theme-toggle .theme-icon-moon {
+  display: none;
+}
+
+html[data-theme="light"] .theme-toggle .theme-icon-sun {
+  display: none;
+}
+
+html[data-theme="light"] .theme-toggle .theme-icon-moon {
+  display: block;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) .theme-toggle .theme-icon-sun {
+    display: none;
+  }
+
+  :root:not([data-theme]) .theme-toggle .theme-icon-moon {
+    display: block;
+  }
+}
+
+@keyframes terminal-cursor {
+  0%,
+  46% {
+    opacity: 1;
+  }
+
+  47%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--signal-ok) 45%, transparent);
+  }
+
+  50% {
+    box-shadow: 0 0 0 4px transparent;
+  }
+}
+
+.terminal-cursor {
+  animation: terminal-cursor 1.1s steps(1, end) infinite;
+}
+
+.status-pulse {
+  animation: status-pulse 2s ease-out infinite;
+}
+
+.maplibregl-ctrl button {
+  border-radius: 0;
+}
+
+.maplibregl-ctrl,
+.maplibregl-ctrl-attrib {
+  background: var(--map-control-bg) !important;
+  color: var(--text-soft) !important;
+}
+
+.maplibregl-ctrl a {
+  color: var(--accent) !important;
+}
+
+.maplibregl-ctrl-group {
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow-header) !important;
+}
+
+.maplibregl-ctrl button + button {
+  border-top-color: var(--border) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

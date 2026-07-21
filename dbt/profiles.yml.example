@@ -1,0 +1,10 @@
+running_signals:
+  target: dev
+  outputs:
+    dev:
+      type: databricks
+      catalog: "{{ env_var('DATABRICKS_CATALOG', 'running_signals') }}"
+      schema: "{{ env_var('DATABRICKS_GOLD_SCHEMA', 'gold') }}"
+      host: "{{ env_var('DATABRICKS_HOST') }}"
+      http_path: "{{ env_var('DATABRICKS_HTTP_PATH') }}"
+      token: "{{ env_var('DATABRICKS_TOKEN') }}"

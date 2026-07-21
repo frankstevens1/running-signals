@@ -1,0 +1,512 @@
+version: 2
+
+models:
+  - name: silver_dates
+    description: Completed calendar-day spine from the first observed Garmin date through the latest completed day.
+    columns:
+      - name: calendar_date
+        description: Calendar date grain for daily analytical rollups.
+        tests:
+          - not_null
+          - unique
+      - name: week_start_date
+        tests:
+          - not_null
+      - name: month_start_date
+        tests:
+          - not_null
+      - name: year_start_date
+        tests:
+          - not_null
+
+  - name: silver_runs
+    description: Canonical session-level running activity model derived from bronze Garmin FIT session messages and record coverage.
+    columns:
+      - name: run_id
+        tests:
+          - not_null
+          - unique
+      - name: activity_id
+        tests:
+          - not_null
+      - name: activity_date
+        tests:
+          - not_null
+      - name: garmin_recovery_hr
+        description: Heart-rate recovery drop in bpm, calculated as the latest recorded run heart rate minus the latest bronze FIT `recovery_hr` event value. Nullable when either value is absent or the recovery event payload is not numeric.
+      - name: avg_cadence
+        description: Average running cadence normalized to total steps per minute. Garmin FIT cadence is reported per leg and doubled in silver.
+      - name: max_cadence
+        description: Maximum running cadence normalized to total steps per minute. Garmin FIT cadence is reported per leg and doubled in silver.
+      - name: record_distance_coverage_ratio
+        description: Ratio of record-derived cumulative distance to session distance, used to evaluate whether per-record telemetry covers the run.
+      - name: gps_record_count
+        description: Count of per-record telemetry rows with latitude values, used to identify GPS-backed runs.
+
+  - name: silver_run_records
+    description: Cleaned per-record Garmin FIT telemetry with timestamps, elapsed seconds, pace, heart rate, cadence, altitude, coordinates, and H3 cells.
+    tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ["run_id", "record_timestamp"]
+    columns:
+      - name: run_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('silver_runs')
+                field: run_id
+      - name: record_timestamp
+        tests:
+          - not_null
+      - name: elapsed_seconds
+        tests:
+          - not_null
+      - name: record_index
+        tests:
+          - not_null
+      - name: cadence
+        description: Record cadence normalized to total steps per minute. Garmin FIT cadence is reported per leg and doubled in silver.
+      - name: running_cadence
+        description: Record cadence including fractional cadence, normalized to total steps per minute. Nullable when source cadence is absent.
+
+  - name: silver_health_days
+    description: Canonical daily Garmin health context derived from raw Garmin Connect API JSON payloads.
+    columns:
+      - name: calendar_date
+        description: Garmin health calendar date.
+        tests:
+          - not_null
+          - unique
+
+  - name: silver_weeks
+    description: Compatibility completed-week spine derived from the day-first silver foundation and session-level runs.
+    columns:
+      - name: week_start_date
+        description: First date of the completed calendar week.
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('silver_dates')
+                field: week_start_date
+      - name: week_end_date
+        tests:
+          - not_null
+      - name: is_completed_week
+        tests:
+          - not_null
+      - name: runs_per_week
+        tests:
+          - not_null
+      - name: weekly_distance_km
+        tests:
+          - not_null
+      - name: active_week_flag
+        tests:
+          - not_null
+      - name: missed_week_flag
+        tests:
+          - not_null
+
+  - name: mart_days
+    description: Primary daily training mart with run outcomes, health context, active-day flags, and rolling daily windows.
+    columns:
+      - name: calendar_date
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('silver_dates')
+                field: calendar_date
+      - name: run_count
+        tests:
+          - not_null
+      - name: distance_km
+        tests:
+          - not_null
+      - name: duration_seconds
+        tests:
+          - not_null
+      - name: active_day_flag
+        tests:
+          - not_null
+
+  - name: mart_weeks
+    description: Weekly rollup derived from mart_days, preserving completed-week consistency and volume outputs.
+    columns:
+      - name: week_start_date
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('silver_dates')
+                field: week_start_date
+      - name: week_end_date
+        tests:
+          - not_null
+      - name: runs_per_week
+        tests:
+          - not_null
+      - name: weekly_distance_km
+        tests:
+          - not_null
+      - name: active_week_flag
+        tests:
+          - not_null
+      - name: completed_day_count
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [7]
+
+  - name: mart_months
+    description: Calendar-month rollup derived strictly from mart_days.
+    columns:
+      - name: month_start_date
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('silver_dates')
+                field: month_start_date
+      - name: monthly_distance_km
+        tests:
+          - not_null
+
+  - name: mart_years
+    description: Calendar-year rollup derived strictly from mart_days.
+    columns:
+      - name: year_start_date
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('silver_dates')
+                field: year_start_date
+      - name: yearly_distance_km
+        tests:
+          - not_null
+
+  - name: signal_consistency
+    description: Weekly consistency compatibility signal sourced from the day-derived mart_weeks model.
+    columns:
+      - name: week_start_date
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('mart_weeks')
+                field: week_start_date
+
+  - name: signal_volume
+    description: Weekly volume compatibility signal sourced from the day-derived mart_weeks model.
+    columns:
+      - name: week_start_date
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('mart_weeks')
+                field: week_start_date
+
+  - name: signal_fitness
+    description: Run-level fitness indicators based on pace, heart rate, derived efficiency, and same-day Garmin health context.
+    columns:
+      - name: activity_id
+        description: Garmin activity identifier.
+        tests:
+          - not_null
+          - unique
+      - name: activity_date
+        description: Run calendar date.
+        tests:
+          - not_null
+      - name: hr_drift_pct
+        description: Run-level heart-rate drift, calculated as second-half segment efficiency divided by first-half segment efficiency minus one.
+      - name: rolling_4_run_hr_drift_pct
+        description: Rolling four-run average of heart-rate drift.
+
+  - name: mart_runs
+    description: Compatibility presentation-ready run-level metrics with same-day health context.
+    columns:
+      - name: activity_id
+        tests:
+          - not_null
+          - unique
+
+  - name: mart_running_signals
+    description: Compatibility run-level signal mart with day-derived weekly training context.
+    columns:
+      - name: activity_id
+        tests:
+          - not_null
+          - unique
+
+  - name: mart_weekly_training_features
+    description: Compatibility prediction-ready weekly feature and label table derived from mart_weeks.
+    columns:
+      - name: week_start_date
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('mart_weeks')
+                field: week_start_date
+
+  - name: mart_segment_resolutions
+    description: Configured metric and imperial segment lengths used to derive analytical run splits.
+    tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ["unit_system", "segment_length_value"]
+    columns:
+      - name: unit_system
+        description: Unit family used to label and select a segment resolution.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["metric", "imperial"]
+      - name: segment_length_value
+        description: Configured split length expressed in kilometres for metric rows or miles for imperial rows.
+        tests:
+          - not_null
+      - name: segment_length_m
+        description: Exact configured split length expressed canonically in metres.
+        tests:
+          - not_null
+      - name: segment_length_label
+        description: Stable human-readable label for the configured resolution.
+        tests:
+          - not_null
+      - name: is_canonical
+        description: Identifies the 250m resolution retained by session and fitness calculations.
+        tests:
+          - not_null
+
+  - name: mart_activity_records
+    description: Presentation-safe ordered activity telemetry used for complete route geometry and within-run charts.
+    tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ["run_id", "record_index"]
+    columns:
+      - name: run_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('silver_runs')
+                field: run_id
+      - name: activity_id
+        tests:
+          - not_null
+      - name: activity_date
+        tests:
+          - not_null
+      - name: record_index
+        description: One-based deterministic record order within the activity.
+        tests:
+          - not_null
+      - name: record_timestamp
+        tests:
+          - not_null
+      - name: elapsed_seconds
+        description: Seconds elapsed from the first retained record in the activity.
+        tests:
+          - not_null
+      - name: record_distance_m
+        description: Cumulative activity distance in canonical metres when Garmin provides it.
+      - name: position_lat_deg
+        description: Latitude in decimal degrees; nullable for records without valid GPS telemetry.
+      - name: position_long_deg
+        description: Longitude in decimal degrees; nullable for records without valid GPS telemetry.
+
+  - name: mart_run_segments
+    description: Configurable metric and imperial analytical splits with record intervals allocated proportionally across crossed distance boundaries.
+    tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              ["run_id", "unit_system", "segment_length_value", "segment_index"]
+    columns:
+      - name: run_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('silver_runs')
+                field: run_id
+      - name: unit_system
+        description: Metric or imperial unit family for the segment resolution.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["metric", "imperial"]
+      - name: segment_length_value
+        description: Configured split length in kilometres for metric rows or miles for imperial rows.
+        tests:
+          - not_null
+      - name: segment_length_m
+        description: Configured split length expressed canonically in metres.
+        tests:
+          - not_null
+      - name: segment_length_label
+        description: Human-readable resolution label such as 250 m or 0.25 mi.
+        tests:
+          - not_null
+      - name: is_canonical
+        description: True only for the metric 250m rows retained by established downstream calculations.
+        tests:
+          - not_null
+      - name: segment_index
+        description: One-based segment order within a run and configured resolution.
+        tests:
+          - not_null
+      - name: segment_start_boundary_m
+        description: Lower split boundary in canonical metres; movement after this point belongs to the segment, while distance zero belongs to segment 1.
+        tests:
+          - not_null
+      - name: segment_end_boundary_m
+        description: Inclusive upper split boundary in canonical metres.
+        tests:
+          - not_null
+      - name: segment_start_timestamp
+        description: Earliest interpolated timestamp allocated to the segment.
+        tests:
+          - not_null
+      - name: segment_end_timestamp
+        description: Latest interpolated timestamp allocated to the segment.
+        tests:
+          - not_null
+      - name: segment_distance_m
+        description: Sum of record-interval distance allocated to the segment, in metres.
+        tests:
+          - not_null
+      - name: segment_distance_km
+        description: Allocated segment distance expressed in kilometres.
+      - name: segment_distance_value
+        description: Allocated segment distance in kilometres for metric rows or miles for imperial rows.
+        tests:
+          - not_null
+      - name: segment_duration_seconds
+        description: Sum of elapsed record-interval time allocated proportionally by distance overlap; stationary time is assigned to the endpoint segment.
+        tests:
+          - not_null
+      - name: segment_pace_min_per_km
+        description: Allocated segment duration divided by allocated positive distance. Nullable for zero-distance segments.
+      - name: avg_speed_kmh
+        description: Allocated segment distance divided by allocated segment duration.
+      - name: avg_heart_rate
+        description: Weighted average of linearly interpolated record-interval heart rate within the segment.
+      - name: avg_running_cadence
+        description: Weighted average of linearly interpolated total-steps-per-minute cadence within the segment.
+      - name: min_altitude_m
+        description: Minimum enhanced altitude observed within the segment. Nullable when altitude telemetry is absent.
+      - name: max_altitude_m
+        description: Maximum enhanced altitude observed within the segment. Nullable when altitude telemetry is absent.
+      - name: elevation_change_m
+        description: Interpolated end-boundary altitude minus start-boundary altitude. Nullable when altitude telemetry is absent.
+      - name: segment_grade
+        description: Elevation change divided by positive segment distance in meters. Nullable when altitude telemetry or positive distance is absent.
+      - name: representative_h3_cell_resolution_8
+        description: Representative resolution-8 H3 telemetry cell for the analytical segment; stable route identity is calculated separately from legacy 250m buckets.
+      - name: record_count
+        description: Count of distinct record intervals contributing distance, duration, or telemetry to the segment.
+
+  - name: mart_route_clusters
+    description: One row per GPS-backed run with similarity-based, direction-specific route identity derived from the preserved legacy 250m H3 path and deterministic equal-distance record ordering.
+    columns:
+      - name: run_id
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('silver_runs')
+                field: run_id
+      - name: route_id
+        description: Stable route cluster identifier derived from the representative route signature and distance bucket.
+        tests:
+          - not_null
+      - name: route_representative_run_id
+        description: Earliest observed run in the route cluster.
+        tests:
+          - not_null
+      - name: route_match_similarity
+        description: Best route similarity score used to explain the run's cluster assignment.
+        tests:
+          - not_null
+      - name: route_distance_bucket_km
+        description: Representative route distance rounded to the nearest 0.5 km.
+        tests:
+          - not_null
+
+  - name: mart_run_sessions
+    description: One row per run with session outcomes, daily context, route identity, route summary, and recent training context.
+    columns:
+      - name: run_id
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('silver_runs')
+                field: run_id
+      - name: activity_id
+        tests:
+          - not_null
+      - name: activity_date
+        tests:
+          - not_null
+      - name: route_id
+        description: Similarity-based route cluster identifier when GPS-backed route geometry exists.
+      - name: route_representative_run_id
+        description: Earliest observed run for the assigned route cluster.
+      - name: route_match_similarity
+        description: Best route similarity score used to assign the run to its route cluster.
+
+  - name: mart_routes
+    description: One row per detected route profile with aggregate historical session outcomes and route characteristics.
+    columns:
+      - name: route_id
+        tests:
+          - not_null
+          - unique
+      - name: representative_route_centroid_latitude_deg
+        description: Mean valid GPS latitude from the route's representative run, used for route-map overview placement.
+      - name: representative_route_centroid_longitude_deg
+        description: Mean valid GPS longitude from the route's representative run, used for route-map overview placement.
+
+  - name: mart_route_prediction_features
+    description: One row per run-route observation with route features, recent training context, prior route context, and outcome labels.
+    columns:
+      - name: run_id
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('mart_run_sessions')
+                field: run_id
+      - name: route_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('mart_routes')
+                field: route_id
+      - name: label_avg_pace_min_per_km
+        description: Outcome label for descriptive prediction-readiness experiments.

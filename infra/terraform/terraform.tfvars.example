@@ -1,0 +1,33 @@
+# Copy this file to terraform.tfvars and edit the values for your machine.
+# terraform.tfvars is ignored by Git.
+
+# Hetzner Object Storage bucket name.
+raw_bucket_name = "running-signals-raw"
+
+# Hetzner Object Storage access keys.
+# Generate at: https://console.hetzner.com/projects -> Security -> S3 Credentials
+object_storage_access_key_id     = "<your-access-key-id>"
+object_storage_secret_access_key = "<your-secret-access-key>"
+
+# Hetzner Console project ID for the Cloudflare API TOKEN credential Account ID field.
+# Find it in the URL: https://console.hetzner.com/projects/<project-ID>
+object_storage_account_id = "<project-id>"
+
+# Separate from garmin/ so Databricks managed catalog storage never overlaps
+# the raw Garmin landing prefix.
+catalog_managed_storage_prefix = "__databricks_managed/running_signals"
+
+# Drop the auto-created running_signals.default schema during apply so only
+# intentional project schemas remain.
+drop_default_schema = true
+
+# Optional. Set this if you use a named Databricks CLI profile.
+databricks_profile = null
+
+# Set to true for the first apply if credential validation fails.
+# Set to false after confirming the storage credential works.
+skip_databricks_validation = false
+
+# Allow Databricks to update the storage credential when dependent
+# external locations already exist.
+databricks_storage_credential_force_update = true

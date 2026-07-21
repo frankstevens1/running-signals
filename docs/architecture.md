@@ -1,0 +1,180 @@
+# Architecture
+
+Running Signals uses a small lakehouse pipeline to turn Garmin running activity files and daily
+Garmin Connect health context into documented training signal tables.
+
+```text
+Garmin Connect
+    -> Python FIT and health JSON downloaders
+    -> Object storage raw FIT and health JSON landing zones
+    -> Databricks Unity Catalog external volume
+    -> Databricks bronze Delta tables
+    -> dbt silver and gold models
+    -> Supabase site read models
+    -> Next.js presentation layer
+```
+
+## Purpose
+
+The architecture is intentionally simple. Each layer has one job:
+
+- Python retrieves raw Garmin FIT files and daily health JSON payloads and lands them in object
+  storage.
+- Hetzner Object Storage keeps the recoverable raw files and JSON payloads.
+- Unity Catalog exposes those files to Databricks through a governed volume path.
+- Databricks parses FIT files and loads health JSON envelopes into bronze Delta tables with source
+  metadata.
+- dbt owns analytical modeling, tests, and presentation-ready tables.
+- Supabase serves small read-optimized `site_*` tables for the public Next.js presentation layer.
+
+This keeps extraction, storage, ingestion, transformation, and communication separate
+without introducing unnecessary orchestration.
+
+## Data Flow
+
+The Python downloader (`scripts/download_garmin_fit.py`) retrieves Garmin FIT files and writes them
+to Hetzner Object Storage with the Garmin activity id as the object name:
+
+```text
+s3://<bucket>/garmin/fit/{garmin_activity_id}.fit
+```
+
+The health downloader (`scripts/download_garmin_health.py`) retrieves daily Garmin Connect API
+payloads for HRV, resting heart rate, sleep, and heart-rate summaries. Each raw file is a recoverable
+JSON envelope:
+
+```text
+s3://<bucket>/garmin/health/daily/calendar_date=YYYY-MM-DD/{payload_type}.json
+```
+
+Databricks reads the same files through the external Unity Catalog volume created by Terraform:
+
+```text
+/Volumes/running_signals/bronze/raw_garmin/fit/{garmin_activity_id}.fit
+/Volumes/running_signals/bronze/raw_garmin/health/daily/calendar_date=YYYY-MM-DD/{payload_type}.json
+```
+
+The FIT bronze ingestion job parses each FIT file into three source-shaped entities:
+
+- `bronze.garmin_fit_sessions`
+- `bronze.garmin_fit_events`
+- `bronze.garmin_fit_records`
+
+The health bronze ingestion job loads daily Garmin Connect JSON envelopes into:
+
+- `bronze.garmin_health_daily_payloads`
+
+FIT bronze tables carry `run_id`, `garmin_activity_id`, source file metadata, and ingestion metadata.
+`run_date` is derived from the FIT session start time and is used as the Delta partition column. The
+health bronze table carries `calendar_date`, `payload_type`, raw JSON, source method, source file
+metadata, and ingestion metadata. It is partitioned by `calendar_date`.
+
+## Infrastructure
+
+Terraform in `infra/terraform` manages the Unity Catalog catalog,
+`bronze`, `silver`, and `gold` schemas, and the external location. The Hetzner Object Storage
+bucket and storage credential are configured manually (see `infra/terraform/README.md`).
+The raw Garmin FIT and health prefixes are external storage because files are produced
+outside Databricks and consumed by Databricks through Unity Catalog.
+
+See `infra/terraform/README.md` for the Hetzner Object Storage credential setup and
+post-apply checks.
+
+## Orchestration
+
+The Databricks Asset Bundle in `databricks/` defines paused serverless jobs for raw-to-bronze
+ingestion:
+
+- `garmin_fit_bronze_ingestion`
+- `garmin_health_bronze_ingestion`
+
+The FIT job entrypoint is `notebooks/jobs/garmin_fit_bronze_ingestion.py`; parsing, validation,
+metadata enrichment, and write behavior live under `ingest/garmin`.
+
+The health job loads the raw daily health JSON envelopes into
+`bronze.garmin_health_daily_payloads`. It compares source file size and modification time by
+`calendar_date` and `payload_type`, replacing changed rows and skipping unchanged payloads.
+
+The FIT ingestion job compares available FIT files with existing bronze session metadata. New or
+changed files are parsed and written. Unchanged files are skipped. If an already-ingested FIT file
+changes, the job deletes that `run_id` from all three bronze tables before appending replacement
+rows, making repeated runs idempotent without heavier orchestration.
+
+See `scripts/README.md` for FIT and health landing commands and the object storage landing smoke test.
+
+## Modeling
+
+dbt treats the bronze FIT and health tables as sources. The current modeled path is:
+
+```text
+bronze FIT sources -> silver_runs, silver_run_records
+bronze health JSON source -> silver_health_days
+silver_runs + silver_health_days -> silver_dates
+silver_dates + silver_runs + silver_health_days -> mart_days
+mart_days -> mart_weeks, mart_months, mart_years
+mart_weeks -> signal_consistency, signal_volume, mart_weekly_training_features
+silver_run_records -> mart_activity_records
+silver_run_records + mart_segment_resolutions -> mart_run_segments
+silver_runs + silver_run_records -> mart_route_clusters
+silver_runs + mart_days + mart_run_segments + mart_route_clusters -> mart_run_sessions
+mart_run_sessions -> mart_routes
+mart_run_sessions + mart_routes -> mart_route_prediction_features
+silver_runs + silver_health_days + mart_run_segments -> signal_fitness
+silver_runs + silver_health_days -> mart_runs
+signal_fitness + mart_weeks -> mart_running_signals
+```
+
+## Presentation Serving
+
+The Next.js site does not query Databricks during normal page rendering. After dbt builds the gold
+models, `scripts/sync_site_supabase.py` reloads a narrow set of Supabase `site_*` tables from the
+gold outputs. Those tables contain only presentation-safe fields used by the explorers, charts,
+status panels, and route maps. Route maps use the ordered telemetry from `mart_activity_records`;
+analytical segments remain split-level aggregates.
+
+Supabase is a serving cache, not the analytical source of truth. If a metric changes, the definition
+belongs in dbt gold first; the Supabase sync should only project that result into the shape required
+by the website.
+
+Silver models standardize date, run-level, per-record, and daily health context fields. The primary
+analytical foundation is `mart_days`; weekly, monthly, and yearly outputs roll up from that daily
+mart. Weekly signal models remain as compatibility outputs. Route clustering builds its legacy 250m
+H3 path directly from silver records, so accurate analytical split allocation and additional metric
+or imperial resolutions do not change route identity. Activity records provide full route geometry,
+while route, segment, and run-session marts support route and performance analysis. Health fields are
+descriptive context, not readiness or medical scoring.
+
+## Analytics Readiness
+
+The modeled outputs support four analytical uses without turning the project into a coaching
+product:
+
+- Monitoring: `mart_days`, `mart_weeks`, `mart_months`, and `mart_years` expose daily training
+  behavior and calendar rollups.
+- Visual analytics: `mart_runs`, `mart_run_sessions`, `mart_routes`, `mart_route_clusters`,
+  `mart_activity_records`, `mart_run_segments`, and `mart_running_signals` expose run, route,
+  record, segment, and signal views for portfolio communication.
+- Offline ML experimentation: `mart_route_prediction_features` and
+  `mart_weekly_training_features` provide transparent, versioned feature and label columns for
+  active baseline comparisons and validation experiments. No production model, forecast, or
+  performance result is claimed.
+- Agent Interface (in progress): a planned read-only MCP layer will expose bounded tools and
+  contextual resources over approved gold models. It will return typed evidence and visualization
+  intent for a consuming application to render; no production MCP endpoint is currently deployed.
+
+See `docs/data-model.md` and `dbt/models/models.yml` for grains, important columns, and tests.
+See `docs/layer-runbook.md` for the exact setup and refresh commands across raw, bronze, silver,
+and gold. See `docs/agent-interface.md` for the proposed MCP contract, ownership boundaries, and
+privacy constraints.
+
+## References
+
+- `scripts/README.md` for Garmin FIT and health download and object storage landing details.
+- `infra/terraform/README.md` for infrastructure setup and Unity Catalog bootstrap.
+- `docs/garmin-data-exploration.md` for exploratory FIT and health payload validation.
+- `docs/data-model.md` for bronze, silver, and gold model details.
+- [Databricks Unity Catalog cloud storage](https://docs.databricks.com/aws/en/connect/unity-catalog/cloud-storage)
+- [Databricks Unity Catalog volumes](https://docs.databricks.com/aws/en/volumes/)
+- [Databricks Asset Bundles](https://docs.databricks.com/aws/en/dev-tools/bundles/)
+- [dbt sources](https://docs.getdbt.com/docs/build/sources)
+- [Garmin FIT SDK](https://developer.garmin.com/fit/overview/)

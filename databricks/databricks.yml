@@ -1,0 +1,27 @@
+bundle:
+  name: running-signals
+
+include:
+  - resources/*.yml
+
+sync:
+  paths:
+    - ../ingest
+    - ../notebooks/jobs/garmin_fit_bronze_ingestion.py
+    - ../notebooks/jobs/garmin_health_bronze_ingestion.py
+
+variables:
+  catalog:
+    description: Unity Catalog catalog for Running Signals tables.
+    default: running_signals
+  garmin_fit_source_path:
+    description: S3A path backed by Hetzner Object Storage containing Garmin FIT files.
+    default: s3a://datafluent/garmin/fit
+  garmin_health_source_path:
+    description: S3A path backed by Hetzner Object Storage containing Garmin health JSON files.
+    default: s3a://datafluent/garmin/health/daily
+
+targets:
+  dev:
+    mode: development
+    default: true

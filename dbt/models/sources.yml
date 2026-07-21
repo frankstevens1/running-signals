@@ -1,0 +1,60 @@
+version: 2
+
+sources:
+  - name: garmin_raw
+    catalog: "{{ env_var('DATABRICKS_CATALOG') }}"
+    schema: "{{ env_var('DATABRICKS_BRONZE_SCHEMA', 'bronze') }}"
+    tables:
+      - name: garmin_fit_sessions
+        description: Bronze Garmin FIT session messages with one row per running activity.
+        columns:
+          - name: run_id
+            tests:
+              - not_null
+              - unique
+          - name: garmin_activity_id
+            tests:
+              - not_null
+          - name: run_date
+            tests:
+              - not_null
+
+      - name: garmin_fit_events
+        description: Bronze Garmin FIT event messages filtered to timer and recovery-heart-rate events.
+        columns:
+          - name: run_id
+            tests:
+              - not_null
+          - name: run_date
+            tests:
+              - not_null
+
+      - name: garmin_fit_records
+        description: Bronze Garmin FIT record messages with high-frequency activity telemetry.
+        columns:
+          - name: run_id
+            tests:
+              - not_null
+          - name: timestamp
+            tests:
+              - not_null
+          - name: run_date
+            tests:
+              - not_null
+
+      - name: garmin_health_daily_payloads
+        description: Bronze Garmin Connect daily health JSON payloads with one row per calendar date and endpoint payload type.
+        tests:
+          - unique_combination_of_columns:
+              arguments:
+                combination_of_columns: ["calendar_date", "payload_type"]
+        columns:
+          - name: calendar_date
+            tests:
+              - not_null
+          - name: payload_type
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ["hrv", "rhr", "sleep", "heart_rates"]
