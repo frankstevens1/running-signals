@@ -6,8 +6,9 @@ import { DataState } from "@/app/components/data-state";
 import { MetricCard } from "@/app/components/metric-card";
 import { ScrollReveal } from "@/app/components/motion-reveal";
 import { SectionHeading } from "@/app/components/section-heading";
+import { currentWeekToDate } from "@/app/lib/current-week";
 import { getDays, getWeeks } from "@/app/lib/data";
-import { formatDistance, formatInteger, formatNumber } from "@/app/lib/format";
+import { formatDate, formatDistance, formatInteger, formatNumber } from "@/app/lib/format";
 import { explorerPages } from "@/app/lib/page-metadata";
 import { getServerDistanceUnit } from "@/app/lib/server-distance-unit";
 import type { DayRollup } from "@/app/lib/types";
@@ -76,6 +77,10 @@ export default async function ConsistencyPage() {
     getServerDistanceUnit(),
   ]);
   const dailyContext = days.status === "ok" ? getDailyConsistencyContext(days.data) : null;
+  const currentWeek =
+    days.status === "ok"
+      ? currentWeekToDate(days.data, new Date().toISOString().slice(0, 10))
+      : null;
 
   return (
     <AppShell>
@@ -83,7 +88,7 @@ export default async function ConsistencyPage() {
         <SectionHeading
           eyebrow="mart_days and mart_weeks"
           title="Consistency signals"
-          description="Daily and weekly rollups describe training regularity through active days, active weeks, streak context, and missed weeks."
+          description="Daily rollups update through the latest completed day; weekly history remains limited to completed weeks."
           icon={explorerPages.consistency.icon}
         />
         <DataState result={days}>
@@ -97,10 +102,6 @@ export default async function ConsistencyPage() {
           {(data) => {
             const latest = data.at(-1);
             const activeWeeks = data.filter((week) => week.activeWeekFlag).length;
-            const averageWeeklyVolume =
-              data.length > 0
-                ? data.reduce((total, week) => total + week.weeklyDistanceKm, 0) / data.length
-                : null;
 
             return (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -111,21 +112,25 @@ export default async function ConsistencyPage() {
                   icon={CalendarDays}
                 />
                 <MetricCard
-                  label="Current active streak"
-                  value={formatInteger(latest?.activeWeekStreak)}
-                  detail="Completed-week streak from mart_weeks"
-                  icon={Flame}
-                />
-                <MetricCard
-                  label="Latest weekly volume"
-                  value={formatDistance(latest?.weeklyDistanceKm, unit)}
-                  detail={`${formatInteger(latest?.runsPerWeek)} runs in latest completed week`}
+                  label="Current week to date"
+                  value={formatDistance(currentWeek?.distanceKm, unit)}
+                  detail={
+                    currentWeek?.latestCompletedDate
+                      ? `${formatInteger(currentWeek.runCount)} runs across ${formatInteger(currentWeek.activeDays)} active days through ${formatDate(currentWeek.latestCompletedDate)}`
+                      : "No completed day has been published for this week yet."
+                  }
                   icon={Activity}
                 />
                 <MetricCard
-                  label="Average weekly volume"
-                  value={formatDistance(averageWeeklyVolume, unit)}
-                  detail="Mean distance across completed weeks returned"
+                  label="Completed-week streak"
+                  value={formatInteger(latest?.activeWeekStreak)}
+                  detail={`Through ${formatDate(latest?.weekEndDate)}`}
+                  icon={Flame}
+                />
+                <MetricCard
+                  label="Latest completed week"
+                  value={formatDistance(latest?.weeklyDistanceKm, unit)}
+                  detail={`${formatInteger(latest?.runsPerWeek)} runs in week ending ${formatDate(latest?.weekEndDate)}`}
                   icon={Activity}
                 />
               </div>
