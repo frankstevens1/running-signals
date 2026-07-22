@@ -8,7 +8,7 @@ import { ScrollReveal } from "@/app/components/motion-reveal";
 import { SectionHeading } from "@/app/components/section-heading";
 import { currentWeekToDate } from "@/app/lib/current-week";
 import { getDays, getWeeks } from "@/app/lib/data";
-import { formatDate, formatDistance, formatInteger, formatNumber } from "@/app/lib/format";
+import { formatDate, formatDecimal2, formatDistance, formatInteger } from "@/app/lib/format";
 import { explorerPages } from "@/app/lib/page-metadata";
 import { getServerDistanceUnit } from "@/app/lib/server-distance-unit";
 import type { DayRollup } from "@/app/lib/types";
@@ -70,17 +70,36 @@ function getDailyConsistencyContext(days: DayRollup[]): DailyConsistencyContext 
   };
 }
 
+function trendDelta(
+  current: number | null | undefined,
+  previous: number | null | undefined,
+): { direction: "up" | "down" | "neutral"; diff: number } | null {
+  if (current == null || previous == null) return null;
+  const diff = current - previous;
+  const direction =
+    diff > 0 ? ("up" as const) : diff < 0 ? ("down" as const) : ("neutral" as const);
+  return { direction, diff };
+}
+
 export default async function ConsistencyPage() {
   const [days, weeks, unit] = await Promise.all([
     getDays(371),
     getWeeks(52),
     getServerDistanceUnit(),
   ]);
-  const dailyContext = days.status === "ok" ? getDailyConsistencyContext(days.data) : null;
+
+  let priorDailyContext: DailyConsistencyContext | null = null;
+  let recentDailyContext: DailyConsistencyContext | null = null;
+  let dailyContext: DailyConsistencyContext | null = null;
+  if (days.status === "ok") {
+    dailyContext = getDailyConsistencyContext(days.data);
+    const midpoint = Math.floor(days.data.length / 2);
+    priorDailyContext = getDailyConsistencyContext(days.data.slice(0, midpoint));
+    recentDailyContext = getDailyConsistencyContext(days.data.slice(midpoint));
+  }
+  const today = new Date().toISOString().slice(0, 10);
   const currentWeek =
-    days.status === "ok"
-      ? currentWeekToDate(days.data, new Date().toISOString().slice(0, 10))
-      : null;
+    days.status === "ok" ? currentWeekToDate(days.data, today) : null;
 
   return (
     <AppShell>
@@ -101,7 +120,18 @@ export default async function ConsistencyPage() {
         <DataState result={weeks}>
           {(data) => {
             const latest = data.at(-1);
+            const penultimate = data.at(-2);
             const activeWeeks = data.filter((week) => week.activeWeekFlag).length;
+
+            const currentWeekTrend = trendDelta(
+              currentWeek?.distanceKm,
+              latest?.weeklyDistanceKm,
+            );
+
+            const weeklyDistanceTrend = trendDelta(
+              latest?.weeklyDistanceKm,
+              penultimate?.weeklyDistanceKm,
+            );
 
             return (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -120,6 +150,15 @@ export default async function ConsistencyPage() {
                       : "No completed day has been published for this week yet."
                   }
                   icon={Activity}
+                  trend={
+                    currentWeekTrend
+                      ? {
+                          direction: currentWeekTrend.direction,
+                          value: `${currentWeekTrend.diff > 0 ? "+" : ""}${formatDistance(Math.abs(currentWeekTrend.diff), unit)}`,
+                          label: "vs prior week",
+                        }
+                      : undefined
+                  }
                 />
                 <MetricCard
                   label="Completed-week streak"
@@ -132,6 +171,15 @@ export default async function ConsistencyPage() {
                   value={formatDistance(latest?.weeklyDistanceKm, unit)}
                   detail={`${formatInteger(latest?.runsPerWeek)} runs in week ending ${formatDate(latest?.weekEndDate)}`}
                   icon={Activity}
+                  trend={
+                    weeklyDistanceTrend
+                      ? {
+                          direction: weeklyDistanceTrend.direction,
+                          value: `${weeklyDistanceTrend.diff > 0 ? "+" : ""}${formatDistance(Math.abs(weeklyDistanceTrend.diff), unit)}`,
+                          label: "vs prior week",
+                        }
+                      : undefined
+                  }
                 />
               </div>
             );
@@ -139,30 +187,94 @@ export default async function ConsistencyPage() {
         </DataState>
         {dailyContext ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricCard
-              label="Longest daily run streak"
-              value={formatInteger(dailyContext.longestDailyRunStreak)}
-              detail="Consecutive active days in the loaded window"
-              icon={Flame}
-            />
-            <MetricCard
-              label="Average daily run streak"
-              value={formatNumber(dailyContext.averageDailyRunStreak)}
-              detail="Mean length across active-day runs"
-              icon={Activity}
-            />
-            <MetricCard
-              label="Longest training break"
-              value={formatInteger(dailyContext.longestTrainingBreak)}
-              detail="Consecutive completed days without a run"
-              icon={CalendarX}
-            />
-            <MetricCard
-              label="Average break length"
-              value={formatNumber(dailyContext.averageBreakLength)}
-              detail="Mean length across training breaks"
-              icon={CalendarDays}
-            />
+            {(() => {
+              const recent = recentDailyContext as DailyConsistencyContext;
+              const prior = priorDailyContext as DailyConsistencyContext;
+
+              const streakTrend = trendDelta(
+                recent.longestDailyRunStreak,
+                prior.longestDailyRunStreak,
+              );
+              const avgStreakTrend = trendDelta(
+                recent.averageDailyRunStreak,
+                prior.averageDailyRunStreak,
+              );
+              const breakTrend = trendDelta(
+                recent.longestTrainingBreak,
+                prior.longestTrainingBreak,
+              );
+              const avgBreakTrend = trendDelta(
+                recent.averageBreakLength,
+                prior.averageBreakLength,
+              );
+
+              return (
+                <>
+                  <MetricCard
+                    label="Longest daily run streak"
+                    value={formatInteger(dailyContext.longestDailyRunStreak)}
+                    detail="Consecutive active days in the loaded window"
+                    icon={Flame}
+                    trend={
+                      streakTrend
+                        ? {
+                            direction: streakTrend.direction,
+                            value: `${streakTrend.diff > 0 ? "+" : ""}${formatInteger(streakTrend.diff)}`,
+                            label: "vs prior window",
+                          }
+                        : undefined
+                    }
+                  />
+                  <MetricCard
+                    label="Average daily run streak"
+                    value={formatDecimal2(dailyContext.averageDailyRunStreak)}
+                    detail="Mean length across active-day runs"
+                    icon={Activity}
+                    trend={
+                      avgStreakTrend
+                        ? {
+                            direction: avgStreakTrend.direction,
+                            value: `${avgStreakTrend.diff > 0 ? "+" : ""}${formatDecimal2(Math.abs(avgStreakTrend.diff))}`,
+                            label: "vs prior window",
+                          }
+                        : undefined
+                    }
+                  />
+                  <MetricCard
+                    label="Longest training break"
+                    value={formatInteger(dailyContext.longestTrainingBreak)}
+                    detail="Consecutive completed days without a run"
+                    icon={CalendarX}
+                    trend={
+                      breakTrend
+                        ? {
+                            direction: breakTrend.direction,
+                            invert: true,
+                            value: `${breakTrend.diff > 0 ? "+" : ""}${formatInteger(Math.abs(breakTrend.diff))}`,
+                            label: "vs prior window",
+                          }
+                        : undefined
+                    }
+                  />
+                  <MetricCard
+                    label="Average break length"
+                    value={formatDecimal2(dailyContext.averageBreakLength)}
+                    detail="Mean length across training breaks"
+                    icon={CalendarDays}
+                    trend={
+                      avgBreakTrend
+                        ? {
+                            direction: avgBreakTrend.direction,
+                            invert: true,
+                            value: `${avgBreakTrend.diff > 0 ? "+" : ""}${formatDecimal2(Math.abs(avgBreakTrend.diff))}`,
+                            label: "vs prior window",
+                          }
+                        : undefined
+                    }
+                  />
+                </>
+              );
+            })()}
           </div>
         ) : null}
       </div>

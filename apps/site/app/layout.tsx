@@ -99,6 +99,7 @@ export default async function RootLayout({
       data-theme={initialTheme}
       data-distance-unit={initialDistanceUnit}
       suppressHydrationWarning
+      data-scroll-behavior="smooth"
     >
       <body className="min-h-full bg-(--background) font-sans text-(--text)">
         <Script

@@ -12,9 +12,20 @@ import {
 } from "@/app/components/trend-charts";
 import { getFitness } from "@/app/lib/data";
 import { speedFromKmh } from "@/app/lib/distance-unit";
-import { formatHeartRate, formatInteger, formatNumber, formatSignedPercent } from "@/app/lib/format";
+import { formatDecimal3, formatHeartRate, formatInteger, formatSignedPercent } from "@/app/lib/format";
 import { explorerPages } from "@/app/lib/page-metadata";
 import { getServerDistanceUnit } from "@/app/lib/server-distance-unit";
+
+function trendDelta(
+  current: number | null | undefined,
+  previous: number | null | undefined,
+): { direction: "up" | "down" | "neutral"; diff: number } | null {
+  if (current == null || previous == null) return null;
+  const diff = current - previous;
+  const direction =
+    diff > 0 ? ("up" as const) : diff < 0 ? ("down" as const) : ("neutral" as const);
+  return { direction, diff };
+}
 
 export default async function FitnessPage() {
   const [fitness, unit] = await Promise.all([getFitness(180), getServerDistanceUnit()]);
@@ -31,8 +42,24 @@ export default async function FitnessPage() {
         <DataState result={fitness}>
           {(data) => {
             const latest = data.at(-1);
+            const penultimate = data.at(-2);
             const recoveryCount = data.filter((point) => point.garminRecoveryHr !== null).length;
             const driftCount = data.filter((point) => point.hrDriftPct !== null).length;
+
+            const driftTrend =
+              latest && penultimate
+                ? trendDelta(latest.hrDriftPct, penultimate.hrDriftPct)
+                : null;
+
+            const hrTrend =
+              latest && penultimate
+                ? trendDelta(latest.avgHeartRate, penultimate.avgHeartRate)
+                : null;
+
+            const efficiencyTrend =
+              latest && penultimate
+                ? trendDelta(latest.efficiencyRatio, penultimate.efficiencyRatio)
+                : null;
 
             return (
               <div className="space-y-10">
@@ -42,22 +69,50 @@ export default async function FitnessPage() {
                     value={formatSignedPercent(latest?.hrDriftPct)}
                     detail="Second-half versus first-half efficiency"
                     icon={Gauge}
+                    trend={
+                      driftTrend
+                        ? {
+                            direction: driftTrend.direction,
+                            invert: (penultimate?.hrDriftPct ?? 0) > 0,
+                            value: formatSignedPercent(driftTrend.diff),
+                            label: "vs prior run",
+                          }
+                        : undefined
+                    }
                   />
                   <MetricCard
                     label="Latest avg HR"
                     value={formatHeartRate(latest?.avgHeartRate)}
                     detail={`Recovery HR on ${formatInteger(recoveryCount)} returned runs`}
                     icon={HeartPulse}
+                    trend={
+                      hrTrend
+                        ? {
+                            direction: hrTrend.direction,
+                            value: `${hrTrend.diff > 0 ? "+" : ""}${formatInteger(Math.round(hrTrend.diff))} bpm`,
+                            label: "vs prior run",
+                          }
+                        : undefined
+                    }
                   />
                   <MetricCard
                     label="Latest efficiency"
-                    value={formatNumber(
+                    value={formatDecimal3(
                       latest?.efficiencyRatio === null || latest?.efficiencyRatio === undefined
                         ? null
                         : speedFromKmh(latest.efficiencyRatio, unit),
                     )}
                     detail={`${unit === "mi" ? "mph" : "km/h"} per bpm; ${formatInteger(driftCount)} runs with drift`}
                     icon={Activity}
+                    trend={
+                      efficiencyTrend
+                        ? {
+                            direction: efficiencyTrend.direction,
+                            value: `${efficiencyTrend.diff > 0 ? "+" : ""}${formatDecimal3(Math.abs(efficiencyTrend.diff))}`,
+                            label: "vs prior run",
+                          }
+                        : undefined
+                    }
                   />
                 </div>
                 <div className="grid gap-6 xl:grid-cols-2">

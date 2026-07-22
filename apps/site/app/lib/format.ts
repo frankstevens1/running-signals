@@ -23,6 +23,26 @@ export function formatInteger(value: number | null | undefined): string {
   return integerFormat.format(value);
 }
 
+const decimal2Format = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+export function formatDecimal2(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "n/a";
+  return decimal2Format.format(value);
+}
+
+const decimal3Format = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 3,
+  maximumFractionDigits: 3,
+});
+
+export function formatDecimal3(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "n/a";
+  return decimal3Format.format(value);
+}
+
 export function formatDistance(
   value: number | null | undefined,
   unit: DistanceUnit = "km",

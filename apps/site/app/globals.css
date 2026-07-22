@@ -232,6 +232,25 @@ html[data-theme="light"] .theme-toggle .theme-icon-moon {
   }
 }
 
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.group\/marquee:hover .marquee-scroll {
+  display: inline-block;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  animation: marquee 8s linear infinite;
+}
+
+.group\/marquee:hover .marquee-scroll::after {
+  content: attr(data-text);
+  display: inline-block;
+  padding-left: 1em;
+}
+
 @keyframes terminal-cursor {
   0%,
   46% {
