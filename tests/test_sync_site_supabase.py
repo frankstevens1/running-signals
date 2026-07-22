@@ -251,15 +251,30 @@ def test_site_routes_export_includes_representative_route_centroids() -> None:
         if table_export.table_name == "site_routes"
     )
 
-    assert export.columns[-2:] == (
+    assert export.columns[-3:] == (
         "representative_route_centroid_latitude_deg",
         "representative_route_centroid_longitude_deg",
+        "city_grid_bucket",
     )
 
     statement = export.statement(databricks_config())
 
     assert "representative_route_centroid_latitude_deg" in statement
     assert "representative_route_centroid_longitude_deg" in statement
+    assert "city_grid_bucket" in statement
+
+
+def test_site_weeks_export_includes_avg_run_distance_km() -> None:
+    export = next(
+        table_export
+        for table_export in sync_site_supabase.EXPORTS
+        if table_export.table_name == "site_weeks"
+    )
+
+    assert "avg_run_distance_km" in export.columns
+
+    statement = export.statement(databricks_config())
+    assert "avg_run_distance_km" in statement
 
 
 def test_site_route_segments_export_includes_resolution_and_detail_columns() -> None:
@@ -364,3 +379,211 @@ def test_map_profile_records_migration_samples_in_the_database() -> None:
 
     assert "create or replace function public.site_map_profile_records" in migration
     assert "row_number() over (order by record_index)" in migration
+
+
+def test_route_city_grid_bucket_migration_adds_nullable_text_column() -> None:
+    migration = (
+        Path(__file__).parents[1]
+        / "supabase/migrations/202607220001_site_routes_city_grid_bucket.sql"
+    ).read_text()
+
+    assert "alter table public.site_routes" in migration
+    assert "add column city_grid_bucket text" in migration
+
+
+def test_weeks_avg_run_distance_migration_adds_nullable_column() -> None:
+    migration = (
+        Path(__file__).parents[1]
+        / "supabase/migrations/202607220002_site_weeks_avg_run_distance_km.sql"
+    ).read_text()
+
+    assert "alter table public.site_weeks" in migration
+    assert "add column avg_run_distance_km double precision" in migration
+
+
+def test_fingerprint_statement_wraps_export_sql_verbatim() -> None:
+    wrapped = sync_site_supabase.fingerprint_statement("select run_id from runs")
+
+    assert "count(*) as row_count" in wrapped
+    assert "xxhash64(*)" in wrapped
+    assert "decimal(38, 0)" in wrapped
+    assert "from (select run_id from runs) as export_rows" in wrapped
+
+
+def test_plan_sync_skips_unchanged_and_syncs_changed_tables() -> None:
+    fingerprints: dict[str, sync_site_supabase.Fingerprint | None] = {
+        "site_runs": {"row_count": 3, "hash_sum": "111"},
+        "site_routes": {"row_count": 2, "hash_sum": "222"},
+    }
+    stored = {
+        "site_runs": {"row_count": 3, "hash_sum": "111"},
+        "site_routes": {"row_count": 2, "hash_sum": "999"},
+    }
+
+    changed = sync_site_supabase.plan_sync(fingerprints, stored, force_full=False)
+    changed_names = {table_export.table_name for table_export in changed}
+
+    assert "site_runs" not in changed_names
+    assert "site_routes" in changed_names
+    # Tables without a current fingerprint always sync.
+    assert "site_days" in changed_names
+
+
+def test_plan_sync_forces_failed_fingerprints_and_full_flag() -> None:
+    fingerprints: dict[str, sync_site_supabase.Fingerprint | None] = {
+        "site_runs": None,
+    }
+
+    changed = sync_site_supabase.plan_sync(fingerprints, {}, force_full=False)
+    assert "site_runs" in {table_export.table_name for table_export in changed}
+
+    full = sync_site_supabase.plan_sync({}, {}, force_full=True)
+    assert len(full) == len(sync_site_supabase.EXPORTS)
+
+
+class FakeCopy:
+    def __init__(self) -> None:
+        self.rows: list[list[object]] = []
+
+    def __enter__(self) -> FakeCopy:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> Literal[False]:
+        return False
+
+    def write_row(self, row: list[object]) -> None:
+        self.rows.append(row)
+
+
+class FakeCursor:
+    def __init__(self, copy: FakeCopy | None = None) -> None:
+        self.copy_obj = copy
+        self.executed: list[tuple[object, object]] = []
+
+    def __enter__(self) -> FakeCursor:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> Literal[False]:
+        return False
+
+    def copy(self, statement: object) -> FakeCopy:
+        assert self.copy_obj is not None
+        assert "Identifier('site_runs')" in str(statement)
+        assert "from stdin" in str(statement)
+        return self.copy_obj
+
+    def execute(self, query: object, params: object = None) -> None:
+        self.executed.append((query, params))
+
+    def fetchone(self) -> None:
+        return None
+
+
+class FakeConnection:
+    def __init__(self, copy: FakeCopy | None = None) -> None:
+        self.cursor_obj = FakeCursor(copy)
+
+    def cursor(self) -> FakeCursor:
+        return self.cursor_obj
+
+
+def test_copy_rows_streams_batches_through_copy() -> None:
+    fake_copy = FakeCopy()
+    connection = FakeConnection(fake_copy)
+    table_export = next(
+        export
+        for export in sync_site_supabase.EXPORTS
+        if export.table_name == "site_runs"
+    )
+    batches = iter(
+        [
+            [
+                {"run_id": "run-1", "activity_id": "a1"},
+                {"run_id": "run-2", "activity_id": "a2"},
+            ],
+            [{"run_id": "run-3", "activity_id": "a3"}],
+        ]
+    )
+    progress: list[int] = []
+
+    loaded = sync_site_supabase.copy_rows(
+        connection,  # type: ignore[arg-type]
+        table_export,
+        batches,
+        on_rows=progress.append,
+    )
+
+    assert loaded == 3
+    assert progress == [2, 3]
+    assert [row[0] for row in fake_copy.rows] == ["run-1", "run-2", "run-3"]
+    # Every COPY row carries the full export column list in order.
+    assert all(len(row) == len(table_export.columns) for row in fake_copy.rows)
+
+
+def test_upsert_metadata_uses_on_conflict() -> None:
+    connection = FakeConnection()
+
+    sync_site_supabase.upsert_metadata(
+        connection,  # type: ignore[arg-type]
+        "row_counts",
+        {"site_runs": 3},
+    )
+
+    assert len(connection.cursor_obj.executed) == 1
+    query, params = connection.cursor_obj.executed[0]
+    assert "on conflict (metadata_key) do update" in str(query)
+    assert params is not None and params[0] == "row_counts"  # type: ignore[index]
+
+
+def test_render_progress_formats_determinate_and_indeterminate() -> None:
+    assert sync_site_supabase.render_progress(50, 200) == (
+        "|#####---------------| 25% 50/200 rows"
+    )
+    assert sync_site_supabase.render_progress(200, 200).startswith(
+        "|####################| 100%"
+    )
+    assert sync_site_supabase.render_progress(7, None) == "7 rows"
+    assert sync_site_supabase.render_progress(7, 0) == "7 rows"
+
+
+def test_progress_reporter_plain_mode_prints_info_only(capsys: pytest.CaptureFixture[str]) -> None:
+    reporter = sync_site_supabase.ProgressReporter(use_tty=False)
+
+    reporter.status("transient")
+    reporter.info("done")
+
+    captured = capsys.readouterr()
+    assert captured.out == "done\n"
+
+
+def test_stream_query_batches_validates_total_row_count(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        sync_site_supabase,
+        "submit_statement",
+        lambda config, statement: {
+            "status": {"state": "SUCCEEDED"},
+            "manifest": {
+                "total_row_count": 2,
+                "schema": {"columns": [{"name": "run_id"}]},
+            },
+            "result": {"data_array": [["run-1"]]},
+        },
+    )
+
+    total, batches = sync_site_supabase.stream_query_batches(
+        databricks_config(), "select records"
+    )
+
+    assert total == 2
+    with pytest.raises(RuntimeError, match="expected 2 rows, fetched 1"):
+        list(batches)

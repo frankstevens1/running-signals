@@ -28,53 +28,6 @@ def normalize_s3_prefix(prefix: str) -> str:
     return "/".join(part for part in prefix.strip().split("/") if part)
 
 
-DEFAULT_OBJECT_STORAGE_ENDPOINT_URL = "https://nbg1.your-objectstorage.com"
-DEFAULT_OBJECT_STORAGE_REGION = "nbg1"
-
-
-def _default_s3_client(
-    endpoint_url: str | None = None,
-    access_key_id: str | None = None,
-    secret_access_key: str | None = None,
-    region_name: str | None = None,
-) -> Any:
-    try:
-        import boto3
-        from botocore.client import Config
-    except ImportError as exc:
-        raise ImportError(
-            "boto3 is required for S3-compatible object storage. Install project dependencies first."
-        ) from exc
-
-    resolved_endpoint = (
-        endpoint_url
-        or os.getenv("OBJECT_STORAGE_ENDPOINT_URL")
-        or DEFAULT_OBJECT_STORAGE_ENDPOINT_URL
-    )
-    resolved_access_key = access_key_id or os.getenv("OBJECT_STORAGE_ACCESS_KEY_ID") or ""
-    resolved_secret_key = secret_access_key or os.getenv("OBJECT_STORAGE_SECRET_ACCESS_KEY") or ""
-    resolved_region = (
-        region_name
-        or os.getenv("OBJECT_STORAGE_REGION")
-        or DEFAULT_OBJECT_STORAGE_REGION
-    )
-
-    return boto3.client(
-        "s3",
-        endpoint_url=resolved_endpoint,
-        aws_access_key_id=resolved_access_key,
-        aws_secret_access_key=resolved_secret_key,
-        region_name=resolved_region,
-        config=Config(
-            signature_version="s3v4",
-            s3={
-                "payload_signing_enabled": False,
-                "addressing_style": "virtual",
-            },
-        ),
-    )
-
-
 def build_s3_fit_key(activity_id: str, prefix: str = "garmin/fit") -> str:
     normalized_activity_id = str(activity_id).strip()
 
@@ -136,9 +89,6 @@ class S3GarminFitStore:
         bucket: str,
         prefix: str = "garmin/fit",
         client: Any | None = None,
-        endpoint_url: str | None = None,
-        access_key_id: str | None = None,
-        secret_access_key: str | None = None,
         region_name: str | None = None,
     ) -> None:
         if not bucket.strip():
@@ -146,12 +96,18 @@ class S3GarminFitStore:
 
         self.bucket = bucket.strip()
         self.prefix = normalize_s3_prefix(prefix)
-        self.client = client or _default_s3_client(
-            endpoint_url=endpoint_url,
-            access_key_id=access_key_id,
-            secret_access_key=secret_access_key,
-            region_name=region_name,
-        )
+        self.client = client or self._default_client(region_name)
+
+    def _default_client(self, region_name: str | None) -> Any:
+        try:
+            import boto3
+        except ImportError as exc:
+            raise ImportError(
+                "boto3 is required for --destination s3. Install project dependencies first."
+            ) from exc
+
+        resolved_region_name = region_name or os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION")
+        return boto3.client("s3", region_name=resolved_region_name)
 
     def key_for_activity_id(self, activity_id: str) -> str:
         return build_s3_fit_key(activity_id=activity_id, prefix=self.prefix)

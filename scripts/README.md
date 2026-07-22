@@ -11,7 +11,7 @@ documents the required execution order.
 
 Downloads Garmin running activities as raw `.fit` files.
 
-S3-compatible object storage (Hetzner) is the production destination. Files are written using this object layout:
+S3 is the production destination. Files are written using this object layout:
 
 ```text
 s3://<bucket>/garmin/fit/{garmin_activity_id}.fit
@@ -26,7 +26,7 @@ Modes:
   existing `.fit` file.
 - `range-overwrite`: deletes existing `.fit` files in the configured destination
   scope, then downloads only running activities in the specified date range. For
-  object storage, deletion is limited to keys under the configured prefix.
+  S3, deletion is limited to keys under the configured prefix.
 
 Examples:
 
@@ -39,22 +39,20 @@ uv run python scripts/download_garmin_fit.py --destination local --mode range-ov
 Garmin credentials are read from the token store when available. If stored tokens
 are unavailable, the underlying client prompts for Garmin credentials.
 
-S3-compatible object storage configuration is read from CLI arguments first, then from the repository
+S3 configuration is read from CLI arguments first, then from the repository
 `.env` file or shell environment:
 
 - `GARMIN_FIT_S3_BUCKET`
 - `GARMIN_FIT_S3_PREFIX`, defaulting to `garmin/fit`
-- `OBJECT_STORAGE_ENDPOINT_URL`, defaulting to `https://nbg1.your-objectstorage.com`
-- `OBJECT_STORAGE_ACCESS_KEY_ID`
-- `OBJECT_STORAGE_SECRET_ACCESS_KEY`
-- `OBJECT_STORAGE_REGION`, defaulting to `nbg1`
+- `AWS_REGION`, defaulting to the AWS SDK/environment default when unset
+- `AWS_PROFILE`, when using an AWS IAM Identity Center profile
 
 ## `download_garmin_health.py`
 
 Downloads daily Garmin Connect health JSON payloads for HRV, resting heart rate,
 sleep, and heart-rate summaries.
 
-S3-compatible object storage is the production destination. Files are written as recoverable JSON
+S3 is the production destination. Files are written as recoverable JSON
 envelopes using this object layout:
 
 ```text
@@ -81,15 +79,13 @@ uv run python scripts/download_garmin_health.py --destination s3 --mode range-ov
 uv run python scripts/download_garmin_health.py --destination local --mode incremental --start-date 2026-06-01 --end-date 2026-06-07
 ```
 
-S3-compatible object storage configuration is read from CLI arguments first, then from the repository
+S3 configuration is read from CLI arguments first, then from the repository
 `.env` file or shell environment:
 
 - `GARMIN_HEALTH_S3_BUCKET`, falling back to `GARMIN_FIT_S3_BUCKET`
 - `GARMIN_HEALTH_S3_PREFIX`, defaulting to `garmin/health/daily`
-- `OBJECT_STORAGE_ENDPOINT_URL`, defaulting to `https://nbg1.your-objectstorage.com`
-- `OBJECT_STORAGE_ACCESS_KEY_ID`
-- `OBJECT_STORAGE_SECRET_ACCESS_KEY`
-- `OBJECT_STORAGE_REGION`, defaulting to `nbg1`
+- `AWS_REGION`, defaulting to the AWS SDK/environment default when unset
+- `AWS_PROFILE`, when using an AWS IAM Identity Center profile
 
 ## `sync_site_supabase.py`
 
@@ -101,11 +97,21 @@ uv run python scripts/sync_site_supabase.py --dry-run
 uv run python scripts/sync_site_supabase.py
 ```
 
-The sync is a full snapshot refresh, not an append-only import: each destination table is
-copied to a temporary staging table in 10,000-row batches, checked, then atomically replaced.
-If the Supabase connection drops, the affected table is retried from the full snapshot and the
-previous live table remains available until a replacement commits. Tune a constrained connection
-with `--batch-size 5000`; use `--load-attempts 5` when transient database disconnects are expected.
+The sync is incremental by default. Before fetching, the script computes a content fingerprint per
+export (`count(*)` plus a sum of whole-row `xxhash64` hashes over the exact export query) and
+compares it with the fingerprint stored in Supabase `site_metadata.export_fingerprints`. Unchanged
+tables are skipped entirely — no download, no truncate, no reload — so re-running after a dbt build
+that rewrote identical data finishes in seconds. Changed tables stream from Databricks in chunks
+straight into Postgres via `COPY`, so large tables are never buffered in memory and load far faster
+than row-by-row inserts. All changes commit in a single transaction, so the site always sees a
+consistent snapshot and failures roll back cleanly.
+
+Flags:
+
+- `--dry-run` prints which tables would sync or be skipped without writing to Supabase.
+- `--full` forces a complete reload of every table, ignoring stored fingerprints.
+- `--no-progress` disables the interactive per-table progress bar (plain log lines; also the
+  automatic behavior when stdout is not a TTY).
 
 Configuration is read from the repository `.env` file or shell environment:
 
@@ -114,7 +120,6 @@ Configuration is read from the repository `.env` file or shell environment:
 - `DATABRICKS_HTTP_PATH`
 - `DATABRICKS_CATALOG`
 - `DATABRICKS_GOLD_SCHEMA`
-- `DATABRICKS_TABLE_SUFFIX`, defaulting to `__pre_sprint3`
 
 For local development, `SUPABASE_DB_URL` is not required. The script defaults to the Supabase CLI
 database at `postgresql://postgres:postgres@127.0.0.1:54322/postgres`. For hosted Supabase, set
@@ -123,35 +128,36 @@ database at `postgresql://postgres:postgres@127.0.0.1:54322/postgres`. For hoste
 `SUPABASE_URL` and `SUPABASE_ANON_KEY` are site runtime variables and belong in `apps/site/.env.local`
 or the site deployment environment, not in the root operational `.env`.
 
-## Object Storage Credentials
+## AWS Credentials For S3 Downloads
 
-Hetzner Object Storage uses access key / secret key pairs, not AWS IAM.
-
-Generate credentials at:
-
-1. Open [Hetzner Console](https://console.hetzner.com/) and select your project.
-2. Go to **Security -> S3 Credentials**.
-3. Click **Generate credentials**, enter a description, and copy the keys.
-4. Set `OBJECT_STORAGE_ACCESS_KEY_ID` and `OBJECT_STORAGE_SECRET_ACCESS_KEY` in `.env`.
-
-Local smoke tests:
+Local smoke tests may use an AWS IAM Identity Center profile:
 
 ```bash
-uv run python scripts/download_garmin_health.py --destination s3 --mode incremental
+aws sso login --profile running-signals-dev
+AWS_PROFILE=running-signals-dev uv run python scripts/download_garmin_health.py --destination s3 --mode incremental
 ```
 
-For unattended automation (GitHub Actions, scheduled jobs), pass the access key and
-secret key as secrets to the job runtime. Hetzner credentials do not expire unless
-you revoke them in the Console.
+This is intentionally a manual workflow. SSO tokens expire and can fail with:
+
+```text
+botocore.exceptions.TokenRetrievalError: Error when retrieving token from sso: Token has expired and refresh failed
+```
+
+Do not use an SSO-backed `AWS_PROFILE` for unattended Garmin downloads. Automation should use
+short-lived, automatically refreshed, non-interactive credentials, preferably GitHub Actions OIDC
+assuming a scoped AWS IAM role. Running inside AWS with an instance, task, or Lambda role is also
+acceptable. A dedicated IAM user access key is a fallback only if the policy is tightly scoped to the
+raw Garmin landing prefixes and the key is rotated.
 
 Garmin authentication is a separate automation concern. For production refresh jobs, pass a valid,
 writable token store with `--tokenstore` from a secret-backed path outside the repository so refreshed
 tokens can be persisted. Alternatively, provide non-interactive `GARMIN_EMAIL` and `GARMIN_PASSWORD`
 values through the runtime secret manager.
 
-## Object Storage Landing Smoke Test
+## S3 Landing Smoke Test
 
-Run this after `infra/terraform` has successfully created the external volume.
+Run this after `infra/terraform` has successfully created the S3 bucket and
+Databricks external volume.
 
 From `infra/terraform`, confirm the expected volume output exists:
 
@@ -165,21 +171,20 @@ Expected:
 "/Volumes/running_signals/bronze/raw_garmin/fit"
 ```
 
-Export the object storage settings from the Terraform outputs:
+Export the S3 settings from Terraform:
 
 ```bash
 export GARMIN_FIT_S3_BUCKET="$(terraform output -raw raw_bucket_name)"
 export GARMIN_FIT_S3_PREFIX="garmin/fit"
-export OBJECT_STORAGE_ENDPOINT_URL="https://nbg1.your-objectstorage.com"
-export OBJECT_STORAGE_ACCESS_KEY_ID="<your-access-key>"
-export OBJECT_STORAGE_SECRET_ACCESS_KEY="<your-secret-key>"
-export OBJECT_STORAGE_REGION="nbg1"
+export AWS_PROFILE="running-signals-dev"
+export AWS_REGION="eu-central-1"
 ```
 
-Verify access with the MinIO Client or `s3cmd`:
+Verify AWS access before calling Garmin:
 
 ```bash
-mc ls "nbg1/${GARMIN_FIT_S3_BUCKET}/"
+aws sts get-caller-identity
+aws s3 ls "s3://${GARMIN_FIT_S3_BUCKET}/"
 ```
 
 Run a small initial landing using a date range with one or a few known runs:
@@ -200,7 +205,7 @@ rebuilds, not routine refreshes.
 Confirm files landed:
 
 ```bash
-mc ls "nbg1/${GARMIN_FIT_S3_BUCKET}/garmin/fit/"
+aws s3 ls "s3://${GARMIN_FIT_S3_BUCKET}/garmin/fit/"
 ```
 
 Then test incremental mode:
@@ -211,7 +216,7 @@ uv run python scripts/download_garmin_fit.py \
   --mode incremental
 ```
 
-After the object storage landing works, run the Databricks bronze ingestion jobs:
+After the S3 landing works, run the Databricks bronze ingestion jobs:
 
 ```bash
 cd databricks

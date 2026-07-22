@@ -50,7 +50,12 @@ representative_route_centroids as (
 select
     routes.*,
     centroids.representative_route_centroid_latitude_deg,
-    centroids.representative_route_centroid_longitude_deg
+    centroids.representative_route_centroid_longitude_deg,
+    concat(
+        cast(round(centroids.representative_route_centroid_latitude_deg * 4) / 4.0 as string),
+        ', ',
+        cast(round(centroids.representative_route_centroid_longitude_deg * 4) / 4.0 as string)
+    ) as city_grid_bucket
 from route_summaries as routes
 left join representative_route_centroids as centroids
     on routes.route_id = centroids.route_id

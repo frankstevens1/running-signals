@@ -161,7 +161,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--destination",
         choices=["local", "s3"],
         default="s3",
-        help="Where to save downloaded health JSON files. Defaults to s3 (S3-compatible object storage).",
+        help="Where to save downloaded health JSON files. Defaults to s3.",
     )
 
     parser.add_argument(
@@ -176,9 +176,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=os.getenv("GARMIN_HEALTH_S3_BUCKET") or os.getenv("GARMIN_FIT_S3_BUCKET"),
         help=(
             "S3 bucket for health JSON files. Defaults to GARMIN_HEALTH_S3_BUCKET, "
-            "then GARMIN_FIT_S3_BUCKET. "
-            "Credentials read from OBJECT_STORAGE_ACCESS_KEY_ID, "
-            "OBJECT_STORAGE_SECRET_ACCESS_KEY, and OBJECT_STORAGE_ENDPOINT_URL."
+            "then GARMIN_FIT_S3_BUCKET."
         ),
     )
 

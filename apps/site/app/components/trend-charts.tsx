@@ -436,13 +436,7 @@ function getEfficiencyDomain(points: FitnessPoint[]): NumericDomain {
 }
 
 function getCompleteStructureWeeks(weeks: WeekRollup[]): WeeklyStructureDatum[] {
-  return weeks
-    .filter((week) => week.activeDays + week.missedDays === 7)
-    .map((week) => ({
-      ...week,
-      avgRunDistanceKm:
-        week.runsPerWeek > 0 ? week.weeklyDistanceKm / week.runsPerWeek : null,
-    }));
+  return weeks.map((week) => ({ ...week, avgRunDistanceKm: week.avgRunDistanceKm }));
 }
 
 function getWeeklyVolumeBreakdown(weeks: WeekRollup[]): WeeklyVolumeDatum[] {
@@ -528,7 +522,7 @@ const CHART_INFO = {
     title: "Speed per heartbeat",
     definition:
       "Efficiency ratio is session speed in kilometers per hour divided by average heart rate. The rolling 4-run line averages the current run and previous three runs.",
-    source: "dbt signal_fitness, from silver_runs speed_kmh and avg_heart_rate.",
+    source: "dbt signal_fitness, from runs speed_kmh and avg_heart_rate.",
     interpretation: [
       "Higher values mean more speed for each average heartbeat in that run.",
       "A rising rolling line can suggest improving aerobic efficiency when runs are otherwise comparable.",
@@ -543,7 +537,7 @@ const CHART_INFO = {
     title: "Pace at comparable heart rate",
     definition:
       "Each point is a run's average pace plotted over time, grouped by average-heart-rate band. Pace is minutes per kilometer, so lower values are faster.",
-    source: "dbt signal_fitness, from silver_runs avg_pace_min_per_km and avg_heart_rate.",
+    source: "dbt signal_fitness, from runs avg_pace_min_per_km and avg_heart_rate.",
     interpretation: [
       "Compare points within the same heart-rate band. Faster paces at similar average heart rate are generally favorable.",
       "The trend line summarizes the selected visible points. A downward trend means faster pace at comparable heart rate.",

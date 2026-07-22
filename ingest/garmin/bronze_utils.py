@@ -1,18 +1,10 @@
 from __future__ import annotations
 
-import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
 import pandas as pd
-
-
-S3A_PREFIX = "s3a://"
-
-
-def is_remote_source(source_path: str) -> bool:
-    return source_path.startswith(S3A_PREFIX)
 
 
 def normalize_source_path(source_path: str | Path) -> Path:
@@ -24,23 +16,7 @@ def normalize_source_path(source_path: str | Path) -> Path:
     if text.startswith("file:/"):
         return Path(text.removeprefix("file:"))
 
-    if text.startswith(S3A_PREFIX):
-        return Path(text)
-
     return Path(text)
-
-
-def download_to_tempfile(content: bytes, suffix: str) -> Path:
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-    tmp.write(content)
-    tmp.close()
-    return Path(tmp.name)
-
-
-def cleanup_tempfiles(paths: list[Path]) -> None:
-    for path in paths:
-        if path.exists():
-            path.unlink()
 
 
 def normalize_datetime(value: Any) -> datetime | None:

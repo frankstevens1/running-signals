@@ -10,6 +10,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -33,6 +34,9 @@ DATABRICKS_POLL_INTERVAL_SECONDS = 1.0
 DATABRICKS_STATEMENT_TIMEOUT_SECONDS = 300.0
 DATABRICKS_TERMINAL_STATES = frozenset({"SUCCEEDED", "FAILED", "CANCELED", "CLOSED"})
 DATABRICKS_RETRYABLE_HTTP_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+FINGERPRINT_METADATA_KEY = "export_fingerprints"
+PROGRESS_BAR_WIDTH = 20
+Fingerprint = dict[str, object]
 
 
 @dataclass(frozen=True)
@@ -481,12 +485,11 @@ def validate_external_link(link: object) -> dict[str, Any]:
     return cast(dict[str, Any], link)
 
 
-def fetch_result_rows(
+def iter_result_batches(
     config: DatabricksConfig,
     first_result: object,
     columns: list[str],
-) -> list[JsonRow]:
-    rows: list[JsonRow] = []
+) -> Iterator[list[JsonRow]]:
     current_result = result_payload(first_result)
     visited_chunk_links: set[str] = set()
     visited_chunk_indexes: set[int] = set()
@@ -532,21 +535,21 @@ def fetch_result_rows(
                             f"expected {expected} rows, fetched {len(chunk_rows)}."
                         )
 
-                rows.extend(chunk_rows)
+                yield chunk_rows
 
                 candidate_next_link = link.get("next_chunk_internal_link")
                 if candidate_next_link:
                     next_chunk_link = candidate_next_link
         elif "data_array" in current_result:
             # Defensive compatibility if a workspace returns an inline chunk.
-            rows.extend(rows_from_data_array(current_result, columns))
+            yield rows_from_data_array(current_result, columns)
         elif current_result:
             raise RuntimeError(
                 "Databricks result contained neither external links nor inline data."
             )
 
         if next_chunk_link is None or next_chunk_link == "":
-            return rows
+            return
 
         if not isinstance(next_chunk_link, str) or not next_chunk_link.startswith("/"):
             raise RuntimeError("Databricks result chunk link must be host-relative.")
@@ -563,7 +566,26 @@ def fetch_result_rows(
         current_result = result_payload(chunk_response)
 
 
-def query_databricks(config: DatabricksConfig, statement: str) -> list[JsonRow]:
+def fetch_result_rows(
+    config: DatabricksConfig,
+    first_result: object,
+    columns: list[str],
+) -> list[JsonRow]:
+    rows: list[JsonRow] = []
+    for batch in iter_result_batches(config, first_result, columns):
+        rows.extend(batch)
+    return rows
+
+
+def start_query(
+    config: DatabricksConfig,
+    statement: str,
+) -> tuple[list[str], int | None, object]:
+    """Submit a statement, wait for completion, and return result metadata.
+
+    Returns the result column names, the manifest total row count (when
+    reported), and the first result payload for row streaming.
+    """
     submitted = submit_statement(config, statement)
     state = submitted.get("status", {}).get("state")
 
@@ -600,28 +622,54 @@ def query_databricks(config: DatabricksConfig, statement: str) -> list[JsonRow]:
     if len(columns) != len(schema_columns):
         raise RuntimeError("Databricks SQL result schema contains unnamed columns.")
 
-    rows = fetch_result_rows(
-        config,
-        final_response.get("result", {}),
-        columns,
-    )
     total_row_count = manifest.get("total_row_count")
+    total: int | None = None
 
     if total_row_count is not None:
         try:
-            expected_row_count = int(total_row_count)
+            total = int(total_row_count)
         except (TypeError, ValueError) as exc:
             raise RuntimeError(
                 "Databricks manifest total_row_count is invalid."
             ) from exc
 
-        if len(rows) != expected_row_count:
-            raise RuntimeError(
-                "Databricks SQL statement result is incomplete: "
-                f"expected {expected_row_count} rows, fetched {len(rows)}."
-            )
+    return columns, total, final_response.get("result", {})
+
+
+def query_databricks(config: DatabricksConfig, statement: str) -> list[JsonRow]:
+    columns, total, first_result = start_query(config, statement)
+    rows = fetch_result_rows(config, first_result, columns)
+
+    if total is not None and len(rows) != total:
+        raise RuntimeError(
+            "Databricks SQL statement result is incomplete: "
+            f"expected {total} rows, fetched {len(rows)}."
+        )
 
     return rows
+
+
+def stream_query_batches(
+    config: DatabricksConfig,
+    statement: str,
+) -> tuple[int | None, Iterator[list[JsonRow]]]:
+    """Run a statement and stream result batches without buffering all rows."""
+    columns, total, first_result = start_query(config, statement)
+    batches = iter_result_batches(config, first_result, columns)
+
+    def counted_batches() -> Iterator[list[JsonRow]]:
+        fetched = 0
+        for batch in batches:
+            fetched += len(batch)
+            yield batch
+
+        if total is not None and fetched != total:
+            raise RuntimeError(
+                "Databricks SQL statement result is incomplete: "
+                f"expected {total} rows, fetched {fetched}."
+            )
+
+    return total, counted_batches()
 
 
 def run_select(config: DatabricksConfig) -> str:
@@ -795,6 +843,7 @@ EXPORTS: tuple[TableExport, ...] = (
             "route_h3_signature",
             "representative_route_centroid_latitude_deg",
             "representative_route_centroid_longitude_deg",
+            "city_grid_bucket",
         ),
         statement=lambda config: f"""
             select
@@ -818,7 +867,8 @@ EXPORTS: tuple[TableExport, ...] = (
               route_distance_bucket_km,
               route_h3_signature,
               representative_route_centroid_latitude_deg,
-              representative_route_centroid_longitude_deg
+              representative_route_centroid_longitude_deg,
+              city_grid_bucket
             from {gold_table(config, "mart_routes")}
         """,
     ),
@@ -998,6 +1048,7 @@ EXPORTS: tuple[TableExport, ...] = (
             "week_end_date",
             "runs_per_week",
             "weekly_distance_km",
+            "avg_run_distance_km",
             "weekly_duration_seconds",
             "avg_pace_min_per_km",
             "long_run_distance_km",
@@ -1016,6 +1067,7 @@ EXPORTS: tuple[TableExport, ...] = (
               cast(week_end_date as string) as week_end_date,
               runs_per_week,
               weekly_distance_km,
+              avg_run_distance_km,
               weekly_duration_seconds,
               avg_pace_min_per_km,
               long_run_distance_km,
@@ -1124,40 +1176,126 @@ EXPORTS: tuple[TableExport, ...] = (
 )
 
 
-def fetch_exports(config: DatabricksConfig) -> dict[str, list[JsonRow]]:
-    exported: dict[str, list[JsonRow]] = {}
+def fingerprint_statement(statement: str) -> str:
+    """Wrap an export query in an order-independent content fingerprint.
+
+    dbt rebuilds gold tables with ``create or replace table`` on every run, so
+    Delta versions cannot detect unchanged outputs. A row count plus a decimal
+    sum of whole-row hashes changes exactly when the exported content changes.
+    """
+    return f"""
+        select
+          count(*) as row_count,
+          cast(sum(cast(xxhash64(*) as decimal(38, 0))) as string) as hash_sum
+        from ({statement}) as export_rows
+    """
+
+
+def fetch_fingerprints(
+    config: DatabricksConfig,
+    progress: "ProgressReporter",
+) -> dict[str, Fingerprint | None]:
+    """Compute the current content fingerprint of every export table.
+
+    Tables whose fingerprint query fails return ``None``, which forces them to
+    sync instead of risking a stale skip.
+    """
+    fingerprints: dict[str, Fingerprint | None] = {}
+
+    for index, table_export in enumerate(EXPORTS, start=1):
+        progress.status(
+            f"[fingerprint {index}/{len(EXPORTS)}] {table_export.table_name} ..."
+        )
+        try:
+            rows = query_databricks(
+                config,
+                fingerprint_statement(table_export.statement(config)),
+            )
+            row = rows[0]
+            hash_sum = row.get("hash_sum")
+            fingerprints[table_export.table_name] = {
+                "row_count": int(cast(Any, row.get("row_count"))),
+                "hash_sum": None if hash_sum is None else str(hash_sum),
+            }
+        except RuntimeError as exc:
+            fingerprints[table_export.table_name] = None
+            progress.info(
+                f"{table_export.table_name}: fingerprint failed ({exc}); "
+                "will sync unconditionally"
+            )
+
+    progress.info(f"Fingerprinted {len(EXPORTS)} tables.")
+    return fingerprints
+
+
+def plan_sync(
+    fingerprints: dict[str, Fingerprint | None],
+    stored: dict[str, Any],
+    force_full: bool,
+) -> list[TableExport]:
+    """Select the exports whose content changed since the last successful sync."""
+    changed: list[TableExport] = []
 
     for table_export in EXPORTS:
-        rows = query_databricks(config, table_export.statement(config))
-        exported[table_export.table_name] = rows
-        print(f"{table_export.table_name}: fetched {len(rows)} rows")
+        fingerprint = fingerprints.get(table_export.table_name)
+        if (
+            force_full
+            or fingerprint is None
+            or stored.get(table_export.table_name) != fingerprint
+        ):
+            changed.append(table_export)
 
-    return exported
+    return changed
 
 
-def insert_rows(
+def truncate_table(connection: psycopg.Connection[Any], table_name: str) -> None:
+    query = psycopg_sql.SQL("truncate {} restart identity").format(
+        psycopg_sql.Identifier("public", table_name)
+    )
+    with connection.cursor() as cursor:
+        cursor.execute(query)
+
+
+def copy_rows(
     connection: psycopg.Connection[Any],
     table_export: TableExport,
-    rows: list[JsonRow],
-) -> None:
-    if not rows:
-        return
-
-    query = psycopg_sql.SQL("insert into public.{} ({}) values ({})").format(
+    batches: Iterator[list[JsonRow]],
+    on_rows: Callable[[int], None] | None = None,
+) -> int:
+    """Bulk-load streamed batches with COPY instead of row-by-row inserts."""
+    copy_statement = psycopg_sql.SQL("copy public.{} ({}) from stdin").format(
         psycopg_sql.Identifier(table_export.table_name),
         psycopg_sql.SQL(", ").join(
             psycopg_sql.Identifier(column) for column in table_export.columns
         ),
-        psycopg_sql.SQL(", ").join(
-            psycopg_sql.Placeholder(column) for column in table_export.columns
-        ),
     )
+    loaded = 0
 
     with connection.cursor() as cursor:
-        cursor.executemany(query, rows)
+        with cursor.copy(copy_statement) as copy:
+            for batch in batches:
+                for row in batch:
+                    copy.write_row(
+                        [row.get(column) for column in table_export.columns]
+                    )
+                loaded += len(batch)
+                if on_rows is not None:
+                    on_rows(loaded)
+
+    return loaded
 
 
-def insert_metadata(
+def get_metadata_value(connection: psycopg.Connection[Any], key: str) -> Any:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "select metadata_value from public.site_metadata where metadata_key = %s",
+            (key,),
+        )
+        row = cursor.fetchone()
+    return row[0] if row else None
+
+
+def upsert_metadata(
     connection: psycopg.Connection[Any],
     key: str,
     value: object,
@@ -1167,48 +1305,128 @@ def insert_metadata(
             """
             insert into public.site_metadata (metadata_key, metadata_value, updated_at)
             values (%s, %s, now())
+            on conflict (metadata_key) do update
+            set metadata_value = excluded.metadata_value,
+                updated_at = excluded.updated_at
             """,
             (key, Jsonb(value)),
         )
 
 
-def reload_supabase(
+def render_progress(loaded: int, total: int | None) -> str:
+    if total is None or total <= 0:
+        return f"{loaded:,} rows"
+    fraction = min(loaded / total, 1.0)
+    filled = round(PROGRESS_BAR_WIDTH * fraction)
+    bar = "#" * filled + "-" * (PROGRESS_BAR_WIDTH - filled)
+    return f"|{bar}| {fraction:>3.0%} {loaded:,}/{total:,} rows"
+
+
+class ProgressReporter:
+    """Single-line status display on TTYs, plain log lines otherwise."""
+
+    def __init__(self, use_tty: bool) -> None:
+        self.use_tty = use_tty
+
+    def info(self, message: str) -> None:
+        if self.use_tty:
+            sys.stdout.write("\r\x1b[K" + message + "\n")
+            sys.stdout.flush()
+        else:
+            print(message)
+
+    def status(self, message: str) -> None:
+        if self.use_tty:
+            sys.stdout.write("\r\x1b[K" + message)
+            sys.stdout.flush()
+
+
+def sync_supabase(
     supabase_db_url: str,
     config: DatabricksConfig,
-    exported: dict[str, list[JsonRow]],
+    fingerprints: dict[str, Fingerprint | None],
+    force_full: bool,
+    dry_run: bool,
+    progress: ProgressReporter,
 ) -> None:
-    table_names = [table_export.table_name for table_export in EXPORTS] + ["site_metadata"]
-    latest_summary = (exported.get("site_dashboard_summary") or [{}])[0]
-    generated_at = datetime.now(UTC).isoformat()
-
     with psycopg.connect(supabase_db_url) as connection:
-        with connection.cursor() as cursor:
-            truncate_query = psycopg_sql.SQL("truncate {} restart identity").format(
-                psycopg_sql.SQL(", ").join(
-                    psycopg_sql.Identifier("public", table_name)
-                    for table_name in table_names
-                )
-            )
-            cursor.execute(truncate_query)
+        stored_raw = get_metadata_value(connection, FINGERPRINT_METADATA_KEY)
+        stored = stored_raw if isinstance(stored_raw, dict) else {}
+        changed = plan_sync(fingerprints, cast(dict[str, Any], stored), force_full)
 
         for table_export in EXPORTS:
-            insert_rows(connection, table_export, exported[table_export.table_name])
-            print(
-                f"{table_export.table_name}: loaded "
-                f"{len(exported[table_export.table_name])} rows"
+            if table_export in changed:
+                progress.info(f"{table_export.table_name}: will sync")
+            else:
+                progress.info(f"{table_export.table_name}: unchanged, skipping")
+
+        if dry_run:
+            progress.info("Dry run complete; Supabase was not modified.")
+            return
+
+        synced_counts: dict[str, int] = {}
+        for index, table_export in enumerate(changed, start=1):
+            total, batches = stream_query_batches(
+                config, table_export.statement(config)
+            )
+            truncate_table(connection, table_export.table_name)
+            started = time.monotonic()
+
+            def report_rows(
+                count: int,
+                name: str = table_export.table_name,
+                expected: int | None = total,
+            ) -> None:
+                progress.status(
+                    f"[{index}/{len(changed)}] {name} "
+                    + render_progress(count, expected)
+                )
+
+            loaded = copy_rows(connection, table_export, batches, report_rows)
+            elapsed = time.monotonic() - started
+            synced_counts[table_export.table_name] = loaded
+            progress.info(
+                f"[{index}/{len(changed)}] {table_export.table_name}: "
+                f"loaded {loaded:,} rows in {elapsed:.1f}s"
             )
 
-        row_counts = {
-            table_name: len(rows)
-            for table_name, rows in sorted(exported.items(), key=lambda item: item[0])
-        }
-        insert_metadata(connection, "generated_at", generated_at)
-        insert_metadata(connection, "latest_completed_date", latest_summary.get("latest_completed_date"))
-        insert_metadata(connection, "databricks_catalog", config.catalog)
-        insert_metadata(connection, "databricks_gold_schema", config.schema)
-        insert_metadata(connection, "row_counts", row_counts)
+        # The dashboard summary is one row and always needed for metadata.
+        summary_rows = query_databricks(config, dashboard_summary_select(config))
+        latest_summary = summary_rows[0] if summary_rows else {}
+        generated_at = datetime.now(UTC).isoformat()
 
-    print("Supabase site read models reloaded.")
+        merged_fingerprints: dict[str, Any] = dict(stored)
+        changed_names = {table_export.table_name for table_export in changed}
+        row_counts: dict[str, int] = {}
+        for table_export in sorted(EXPORTS, key=lambda item: item.table_name):
+            name = table_export.table_name
+            fingerprint = fingerprints.get(name)
+            if name in synced_counts:
+                row_counts[name] = synced_counts[name]
+            elif fingerprint is not None:
+                row_counts[name] = cast(int, fingerprint["row_count"])
+            else:
+                row_counts[name] = 0
+            if name in changed_names:
+                if fingerprint is not None:
+                    merged_fingerprints[name] = fingerprint
+                else:
+                    merged_fingerprints.pop(name, None)
+
+        upsert_metadata(connection, "generated_at", generated_at)
+        upsert_metadata(
+            connection, "latest_completed_date", latest_summary.get("latest_completed_date")
+        )
+        upsert_metadata(connection, "databricks_catalog", config.catalog)
+        upsert_metadata(connection, "databricks_gold_schema", config.schema)
+        upsert_metadata(connection, "row_counts", row_counts)
+        upsert_metadata(connection, FINGERPRINT_METADATA_KEY, merged_fingerprints)
+
+    skipped_count = len(EXPORTS) - len(changed)
+    progress.info(
+        f"Supabase site read models reloaded: {len(changed)} synced, "
+        f"{skipped_count} unchanged."
+    )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -1228,7 +1446,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Fetch Databricks rows and print counts without writing to Supabase.",
+        help="Fingerprint Databricks tables and report what would sync without writing.",
+    )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Force a full reload of every table, ignoring stored fingerprints.",
+    )
+    parser.add_argument(
+        "--no-progress",
+        action="store_true",
+        help="Disable the interactive progress display (plain log lines).",
     )
 
     return parser.parse_args(argv)
@@ -1237,13 +1465,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     config = get_databricks_config()
-    exported = fetch_exports(config)
-
-    if args.dry_run:
-        print("Dry run complete; Supabase was not modified.")
-        return 0
-
-    reload_supabase(args.supabase_db_url, config, exported)
+    progress = ProgressReporter(
+        use_tty=not args.no_progress and sys.stdout.isatty()
+    )
+    fingerprints = fetch_fingerprints(config, progress)
+    sync_supabase(
+        args.supabase_db_url,
+        config,
+        fingerprints,
+        force_full=args.full,
+        dry_run=args.dry_run,
+        progress=progress,
+    )
     return 0
 
 

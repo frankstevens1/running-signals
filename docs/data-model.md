@@ -17,9 +17,9 @@ This document describes the implemented analytical model contract for Running Si
 
 | Grain | Model | Key |
 |---|---|---|
-| Day | `silver_dates`, `mart_days` | `calendar_date` |
-| Run session | `silver_runs`, `mart_run_sessions` | `run_id` / `activity_id` |
-| Record telemetry | `silver_run_records` | `run_id`, `record_timestamp` |
+| Day | `dates`, `mart_days` | `calendar_date` |
+| Run session | `runs`, `mart_run_sessions` | `run_id` / `activity_id` |
+| Record telemetry | `run_records` | `run_id`, `record_timestamp` |
 | Activity record | `mart_activity_records` | `run_id`, `record_index` |
 | Segment resolution | `mart_segment_resolutions` | `unit_system`, `segment_length_value` |
 | Analytical segment | `mart_run_segments` | `run_id`, `unit_system`, `segment_length_value`, `segment_index` |
@@ -33,16 +33,16 @@ This document describes the implemented analytical model contract for Running Si
 
 ```text
 bronze.garmin_fit_sessions
-    -> silver_runs
+    -> runs
 bronze.garmin_fit_events
-    -> silver_runs
+    -> runs
 bronze.garmin_fit_records
-    -> silver_run_records
+    -> run_records
 bronze.garmin_health_daily_payloads
-    -> silver_health_days
-silver_runs + silver_health_days
-    -> silver_dates
-silver_dates + silver_runs + silver_health_days
+    -> health_days
+runs + health_days
+    -> dates
+dates + runs + health_days
     -> mart_days
 mart_days
     -> mart_weeks
@@ -52,21 +52,26 @@ mart_weeks
     -> signal_consistency
     -> signal_volume
     -> mart_weekly_training_features
-silver_run_records
+run_records
     -> mart_activity_records
-silver_run_records + mart_segment_resolutions
+run_records + mart_segment_resolutions
     -> mart_run_segments
-silver_runs + silver_run_records
+runs + run_records
+    -> route_observations
+route_observations
+    -> route_similarity_edges
+route_observations + route_similarity_edges
+    -> int_route_component_roots
     -> mart_route_clusters
-silver_runs + mart_days + mart_run_segments + mart_route_clusters
+runs + mart_days + mart_run_segments + mart_route_clusters
     -> mart_run_sessions
 mart_run_sessions
     -> mart_routes
 mart_run_sessions + mart_routes
     -> mart_route_prediction_features
-silver_runs + silver_health_days + mart_run_segments
+runs + health_days + mart_run_segments
     -> signal_fitness
-silver_runs + silver_health_days
+runs + health_days
     -> mart_runs
 signal_fitness + mart_weeks
     -> mart_running_signals
@@ -74,7 +79,7 @@ gold presentation outputs
     -> Supabase site_* read models
 ```
 
-`silver_weeks`, `signal_consistency`, `signal_volume`, `mart_weeks`, `mart_running_signals`, and
+`weeks`, `signal_consistency`, `signal_volume`, `mart_weeks`, `mart_running_signals`, and
 `mart_weekly_training_features` remain as compatibility outputs, but their weekly logic is downstream
 of the daily foundation.
 
@@ -138,14 +143,14 @@ exposed in silver and gold.
 
 ## Silver Models
 
-### silver_dates
+### dates
 
 Grain: one row per completed calendar day from the first observed Garmin date through yesterday.
 
 Purpose: provide the day spine used by all daily, weekly, monthly, and yearly rollups. It carries
 calendar attributes such as week, month, quarter, year, and weekend flags.
 
-### silver_runs
+### runs
 
 Grain: one row per Garmin running activity.
 
@@ -153,11 +158,11 @@ Purpose: provide the canonical session-level run building block. It standardizes
 pace, speed, heart rate, cadence, ascent/descent, session endpoints, record counts, GPS coverage, and
 record-derived start/end coverage fields. Garmin Recovery HR is joined from the latest bronze FIT
 `recovery_hr` event for the run when Garmin includes one. The FIT event stores the post-recovery
-heart rate; `silver_runs.garmin_recovery_hr` stores the drop from the latest recorded run heart rate
+heart rate; `runs.garmin_recovery_hr` stores the drop from the latest recorded run heart rate
 to that event value. Session cadence is normalized from Garmin's per-leg cadence to total steps per
 minute.
 
-### silver_run_records
+### run_records
 
 Grain: one row per `run_id` and `record_timestamp`.
 
@@ -166,18 +171,18 @@ heart rate, cadence, altitude, latitude/longitude, H3 cells, and WKT point text.
 Databricks-native SQL/H3 functions and does not introduce Python geospatial dependencies. Record
 cadence is normalized from Garmin's per-leg cadence to total steps per minute.
 
-### silver_health_days
+### health_days
 
 Grain: one row per calendar date.
 
 Purpose: provide canonical daily fitness-context fields from Garmin Connect JSON while preserving
 endpoint availability flags.
 
-### silver_weeks
+### weeks
 
 Grain: one row per completed calendar week.
 
-Purpose: compatibility week spine derived from `silver_dates` and `silver_runs`. New analytical work
+Purpose: compatibility week spine derived from `dates` and `runs`. New analytical work
 should prefer `mart_days` and its downstream rollups.
 
 ## Gold Models
@@ -250,7 +255,7 @@ Grain: one row per GPS-backed run with route geometry.
 
 Purpose: assign similarity-based, direction-specific route identity before session-level enrichment.
 The model builds its preserved legacy 250m floor-bucketed H3 path directly from
-`silver_run_records`; it does not depend on analytical segment indices. This retains existing route
+`run_records`; it does not depend on analytical segment indices. This retains existing route
 hashes, the one-segment positional tolerance, and the 90% minimum overlap score after a 10% distance
 prefilter while allowing split allocation to improve independently. The representative route is the
 earliest directly matching observed run. Its resolution-9 H3 signature and 0.5 km distance bucket

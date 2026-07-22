@@ -1,6 +1,6 @@
 with silver_keys as (
     select run_id, record_index
-    from {{ ref('silver_run_records') }}
+    from {{ ref('run_records') }}
 ),
 
 gold_keys as (

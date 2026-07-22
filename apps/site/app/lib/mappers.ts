@@ -103,6 +103,7 @@ export function mapRoute(row: Record<string, unknown>): RouteSummary {
       row,
       "representative_route_centroid_longitude_deg",
     ),
+    cityGridBucket: stringValue(row, "city_grid_bucket"),
   };
 }
 
@@ -173,6 +174,7 @@ export function mapWeek(row: Record<string, unknown>): WeekRollup {
     weekEndDate: stringValue(row, "week_end_date") ?? "",
     runsPerWeek: numberValue(row, "runs_per_week") ?? 0,
     weeklyDistanceKm: numberValue(row, "weekly_distance_km") ?? 0,
+    avgRunDistanceKm: numberValue(row, "avg_run_distance_km"),
     weeklyDurationSeconds: numberValue(row, "weekly_duration_seconds") ?? 0,
     avgPaceMinPerKm: numberValue(row, "avg_pace_min_per_km"),
     longRunDistanceKm: numberValue(row, "long_run_distance_km"),

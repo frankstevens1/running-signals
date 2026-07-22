@@ -1,23 +1,25 @@
+variable "aws_region" {
+  description = "AWS region for the raw Garmin landing bucket."
+  type        = string
+  default     = "eu-central-1"
+}
+
+variable "aws_profile" {
+  description = "Optional AWS CLI profile Terraform should use. Prefer setting this in terraform.tfvars."
+  type        = string
+  default     = null
+}
+
 variable "raw_bucket_name" {
-  description = "Hetzner Object Storage bucket name for the raw Garmin landing zone."
+  description = "Optional explicit S3 bucket name. Defaults to running-signals-raw-<account_id>."
   type        = string
+  default     = null
 }
 
-variable "object_storage_access_key_id" {
-  description = "Hetzner Object Storage access key ID."
-  type        = string
-  sensitive   = true
-}
-
-variable "object_storage_secret_access_key" {
-  description = "Hetzner Object Storage secret access key."
-  type        = string
-  sensitive   = true
-}
-
-variable "object_storage_account_id" {
-  description = "Account ID for the Cloudflare API TOKEN credential type. For Hetzner, use the project ID from the Hetzner Console URL (e.g., https://console.hetzner.com/projects/<project-ID>)."
-  type        = string
+variable "raw_bucket_force_destroy" {
+  description = "Whether Terraform may delete the raw bucket even when it contains objects."
+  type        = bool
+  default     = false
 }
 
 variable "catalog_name" {
@@ -63,19 +65,19 @@ variable "external_location_prefix" {
 }
 
 variable "fit_object_prefix" {
-  description = "Object prefix used by the Garmin FIT downloader."
+  description = "S3 object prefix used by the Garmin FIT downloader."
   type        = string
   default     = "garmin/fit"
 }
 
 variable "health_object_prefix" {
-  description = "Object prefix used by the Garmin health JSON downloader."
+  description = "S3 object prefix used by the Garmin health JSON downloader."
   type        = string
   default     = "garmin/health/daily"
 }
 
 variable "catalog_managed_storage_prefix" {
-  description = "Object prefix used for Unity Catalog managed storage for the running_signals catalog."
+  description = "S3 prefix used for Unity Catalog managed storage for the running_signals catalog."
   type        = string
   default     = "__databricks_managed/running_signals"
 }
@@ -84,6 +86,11 @@ variable "databricks_profile" {
   description = "Optional Databricks CLI profile. Leave null to use Databricks environment variables."
   type        = string
   default     = null
+}
+
+variable "databricks_storage_credential_external_id" {
+  description = "External ID used in the AWS trust policy for the Databricks storage credential."
+  type        = string
 }
 
 variable "skip_databricks_validation" {

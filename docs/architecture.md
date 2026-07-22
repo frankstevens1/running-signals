@@ -6,7 +6,7 @@ Garmin Connect health context into documented training signal tables.
 ```text
 Garmin Connect
     -> Python FIT and health JSON downloaders
-    -> Object storage raw FIT and health JSON landing zones
+    -> S3 raw FIT and health JSON landing zones
     -> Databricks Unity Catalog external volume
     -> Databricks bronze Delta tables
     -> dbt silver and gold models
@@ -20,7 +20,7 @@ The architecture is intentionally simple. Each layer has one job:
 
 - Python retrieves raw Garmin FIT files and daily health JSON payloads and lands them in object
   storage.
-- Hetzner Object Storage keeps the recoverable raw files and JSON payloads.
+- S3 keeps the recoverable raw files and JSON payloads.
 - Unity Catalog exposes those files to Databricks through a governed volume path.
 - Databricks parses FIT files and loads health JSON envelopes into bronze Delta tables with source
   metadata.
@@ -33,7 +33,7 @@ without introducing unnecessary orchestration.
 ## Data Flow
 
 The Python downloader (`scripts/download_garmin_fit.py`) retrieves Garmin FIT files and writes them
-to Hetzner Object Storage with the Garmin activity id as the object name:
+to S3 with the Garmin activity id as the object name:
 
 ```text
 s3://<bucket>/garmin/fit/{garmin_activity_id}.fit
@@ -71,13 +71,12 @@ metadata, and ingestion metadata. It is partitioned by `calendar_date`.
 
 ## Infrastructure
 
-Terraform in `infra/terraform` manages the Unity Catalog catalog,
-`bronze`, `silver`, and `gold` schemas, and the external location. The Hetzner Object Storage
-bucket and storage credential are configured manually (see `infra/terraform/README.md`).
-The raw Garmin FIT and health prefixes are external storage because files are produced
+Terraform in `infra/terraform` manages the raw S3 bucket, IAM role and policy, Unity Catalog catalog,
+`bronze`, `silver`, and `gold` schemas, storage credential, external locations, and external
+volumes. The raw Garmin FIT and health prefixes are external storage because files are produced
 outside Databricks and consumed by Databricks through Unity Catalog.
 
-See `infra/terraform/README.md` for the Hetzner Object Storage credential setup and
+See `infra/terraform/README.md` for the AWS profile setup, Databricks external ID bootstrap, and
 post-apply checks.
 
 ## Orchestration
@@ -100,27 +99,29 @@ changed files are parsed and written. Unchanged files are skipped. If an already
 changes, the job deletes that `run_id` from all three bronze tables before appending replacement
 rows, making repeated runs idempotent without heavier orchestration.
 
-See `scripts/README.md` for FIT and health landing commands and the object storage landing smoke test.
+See `scripts/README.md` for FIT and health landing commands and the S3 landing smoke test.
 
 ## Modeling
 
 dbt treats the bronze FIT and health tables as sources. The current modeled path is:
 
 ```text
-bronze FIT sources -> silver_runs, silver_run_records
-bronze health JSON source -> silver_health_days
-silver_runs + silver_health_days -> silver_dates
-silver_dates + silver_runs + silver_health_days -> mart_days
+bronze FIT sources -> runs, run_records
+bronze health JSON source -> health_days
+runs + health_days -> dates
+dates + runs + health_days -> mart_days
 mart_days -> mart_weeks, mart_months, mart_years
 mart_weeks -> signal_consistency, signal_volume, mart_weekly_training_features
-silver_run_records -> mart_activity_records
-silver_run_records + mart_segment_resolutions -> mart_run_segments
-silver_runs + silver_run_records -> mart_route_clusters
-silver_runs + mart_days + mart_run_segments + mart_route_clusters -> mart_run_sessions
+run_records -> mart_activity_records
+run_records + mart_segment_resolutions -> mart_run_segments
+runs + run_records -> route_observations
+route_observations -> route_similarity_edges
+route_observations + route_similarity_edges -> int_route_component_roots -> mart_route_clusters
+runs + mart_days + mart_run_segments + mart_route_clusters -> mart_run_sessions
 mart_run_sessions -> mart_routes
 mart_run_sessions + mart_routes -> mart_route_prediction_features
-silver_runs + silver_health_days + mart_run_segments -> signal_fitness
-silver_runs + silver_health_days -> mart_runs
+runs + health_days + mart_run_segments -> signal_fitness
+runs + health_days -> mart_runs
 signal_fitness + mart_weeks -> mart_running_signals
 ```
 
@@ -169,7 +170,7 @@ privacy constraints.
 
 ## References
 
-- `scripts/README.md` for Garmin FIT and health download and object storage landing details.
+- `scripts/README.md` for Garmin FIT and health download and S3 landing details.
 - `infra/terraform/README.md` for infrastructure setup and Unity Catalog bootstrap.
 - `docs/garmin-data-exploration.md` for exploratory FIT and health payload validation.
 - `docs/data-model.md` for bronze, silver, and gold model details.

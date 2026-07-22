@@ -44,7 +44,7 @@ const featureGroups = [
   },
   {
     title: "Health context",
-    source: "mart_days, silver_health_days",
+    source: "mart_days, health_days",
     items: [
       "Same-day resting heart rate, HRV, HRV status, sleep score, and sleep duration.",
       "Rolling resting heart-rate context for daily and session-level analysis.",

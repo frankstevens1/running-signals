@@ -2,7 +2,7 @@
 
 Running Signals is a live analytics engineering portfolio project using personal Garmin running data.
 
-It extracts Garmin activity and daily health context with Python, lands recoverable raw files in Hetzner Object Storage,
+It extracts Garmin activity and daily health context with Python, lands recoverable raw files in S3,
 loads bronze Delta tables in Databricks, transforms the data with dbt, and presents training signals
 through a lightweight portfolio website.
 
@@ -36,7 +36,7 @@ coaching, or medical signals.
 ```txt
 Garmin Connect
   → Python FIT and health JSON downloaders
-  → Hetzner Object Storage raw FIT and health JSON landing zones
+  → S3 raw FIT and health JSON landing zones
   → Databricks external Unity Catalog volume
   → Databricks bronze Delta tables
   → dbt silver building blocks
@@ -78,8 +78,8 @@ The `docs/` directory contains the deeper reviewer-facing documentation:
 
 Related operational references:
 
-- [Scripts README](scripts/README.md): downloader usage, object storage landing details, and smoke tests.
-- [Terraform README](infra/terraform/README.md): Hetzner Object Storage and Databricks infrastructure setup.
+- [Scripts README](scripts/README.md): downloader usage, S3 landing details, and smoke tests.
+- [Terraform README](infra/terraform/README.md): AWS and Databricks infrastructure setup.
 - [Site README](apps/site/README.md): presentation app commands.
 
 ## Operating The Pipeline
@@ -88,7 +88,7 @@ Use [docs/layer-runbook.md](docs/layer-runbook.md) for the complete
 setup and refresh sequence across all layers:
 
 1. Terraform infrastructure
-2. raw object storage FIT and health landing
+2. raw S3 FIT and health landing
 3. Databricks bronze ingestion
 4. dbt silver and gold builds
 5. dbt tests

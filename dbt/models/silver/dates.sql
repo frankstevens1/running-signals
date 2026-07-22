@@ -2,12 +2,12 @@
 
 with observed_dates as (
     select activity_date as calendar_date
-    from {{ ref('silver_runs') }}
+    from {{ ref('runs') }}
 
     union all
 
     select calendar_date
-    from {{ ref('silver_health_days') }}
+    from {{ ref('health_days') }}
 ),
 
 date_bounds as (

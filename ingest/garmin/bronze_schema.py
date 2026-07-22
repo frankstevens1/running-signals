@@ -94,6 +94,8 @@ LONG_COLUMNS = [
     "start_position_long",
     "end_position_lat",
     "end_position_long",
+    "workout_feel",
+    "workout_rpe",
 ]
 
 DOUBLE_COLUMNS = [

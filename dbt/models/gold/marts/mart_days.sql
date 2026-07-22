@@ -2,12 +2,12 @@
 
 with dates as (
     select *
-    from {{ ref('silver_dates') }}
+    from {{ ref('dates') }}
 ),
 
 runs as (
     select *
-    from {{ ref('silver_runs') }}
+    from {{ ref('runs') }}
 ),
 
 daily_runs as (
@@ -28,7 +28,7 @@ daily_runs as (
 
 health_days as (
     select *
-    from {{ ref('silver_health_days') }}
+    from {{ ref('health_days') }}
 ),
 
 days as (

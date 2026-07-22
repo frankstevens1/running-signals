@@ -1,64 +1,40 @@
 # Layer Setup And Refresh Runbook
 
-This runbook is the operational path for creating or updating every data layer in Running Signals.
-
-The required order is:
+Operational path for building and refreshing every data layer in Running Signals:
 
 ```text
 Terraform infrastructure
-    -> raw object storage FIT and health files
+    -> raw S3 FIT and health files
     -> Databricks bronze tables
     -> dbt silver and gold models
-    -> dbt tests
+    -> Supabase site read models
 ```
 
-`dbt compile` only renders SQL. It does not create or refresh Databricks tables or views. Use
-`dbt run` to materialize silver and gold.
+## Initial Setup
 
-## Prerequisites
+One-time steps for a new machine or workspace.
 
-Install project dependencies:
-
-```bash
-uv sync
-```
-
-Create a local environment file from the example and fill in the values:
+### 1. Dependencies and environment
 
 ```bash
+uv sync --extra dev
 cp .env.example .env
 ```
 
-The root `.env` is for repository operations: Garmin downloaders, object storage landing, Databricks/dbt,
-and the Supabase read-model sync. The Next.js site has its own runtime example at
-`apps/site/.env.example` because Next reads env files from the app project directory.
-
-Required values for raw object storage landing:
+Fill in `.env`:
 
 ```bash
+# Garmin + S3 landing
 GARMIN_EMAIL=
 GARMIN_PASSWORD=
 GARMIN_FIT_S3_BUCKET=
 GARMIN_FIT_S3_PREFIX=garmin/fit
 GARMIN_HEALTH_S3_BUCKET=
 GARMIN_HEALTH_S3_PREFIX=garmin/health/daily
-OBJECT_STORAGE_ENDPOINT_URL=https://nbg1.your-objectstorage.com
-OBJECT_STORAGE_ACCESS_KEY_ID=
-OBJECT_STORAGE_SECRET_ACCESS_KEY=
-OBJECT_STORAGE_REGION=nbg1
-```
+AWS_REGION=eu-central-1
+AWS_PROFILE=running-signals-dev   # local SSO only; leave unset in automation
 
-Hetzner Object Storage uses access key / secret key pairs.
-Generate them at: [Hetzner Console](https://console.hetzner.com/) -> Security -> S3 Credentials.
-For unattended automation, pass the access key and secret key as secrets to the job runtime.
-Garmin authentication is separate:
-scheduled downloaders need a valid, writable Garmin token store passed with `--tokenstore` outside
-the repository, or `GARMIN_EMAIL` and `GARMIN_PASSWORD` supplied through the production secret
-manager.
-
-Required values for Databricks and dbt:
-
-```bash
+# Databricks / dbt
 DATABRICKS_HOST=dbc-<workspace-id>.cloud.databricks.com
 DATABRICKS_TOKEN=<your-databricks-token>
 DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/<warehouse-id>
@@ -68,69 +44,46 @@ DATABRICKS_SILVER_SCHEMA=silver
 DATABRICKS_GOLD_SCHEMA=gold
 ```
 
-The Databricks token should have the `all-apis` scope. The token principal needs permission to use
-the SQL warehouse, use the `running_signals` catalog and `bronze`, `silver`, and `gold` schemas,
-select from bronze tables, and create or replace objects in `silver` and `gold`.
+The root `.env` covers repository operations. The Next.js site reads its own
+`apps/site/.env.example` variables (`SUPABASE_URL`, `SUPABASE_ANON_KEY`) — never put
+`SUPABASE_DB_URL` there.
 
-Load the `.env` values into the current shell before running commands that need them:
+Load values into the shell before running commands:
 
 ```bash
-set -a
-source .env
-set +a
+set -a; source .env; set +a
 ```
 
-Configure dbt once for the local user:
+For local S3 access, configure the `running-signals-dev` AWS IAM Identity Center profile once (see
+[infra/terraform/README.md](../infra/terraform/README.md#aws-credentials)) and refresh sessions with
+`aws sso login --profile running-signals-dev`. Production jobs use role credentials instead of SSO;
+see [docs/technical-decisions.md](technical-decisions.md#why-unattended-garmin-downloads-should-not-use-aws-sso).
+
+### 2. dbt profile
 
 ```bash
 mkdir -p ~/.dbt
 cp dbt/profiles.yml.example ~/.dbt/profiles.yml
 ```
 
-The profile reads credentials from environment variables, so `~/.dbt/profiles.yml` should not contain
-secrets.
+The profile reads credentials from environment variables, so it contains no secrets.
 
-## First-Time Infrastructure Setup
+### 3. Infrastructure (Terraform)
 
-Terraform creates the Unity Catalog catalog, `bronze`, `silver`, and `gold` schemas,
-and the raw Garmin external location. The storage credential and bucket are configured manually
-(see `infra/terraform/README.md`).
-
-Run the Terraform workflow from `infra/terraform`:
+Creates the S3 bucket, Unity Catalog catalog, `bronze`/`silver`/`gold` schemas, storage credentials,
+external locations, and raw volumes. For a new storage credential, follow the two-pass external ID
+workflow in `infra/terraform/README.md`.
 
 ```bash
 cd infra/terraform
 terraform init
-terraform validate
-terraform plan
 terraform apply
-```
-
-For a brand-new Databricks storage credential, follow the two-pass external ID workflow documented in
-`infra/terraform/README.md`. After a successful apply, confirm these outputs exist:
-
-```bash
-terraform output raw_bucket_name
-terraform output garmin_fit_volume_path
-terraform output garmin_health_volume_path
-```
-
-Expected Databricks volume paths:
-
-```text
-/Volumes/running_signals/bronze/raw_garmin/fit
-/Volumes/running_signals/bronze/raw_garmin/health/daily
-```
-
-Return to the repo root:
-
-```bash
 cd ../..
 ```
 
-## Deploy Databricks Jobs
+### 4. Databricks jobs
 
-Deploy the Databricks Asset Bundle after infrastructure exists:
+Deploys two paused ingestion jobs (`garmin_fit_bronze_ingestion`, `garmin_health_bronze_ingestion`):
 
 ```bash
 cd databricks
@@ -139,66 +92,30 @@ uv run databricks bundle deploy
 cd ..
 ```
 
-This deploys two paused jobs:
-
-- `garmin_fit_bronze_ingestion`
-- `garmin_health_bronze_ingestion`
-
-## Land Raw Garmin Files
-
-FIT and health JSON are separate raw inputs. Both are required for a full dbt run.
-
-Ensure the Hetzner Object Storage access key and secret key are set in `.env`
-or the shell environment before landing files:
+### 5. Local Supabase (site development only)
 
 ```bash
-export OBJECT_STORAGE_ACCESS_KEY_ID="<your-access-key>"
-export OBJECT_STORAGE_SECRET_ACCESS_KEY="<your-secret-key>"
+supabase start
+supabase migration up
 ```
 
-Hetzner credentials do not expire unless revoked in the Console. For production scheduled
-refreshes, supply them as secrets in the job runtime as described in
-[scripts/README.md](../scripts/README.md#object-storage-credentials) and
-[docs/technical-decisions.md](technical-decisions.md).
+## Running the Pipeline
 
-For an initial backfill, choose a date range and run both downloaders:
+Routine refresh, in order.
+
+### 1. Land raw Garmin files
 
 ```bash
-uv run python scripts/download_garmin_fit.py \
-  --destination s3 \
-  --mode range-overwrite \
-  --start-date 2026-06-01 \
-  --end-date 2026-06-07
-
-uv run python scripts/download_garmin_health.py \
-  --destination s3 \
-  --mode range-overwrite \
-  --start-date 2026-06-01 \
-  --end-date 2026-06-07
+uv run python scripts/download_garmin_fit.py --destination s3 --mode incremental
+uv run python scripts/download_garmin_health.py --destination s3 --mode incremental
 ```
 
-For a routine refresh, use incremental landing for both raw inputs:
+For an initial backfill, replace `--mode incremental` with
+`--mode range-overwrite --start-date YYYY-MM-DD --end-date YYYY-MM-DD`.
 
-```bash
-uv run python scripts/download_garmin_fit.py \
-  --destination s3 \
-  --mode incremental
+### 2. Build bronze
 
-uv run python scripts/download_garmin_health.py \
-  --destination s3 \
-  --mode incremental
-```
-
-Confirm raw files exist in object storage with the MinIO Client:
-
-```bash
-mc ls "nbg1/${GARMIN_FIT_S3_BUCKET}/${GARMIN_FIT_S3_PREFIX}/"
-mc ls "nbg1/${GARMIN_HEALTH_S3_BUCKET:-$GARMIN_FIT_S3_BUCKET}/${GARMIN_HEALTH_S3_PREFIX}/"
-```
-
-## Build Bronze
-
-Run both bronze ingestion jobs. The health job is required before building `silver_health_days`.
+Both jobs are required; the health job must run before dbt builds `health_days`.
 
 ```bash
 cd databricks
@@ -207,162 +124,69 @@ uv run databricks bundle run garmin_health_bronze_ingestion
 cd ..
 ```
 
-Expected bronze tables:
+Expected bronze tables: `garmin_fit_sessions`, `garmin_fit_events`, `garmin_fit_records`,
+`garmin_health_daily_payloads` in `running_signals.bronze`. If dbt fails with
+`TABLE_OR_VIEW_NOT_FOUND: running_signals.bronze.garmin_health_daily_payloads`, land health JSON and
+rerun the health job.
 
-```text
-running_signals.bronze.garmin_fit_sessions
-running_signals.bronze.garmin_fit_events
-running_signals.bronze.garmin_fit_records
-running_signals.bronze.garmin_health_daily_payloads
-```
-
-If `dbt run` fails with:
-
-```text
-TABLE_OR_VIEW_NOT_FOUND: running_signals.bronze.garmin_health_daily_payloads
-```
-
-then the health bronze job has not created the required source table yet. Land health JSON and rerun
-`garmin_health_bronze_ingestion`.
-
-## Build Silver And Gold
-
-Validate dbt configuration:
+### 3. Build silver and gold
 
 ```bash
-uv run dbt parse --project-dir dbt
-uv run dbt compile --project-dir dbt
+uv run dbt build --project-dir dbt
 ```
 
-Materialize the full silver and gold graph:
+This materializes the full graph and runs all tests in one pass. On the free-edition serverless
+warehouse, use `--threads 4` if you hit connection resets.
+
+Silver layer: `dates`, `runs`, `run_records`, `health_days`, `weeks` (views) plus
+`route_observations`, `route_similarity_edges` (tables). Gold layer: `mart_*` marts, `signal_*`
+signals, and `int_*` intermediates. All dbt-managed; recreate any time with the command above.
+
+Useful partial runs:
 
 ```bash
-uv run dbt run --project-dir dbt
+# Day-first calendar graph
+uv run dbt run --project-dir dbt --select dates+ mart_days+ mart_weeks mart_months mart_years
+
+# Route, session, segment, and feature graph
+uv run dbt run --project-dir dbt --select run_records+ mart_route_prediction_features
 ```
 
-Run dbt tests:
-
-```bash
-uv run dbt test --project-dir dbt
-```
-
-Expected silver models:
-
-```text
-running_signals.silver.silver_dates
-running_signals.silver.silver_runs
-running_signals.silver.silver_run_records
-running_signals.silver.silver_health_days
-running_signals.silver.silver_weeks
-```
-
-Expected gold models:
-
-```text
-running_signals.gold.mart_days
-running_signals.gold.mart_weeks
-running_signals.gold.mart_months
-running_signals.gold.mart_years
-running_signals.gold.mart_run_sessions
-running_signals.gold.mart_segment_resolutions
-running_signals.gold.mart_activity_records
-running_signals.gold.mart_run_segments
-running_signals.gold.mart_route_clusters
-running_signals.gold.mart_routes
-running_signals.gold.mart_route_prediction_features
-running_signals.gold.signal_consistency
-running_signals.gold.signal_volume
-running_signals.gold.signal_fitness
-running_signals.gold.mart_runs
-running_signals.gold.mart_running_signals
-running_signals.gold.mart_weekly_training_features
-```
-
-## Useful Partial Runs
-
-Run the primary day-first graph:
-
-```bash
-uv run dbt run \
-  --project-dir dbt \
-  --select silver_dates+ mart_days+ mart_weeks mart_months mart_years
-```
-
-Run the route-ready session, segment, route, and feature graph:
-
-```bash
-uv run dbt run \
-  --project-dir dbt \
-  --select silver_run_records+ mart_route_prediction_features
-```
-
-Run the compatibility weekly signal path:
-
-```bash
-uv run dbt run \
-  --project-dir dbt \
-  --select mart_weeks+ mart_weekly_training_features
-```
-
-## Local Quality Checks
-
-Before committing changes, run:
-
-```bash
-uv run pytest
-uv run ruff check ingest scripts tests
-uv run mypy ingest scripts tests
-
-cd infra/terraform
-terraform validate
-cd ../..
-
-uv run dbt parse --project-dir dbt
-uv run dbt ls --project-dir dbt --select silver_dates+ mart_route_prediction_features
-```
-
-Use real Databricks credentials for:
-
-```bash
-uv run dbt run --project-dir dbt
-uv run dbt test --project-dir dbt
-```
-
-Reload the Supabase presentation read models after dbt succeeds:
+### 4. Sync Supabase read models
 
 ```bash
 uv run python scripts/sync_site_supabase.py
 ```
 
-Required values for the sync are:
+The sync is incremental: unchanged tables are skipped via content fingerprints, so a no-change run
+finishes in seconds. Changed tables stream into Postgres with `COPY` in a single transaction.
 
-- `DATABRICKS_HOST`
-- `DATABRICKS_TOKEN`
-- `DATABRICKS_HTTP_PATH`
-- `DATABRICKS_CATALOG`
-- `DATABRICKS_GOLD_SCHEMA`
+- `--dry-run` — show which tables would sync or be skipped, without writing.
+- `--full` — force a complete reload of every table.
+- `--no-progress` — plain log lines instead of the progress bar.
 
-For local development, `SUPABASE_DB_URL` is not required. The sync script defaults to the Supabase
-CLI database at `postgresql://postgres:postgres@127.0.0.1:54322/postgres`. For hosted Supabase,
-set `SUPABASE_DB_URL` to a direct database connection with write privileges.
+Defaults to the local Supabase CLI database; set `SUPABASE_DB_URL` for hosted Supabase.
 
-Do not put `SUPABASE_DB_URL` in the site deployment environment. The site only needs
-`SUPABASE_URL` and `SUPABASE_ANON_KEY`.
+## Quality Checks
 
-Use `--dry-run` to fetch Databricks row counts without writing to Supabase.
+Before committing:
 
-Spot-check Databricks results after a full build:
+```bash
+uv run pytest
+uv run ruff check ingest scripts tests
+uv run mypy ingest scripts tests
+uv run dbt parse --project-dir dbt
+```
+
+Spot-check Databricks after a full build:
 
 - Weekly, monthly, and yearly totals reconcile to `mart_days`.
 - Every `mart_activity_records` run is ordered uniquely by `record_index`, and valid coordinate rows
-  trace the complete route rather than a segment-endpoint approximation.
-- `mart_run_segments` contains quarter, half, and full metric and imperial resolutions; allocated
-  distance and duration reconcile to record-derived totals within numeric tolerance, including
-  intervals that cross one or more split boundaries.
-- Exact-boundary activity finishes do not produce a trailing zero-distance analytical segment.
-- `mart_run_sessions` and `signal_fitness` use accurate canonical metric 250m rows. Route clustering
-  uses its isolated legacy 250m floor-bucketed H3 path so existing `route_id` values remain stable.
-- `mart_route_clusters` has one row per GPS-backed run and `route_match_similarity` stays between 0
-  and 1.
-- `mart_route_prediction_features` contains labels only from the current run observation and prior
-  route/training context in feature columns.
+  trace the complete route.
+- `mart_run_segments` covers quarter, half, and full metric and imperial resolutions; allocated
+  distance and duration reconcile to record-derived totals within numeric tolerance.
+- `mart_route_clusters` has one row per GPS-backed run, `route_match_similarity` stays between 0
+  and 1, and route identity comes from the isolated legacy 250m H3 path so `route_id` values remain
+  stable.
+- `mart_route_prediction_features` contains labels only from the current run and prior route or
+  training context in feature columns.

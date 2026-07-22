@@ -13,7 +13,7 @@ run_availability as (
         'garmin_recovery_hr' as metric_name,
         count(*) as denominator_count,
         count(garmin_recovery_hr) as available_count
-    from {{ ref('silver_runs') }}
+    from {{ ref('runs') }}
 
     union all
 
@@ -24,7 +24,7 @@ run_availability as (
         'session_avg_heart_rate',
         count(*),
         count(avg_heart_rate)
-    from {{ ref('silver_runs') }}
+    from {{ ref('runs') }}
 
     union all
 
@@ -35,7 +35,7 @@ run_availability as (
         'record_rows_present',
         count(*),
         sum(case when record_count > 0 then 1 else 0 end)
-    from {{ ref('silver_runs') }}
+    from {{ ref('runs') }}
 
     union all
 
@@ -46,7 +46,7 @@ run_availability as (
         'record_distance_coverage_ratio',
         count(*),
         count(record_distance_coverage_ratio)
-    from {{ ref('silver_runs') }}
+    from {{ ref('runs') }}
 
     union all
 
@@ -57,7 +57,7 @@ run_availability as (
         'record_distance_coverage_95_pct',
         count(*),
         sum(case when record_distance_coverage_ratio >= 0.95 then 1 else 0 end)
-    from {{ ref('silver_runs') }}
+    from {{ ref('runs') }}
 
     union all
 
@@ -68,7 +68,7 @@ run_availability as (
         'gps_records_present',
         count(*),
         sum(case when gps_record_count > 0 then 1 else 0 end)
-    from {{ ref('silver_runs') }}
+    from {{ ref('runs') }}
 ),
 
 run_month_availability as (
@@ -92,7 +92,7 @@ run_month_availability as (
                 'record_distance_coverage_95_pct', case when record_distance_coverage_ratio >= 0.95 then 1 else 0 end,
                 'gps_records_present', case when gps_record_count > 0 then 1 else 0 end
             ) as (metric_name, is_available)
-        from {{ ref('silver_runs') }}
+        from {{ ref('runs') }}
     )
     group by
         entity,

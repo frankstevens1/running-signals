@@ -1,7 +1,7 @@
 version: 2
 
 models:
-  - name: silver_dates
+  - name: dates
     description: Completed calendar-day spine from the first observed Garmin date through the latest completed day.
     columns:
       - name: calendar_date
@@ -19,7 +19,7 @@ models:
         tests:
           - not_null
 
-  - name: silver_runs
+  - name: runs
     description: Canonical session-level running activity model derived from bronze Garmin FIT session messages and record coverage.
     columns:
       - name: run_id
@@ -43,7 +43,7 @@ models:
       - name: gps_record_count
         description: Count of per-record telemetry rows with latitude values, used to identify GPS-backed runs.
 
-  - name: silver_run_records
+  - name: run_records
     description: Cleaned per-record Garmin FIT telemetry with timestamps, elapsed seconds, pace, heart rate, cadence, altitude, coordinates, and H3 cells.
     tests:
       - unique_combination_of_columns:
@@ -55,7 +55,7 @@ models:
           - not_null
           - relationships:
               arguments:
-                to: ref('silver_runs')
+                to: ref('runs')
                 field: run_id
       - name: record_timestamp
         tests:
@@ -71,7 +71,7 @@ models:
       - name: running_cadence
         description: Record cadence including fractional cadence, normalized to total steps per minute. Nullable when source cadence is absent.
 
-  - name: silver_health_days
+  - name: health_days
     description: Canonical daily Garmin health context derived from raw Garmin Connect API JSON payloads.
     columns:
       - name: calendar_date
@@ -80,7 +80,7 @@ models:
           - not_null
           - unique
 
-  - name: silver_weeks
+  - name: weeks
     description: Compatibility completed-week spine derived from the day-first silver foundation and session-level runs.
     columns:
       - name: week_start_date
@@ -90,7 +90,7 @@ models:
           - unique
           - relationships:
               arguments:
-                to: ref('silver_dates')
+                to: ref('dates')
                 field: week_start_date
       - name: week_end_date
         tests:
@@ -111,6 +111,24 @@ models:
         tests:
           - not_null
 
+  - name: route_observations
+    description: One row per GPS-backed run with its 250m H3 path signature, start/end cells, distance bucket, and segment count for route similarity comparison.
+    columns:
+      - name: run_id
+        tests:
+          - not_null
+          - unique
+
+  - name: route_similarity_edges
+    description: Bidirectional edge graph of similar route pairs with a Jaccard-based similarity score computed from shared 250m H3 cells within one segment offset of each other.
+    columns:
+      - name: run_id
+        tests:
+          - not_null
+      - name: connected_run_id
+        tests:
+          - not_null
+
   - name: mart_days
     description: Primary daily training mart with run outcomes, health context, active-day flags, and rolling daily windows.
     columns:
@@ -120,7 +138,7 @@ models:
           - unique
           - relationships:
               arguments:
-                to: ref('silver_dates')
+                to: ref('dates')
                 field: calendar_date
       - name: run_count
         tests:
@@ -144,7 +162,7 @@ models:
           - unique
           - relationships:
               arguments:
-                to: ref('silver_dates')
+                to: ref('dates')
                 field: week_start_date
       - name: week_end_date
         tests:
@@ -155,6 +173,8 @@ models:
       - name: weekly_distance_km
         tests:
           - not_null
+      - name: avg_run_distance_km
+        description: Average per-run distance within the completed week, computed as weekly_distance_km / runs_per_week.
       - name: active_week_flag
         tests:
           - not_null
@@ -174,7 +194,7 @@ models:
           - unique
           - relationships:
               arguments:
-                to: ref('silver_dates')
+                to: ref('dates')
                 field: month_start_date
       - name: monthly_distance_km
         tests:
@@ -189,7 +209,7 @@ models:
           - unique
           - relationships:
               arguments:
-                to: ref('silver_dates')
+                to: ref('dates')
                 field: year_start_date
       - name: yearly_distance_km
         tests:
@@ -307,7 +327,7 @@ models:
           - not_null
           - relationships:
               arguments:
-                to: ref('silver_runs')
+                to: ref('runs')
                 field: run_id
       - name: activity_id
         tests:
@@ -346,7 +366,7 @@ models:
           - not_null
           - relationships:
               arguments:
-                to: ref('silver_runs')
+                to: ref('runs')
                 field: run_id
       - name: unit_system
         description: Metric or imperial unit family for the segment resolution.
@@ -435,7 +455,7 @@ models:
           - unique
           - relationships:
               arguments:
-                to: ref('silver_runs')
+                to: ref('runs')
                 field: run_id
       - name: route_id
         description: Stable route cluster identifier derived from the representative route signature and distance bucket.
@@ -463,7 +483,7 @@ models:
           - unique
           - relationships:
               arguments:
-                to: ref('silver_runs')
+                to: ref('runs')
                 field: run_id
       - name: activity_id
         tests:
@@ -489,6 +509,8 @@ models:
         description: Mean valid GPS latitude from the route's representative run, used for route-map overview placement.
       - name: representative_route_centroid_longitude_deg
         description: Mean valid GPS longitude from the route's representative run, used for route-map overview placement.
+      - name: city_grid_bucket
+        description: Approximate 0.25-degree lat/lon grid cell for the route centroid, used for map-based city grouping.
 
   - name: mart_route_prediction_features
     description: One row per run-route observation with route features, recent training context, prior route context, and outcome labels.
@@ -510,3 +532,49 @@ models:
                 field: route_id
       - name: label_avg_pace_min_per_km
         description: Outcome label for descriptive prediction-readiness experiments.
+
+  - name: int_daily_streaks
+    description: Single-row aggregate of daily run streaks and training breaks derived from mart_days using gap-and-islands window functions.
+    columns:
+      - name: longest_daily_run_streak
+        description: Longest consecutive stretch of active run days across the entire history.
+      - name: average_daily_run_streak
+        description: Mean length of all active-day run streaks.
+      - name: longest_training_break
+        description: Longest consecutive stretch of non-run days across the entire history.
+      - name: average_break_length
+        description: Mean length of all non-run-day training breaks.
+
+  - name: int_route_component_roots
+    description: Intermediate connected-component partial roots after 6 rounds of pointer-jumping in chronological route-order space, checkpointing progress before the final mart_route_clusters model.
+    columns:
+      - name: run_id
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('runs')
+                field: run_id
+      - name: route_order
+        description: Dense chronological ordinal (activity_date, activity_id, run_id) used for pointer-jumping.
+        tests:
+          - not_null
+      - name: component_root
+        description: Current minimum route_order reachable after 6 pointer-jumping rounds.
+        tests:
+          - not_null
+
+  - name: int_current_week_aligned
+    description: Single-row aggregate for the current ISO week-to-date, sourced from latest completed days in mart_days.
+    columns:
+      - name: week_start_date
+        description: Monday of the current ISO calendar week.
+      - name: latest_completed_date
+        description: Latest completed calendar date within the current week.
+      - name: run_count
+        description: Total runs completed week-to-date.
+      - name: distance_km
+        description: Total distance covered week-to-date.
+      - name: active_days
+        description: Number of active run days week-to-date.

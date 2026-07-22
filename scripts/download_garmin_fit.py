@@ -162,7 +162,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--destination",
         choices=["local", "s3"],
         default="s3",
-        help="Where to save downloaded FIT files. Defaults to s3 (S3-compatible object storage).",
+        help="Where to save downloaded FIT files. Defaults to s3.",
     )
 
     parser.add_argument(
@@ -175,9 +175,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--s3-bucket",
         default=os.getenv("GARMIN_FIT_S3_BUCKET"),
-        help="S3 bucket for FIT files. Defaults to GARMIN_FIT_S3_BUCKET. "
-        "Credentials read from OBJECT_STORAGE_ACCESS_KEY_ID, "
-        "OBJECT_STORAGE_SECRET_ACCESS_KEY, and OBJECT_STORAGE_ENDPOINT_URL.",
+        help="S3 bucket for FIT files. Defaults to GARMIN_FIT_S3_BUCKET.",
     )
 
     parser.add_argument(

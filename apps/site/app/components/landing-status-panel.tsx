@@ -14,7 +14,7 @@ type StatusState =
 
 const pipelineFacts = [
   ["source", "Garmin Connect"],
-  ["storage", "Object Storage + Delta Lake"],
+  ["storage", "S3 + Delta Lake"],
   ["transform", "dbt + SQL"],
   ["serving", "Supabase + Next.js"],
 ] as const;

@@ -2,7 +2,7 @@
 
 with dates as (
     select *
-    from {{ ref('silver_dates') }}
+    from {{ ref('dates') }}
 ),
 
 run_bounds as (
@@ -31,7 +31,7 @@ weekly_runs as (
         sum(distance_km) as weekly_distance_km,
         sum(duration_seconds) as weekly_duration_seconds,
         max(distance_km) as long_run_distance_km
-    from {{ ref('silver_runs') }}
+    from {{ ref('runs') }}
     group by 1
 )
 

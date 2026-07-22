@@ -2,12 +2,12 @@
 
 with runs as (
     select *
-    from {{ ref('silver_runs') }}
+    from {{ ref('runs') }}
 ),
 
 health_days as (
     select *
-    from {{ ref('silver_health_days') }}
+    from {{ ref('health_days') }}
 ),
 
 segments as (

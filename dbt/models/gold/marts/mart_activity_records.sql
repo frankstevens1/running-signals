@@ -21,4 +21,4 @@ select
     temperature,
     position_lat_deg,
     position_long_deg
-from {{ ref('silver_run_records') }}
+from {{ ref('run_records') }}

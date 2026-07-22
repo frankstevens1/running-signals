@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -18,9 +19,6 @@ from ingest.garmin.bronze_schema import (
 )
 from ingest.garmin.bronze_utils import (
     align_columns,
-    cleanup_tempfiles,
-    download_to_tempfile,
-    is_remote_source,
     normalize_datetime,
     normalize_source_path,
     quote_sql_string,
@@ -76,7 +74,7 @@ def ingest_garmin_fit_bronze(
     schema: str = BRONZE_SCHEMA,
     full_refresh: bool = False,
 ) -> GarminBronzeIngestionResult:
-    source_files = discover_fit_files(source_path, spark=spark)
+    source_files = discover_fit_files(source_path)
     sessions_table = BRONZE_TABLES["sessions"].full_name(catalog, schema)
     existing_runs = (
         {}
@@ -98,19 +96,9 @@ def ingest_garmin_fit_bronze(
             warnings=[],
         )
 
-    is_remote = is_remote_source(source_path)
-
-    try:
-        parsed_frames = parse_fit_files(
-            [source_file.path for source_file in plan.files_to_parse]
-        )
-        bronze_frames = enrich_bronze_frames(parsed_frames, plan.files_to_parse)
-        validation = validate_bronze_frames(bronze_frames)
-    finally:
-        if is_remote:
-            cleanup_tempfiles(
-                [source_file.path for source_file in plan.files_to_parse]
-            )
+    parsed_frames = parse_fit_files([source_file.path for source_file in plan.files_to_parse])
+    bronze_frames = enrich_bronze_frames(parsed_frames, plan.files_to_parse)
+    validation = validate_bronze_frames(bronze_frames)
 
     if full_refresh:
         overwrite_bronze_tables(spark, bronze_frames, catalog, schema)
@@ -130,15 +118,7 @@ def ingest_garmin_fit_bronze(
     )
 
 
-def discover_fit_files(
-    source_path: str | Path,
-    spark: Any | None = None,
-) -> list[GarminFitSourceFile]:
-    text = str(source_path)
-
-    if is_remote_source(text) and spark is not None:
-        return _discover_fit_files_via_spark(spark, text)
-
+def discover_fit_files(source_path: str | Path) -> list[GarminFitSourceFile]:
     path = normalize_source_path(source_path)
 
     if path.is_file():
@@ -147,27 +127,6 @@ def discover_fit_files(
         paths = sorted(path.glob("*.fit"))
 
     return [source_file_from_path(item) for item in paths]
-
-
-def _discover_fit_files_via_spark(spark: Any, source_path: str) -> list[GarminFitSourceFile]:
-    df = spark.read.format("binaryFile").load(source_path)
-    rows = df.select("path", "length", "modificationTime", "content").collect()
-    return [source_file_from_spark_row(row) for row in rows]
-
-
-def source_file_from_spark_row(row: Any) -> GarminFitSourceFile:
-    values = row.asDict()
-    remote_path = str(values["path"])
-    file_name = remote_path.rsplit("/", maxsplit=1)[-1]
-    run_id = file_name.removesuffix(".fit") if file_name.endswith(".fit") else file_name
-    temp_path = download_to_tempfile(bytes(values["content"]), ".fit")
-
-    return GarminFitSourceFile(
-        path=temp_path,
-        run_id=run_id,
-        source_file_size_bytes=int(values["length"]),
-        source_file_modification_time=normalize_datetime(values["modificationTime"]),
-    )
 
 
 def source_file_from_path(path: Path) -> GarminFitSourceFile:
@@ -385,8 +344,30 @@ def bronze_spark_schema(
 
 
 def frame_for_spark_schema(frame: pd.DataFrame, spark_schema: Any) -> pd.DataFrame:
+    from pyspark.sql.types import StringType
+
     aligned = align_columns(frame, spark_schema.fieldNames())
-    return aligned.astype(object).where(pd.notna(aligned), None)
+    aligned = aligned.astype(object).where(pd.notna(aligned), None)
+
+    string_columns = {
+        field.name for field in spark_schema if isinstance(field.dataType, StringType)
+    }
+    for column in string_columns & set(aligned.columns):
+        aligned[column] = aligned[column].apply(_serialize_string_column)
+
+    return aligned
+
+
+def _serialize_string_column(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, default=str)
+    if isinstance(value, (int, float)):
+        return str(value)
+    return json.dumps(value, default=str)
 
 
 def declared_bronze_spark_schema(spec: BronzeTableSpec) -> Any:

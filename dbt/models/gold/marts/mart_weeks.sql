@@ -89,6 +89,10 @@ select
     end as avg_pace_min_per_km,
     long_run_distance_km,
     case
+        when runs_per_week > 0
+        then weekly_distance_km / runs_per_week
+    end as avg_run_distance_km,
+    case
         when weekly_distance_km > 0
         then long_run_distance_km / weekly_distance_km
     end as long_run_share_of_week,

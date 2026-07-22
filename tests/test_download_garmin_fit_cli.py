@@ -18,12 +18,16 @@ def test_parse_args_loads_s3_defaults_from_project_env(
             [
                 "GARMIN_FIT_S3_BUCKET=env-bucket",
                 "GARMIN_FIT_S3_PREFIX=env-prefix/fit",
+                "AWS_REGION=eu-central-1",
+                "AWS_PROFILE=running-signals-dev",
             ]
         )
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("GARMIN_FIT_S3_BUCKET", raising=False)
     monkeypatch.delenv("GARMIN_FIT_S3_PREFIX", raising=False)
+    monkeypatch.delenv("AWS_REGION", raising=False)
+    monkeypatch.delenv("AWS_PROFILE", raising=False)
 
     args = parse_args(["--no-interactive"])
 
@@ -42,12 +46,16 @@ def test_parse_health_args_loads_s3_defaults_from_project_env(
             [
                 "GARMIN_HEALTH_S3_BUCKET=env-bucket",
                 "GARMIN_HEALTH_S3_PREFIX=env-prefix/health",
+                "AWS_REGION=eu-central-1",
+                "AWS_PROFILE=running-signals-dev",
             ]
         )
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("GARMIN_HEALTH_S3_BUCKET", raising=False)
     monkeypatch.delenv("GARMIN_HEALTH_S3_PREFIX", raising=False)
+    monkeypatch.delenv("AWS_REGION", raising=False)
+    monkeypatch.delenv("AWS_PROFILE", raising=False)
 
     args = parse_health_args(["--no-interactive"])
 

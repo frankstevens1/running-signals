@@ -12,22 +12,23 @@ creating a broader recovery product surface.
 It is not modeled as a standalone recovery pillar because that would imply a broader recovery model
 involving sleep, HRV, fatigue, soreness, and training readiness. That is outside the intended scope.
 
-## Why unattended Garmin downloads use Hetzner access keys instead of AWS IAM
+## Why unattended Garmin downloads should not use AWS SSO
 
-The original design used AWS IAM with OIDC for unattended job credentials, but the project
-migrated to Hetzner Object Storage (S3-compatible). Hetzner uses long-lived access key / secret key
-pairs rather than short-lived IAM role credentials.
+AWS IAM Identity Center profiles are appropriate for local smoke tests and manual backfills, but they
+are not a durable automation primitive. The local SSO token can expire and fail refresh with
+`botocore.exceptions.TokenRetrievalError`, which would interrupt scheduled FIT or health JSON
+landing jobs.
 
-For unattended object storage downloads in automation (GitHub Actions, scheduled jobs), pass the
-Hetzner access key and secret key as secrets to the job runtime. Hetzner credentials do not expire
-unless you revoke them in the Console, so no OIDC or SSO token refresh is needed.
+For unattended S3 downloads, prefer GitHub Actions OIDC assuming a narrowly scoped AWS IAM role. The
+role should allow only the raw Garmin landing prefixes needed by the downloader. Running the job
+inside AWS with an instance, task, or Lambda role is also acceptable because boto3 can retrieve
+short-lived role credentials non-interactively.
 
-If the access key is exposed, revoke it in Hetzner Console and generate a replacement. Treat the
-secret key with the same care as any long-lived credential: store it in a secret manager, never
-commit it to Git, and rotate it periodically.
+Long-lived IAM user access keys are a fallback, not the preferred design. If used, they should be
+scoped to the raw Garmin prefixes and rotated.
 
-This only covers object storage access. Garmin Connect authentication still needs a separate
-non-interactive strategy using a writable external token store or explicitly provided credentials.
+This only covers AWS access. Garmin Connect authentication still needs a separate non-interactive
+strategy using a writable external token store or explicitly provided credentials.
 
 ## Why route geometry and analytical segments are separate
 

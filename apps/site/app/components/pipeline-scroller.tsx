@@ -9,7 +9,7 @@ const steps = [
     label: "Ingest",
     title: "Python lands Garmin source payloads.",
     icon: RadioTower,
-    copy: "Ingestion jobs authenticate to Garmin Connect, download FIT and health payloads, and write source files into the raw object storage landing zone before analytical assumptions are applied.",
+    copy: "Ingestion jobs authenticate to Garmin Connect, download FIT and health payloads, and write source files into the raw S3 landing zone before analytical assumptions are applied.",
   },
   {
     id: "bronze",

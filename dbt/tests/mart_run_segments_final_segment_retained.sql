@@ -10,7 +10,7 @@ with expected_final_segments as (
             ) as int),
             1
         ) as expected_final_segment_index
-    from {{ ref('silver_run_records') }} as records
+    from {{ ref('run_records') }} as records
     cross join {{ ref('mart_segment_resolutions') }} as resolutions
     where records.record_distance_m is not null
     group by

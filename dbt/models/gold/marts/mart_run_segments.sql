@@ -16,7 +16,7 @@ distance_records as (
             ),
             0.0
         ) as analysis_distance_m
-    from {{ ref('silver_run_records') }}
+    from {{ ref('run_records') }}
     where record_distance_m is not null
 ),
 

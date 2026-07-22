@@ -10,9 +10,6 @@ import pandas as pd
 
 from ingest.garmin.bronze_utils import (
     align_columns,
-    cleanup_tempfiles,
-    download_to_tempfile,
-    is_remote_source,
     normalize_datetime,
     normalize_source_path,
     quote_sql_string,
@@ -67,7 +64,7 @@ def ingest_garmin_health_bronze(
     schema: str = BRONZE_SCHEMA,
     full_refresh: bool = False,
 ) -> GarminHealthBronzeIngestionResult:
-    source_files = discover_health_payload_files(source_path, spark=spark)
+    source_files = discover_health_payload_files(source_path)
     table_name = HEALTH_PAYLOAD_TABLE.full_name(catalog, schema)
     existing_payloads = (
         {}
@@ -90,22 +87,14 @@ def ingest_garmin_health_bronze(
             row_count=0,
         )
 
-    is_remote = is_remote_source(source_path)
+    frame = build_health_bronze_frame(plan.files_to_ingest)
+    validate_health_bronze_frame(frame)
 
-    try:
-        frame = build_health_bronze_frame(plan.files_to_ingest)
-        validate_health_bronze_frame(frame)
-
-        if full_refresh:
-            write_health_bronze_table(spark, frame, catalog, schema, mode="overwrite")
-        else:
-            delete_existing_health_payloads(spark, plan.changed_keys, catalog, schema)
-            write_health_bronze_table(spark, frame, catalog, schema, mode="append")
-    finally:
-        if is_remote:
-            cleanup_tempfiles(
-                [source_file.path for source_file in plan.files_to_ingest]
-            )
+    if full_refresh:
+        write_health_bronze_table(spark, frame, catalog, schema, mode="overwrite")
+    else:
+        delete_existing_health_payloads(spark, plan.changed_keys, catalog, schema)
+        write_health_bronze_table(spark, frame, catalog, schema, mode="append")
 
     return GarminHealthBronzeIngestionResult(
         source_file_count=len(plan.source_files),
@@ -116,15 +105,7 @@ def ingest_garmin_health_bronze(
     )
 
 
-def discover_health_payload_files(
-    source_path: str | Path,
-    spark: Any | None = None,
-) -> list[GarminHealthSourceFile]:
-    text = str(source_path)
-
-    if is_remote_source(text) and spark is not None:
-        return _discover_health_payload_files_via_spark(spark, text)
-
+def discover_health_payload_files(source_path: str | Path) -> list[GarminHealthSourceFile]:
     path = normalize_source_path(source_path)
 
     if path.is_file():
@@ -133,45 +114,6 @@ def discover_health_payload_files(
         paths = sorted(path.glob("calendar_date=*/*.json"))
 
     return [health_source_file_from_path(item) for item in paths]
-
-
-def _discover_health_payload_files_via_spark(
-    spark: Any,
-    source_path: str,
-) -> list[GarminHealthSourceFile]:
-    df = spark.read.format("binaryFile").load(source_path)
-    rows = df.select("path", "length", "modificationTime", "content").collect()
-    return [health_source_file_from_spark_row(row) for row in rows]
-
-
-def health_source_file_from_spark_row(row: Any) -> GarminHealthSourceFile:
-    values = row.asDict()
-    remote_path = str(values["path"])
-    relative = remote_path.removeprefix("s3a://").split("/", maxsplit=1)[-1] if "s3a://" in remote_path else remote_path
-    parts = relative.split("/")
-    date_partition = parts[-2] if len(parts) >= 2 else ""
-    file_name = parts[-1] if parts else ""
-
-    if not date_partition.startswith("calendar_date="):
-        raise ValueError(f"Health payload path is missing calendar_date partition: {remote_path}")
-
-    calendar_date_text = date_partition.removeprefix("calendar_date=")
-
-    try:
-        calendar_date = date.fromisoformat(calendar_date_text)
-    except ValueError as exc:
-        raise ValueError(f"Invalid health payload calendar_date partition: {remote_path}") from exc
-
-    payload_type = validate_health_payload_type(file_name.removesuffix(".json"))
-    temp_path = download_to_tempfile(bytes(values["content"]), ".json")
-
-    return GarminHealthSourceFile(
-        path=temp_path,
-        calendar_date=calendar_date,
-        payload_type=payload_type,
-        source_file_size_bytes=int(values["length"]),
-        source_file_modification_time=normalize_datetime(values["modificationTime"]),
-    )
 
 
 def health_source_file_from_path(path: Path) -> GarminHealthSourceFile:

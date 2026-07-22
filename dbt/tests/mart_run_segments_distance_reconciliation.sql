@@ -6,7 +6,7 @@ with record_totals as (
             unix_timestamp(max(record_timestamp)) - unix_timestamp(min(record_timestamp))
             as double
         ) as record_duration_seconds
-    from {{ ref('silver_run_records') }}
+    from {{ ref('run_records') }}
     where record_distance_m is not null
     group by run_id
 ),

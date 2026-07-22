@@ -21,6 +21,6 @@ select
     health_days.has_rhr_payload,
     health_days.has_sleep_payload,
     health_days.has_heart_rates_payload
-from {{ ref('silver_runs') }} as runs
-left join {{ ref('silver_health_days') }} as health_days
+from {{ ref('runs') }} as runs
+left join {{ ref('health_days') }} as health_days
     on runs.activity_date = health_days.calendar_date

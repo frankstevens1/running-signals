@@ -59,7 +59,7 @@ records_with_run_context as (
         records.source_file_modification_time,
         records.ingested_at
     from deduplicated_records as records
-    inner join {{ ref('silver_runs') }} as runs
+    inner join {{ ref('runs') }} as runs
         on records.run_id = runs.run_id
 ),
 

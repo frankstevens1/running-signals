@@ -15,11 +15,11 @@ variables:
     description: Unity Catalog catalog for Running Signals tables.
     default: running_signals
   garmin_fit_source_path:
-    description: S3A path backed by Hetzner Object Storage containing Garmin FIT files.
-    default: s3a://datafluent/garmin/fit
+    description: External S3-backed Unity Catalog volume path containing Garmin FIT files.
+    default: /Volumes/running_signals/bronze/raw_garmin/fit
   garmin_health_source_path:
-    description: S3A path backed by Hetzner Object Storage containing Garmin health JSON files.
-    default: s3a://datafluent/garmin/health/daily
+    description: External S3-backed Unity Catalog volume path containing Garmin health JSON files.
+    default: /Volumes/running_signals/bronze/raw_garmin/health/daily
 
 targets:
   dev:

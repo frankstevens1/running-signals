@@ -4,7 +4,7 @@
 Daily GitHub Actions schedule
             │
             ▼
-   1. Authenticate to Hetzner Object Storage
+  1. Authenticate to AWS with OIDC
   2. Install project with uv
   3. Authenticate to Garmin
             │
@@ -14,7 +14,7 @@ Daily GitHub Actions schedule
             │               │
             └───────┬───────┘
                     ▼
-              Object storage raw landing
+              S3 raw landing
                     │
                     ▼
           Trigger Databricks workflow
@@ -51,8 +51,10 @@ uv sync --locked
 It receives:
 
 - Garmin credentials from GitHub secrets
-- Hetzner Object Storage access key and secret key from GitHub secrets
-- Object storage bucket configuration from workflow variables
+- Temporary AWS credentials through OIDC
+- S3 bucket configuration from workflow variables
+
+No local SSO session is involved.
 
 ### 2. FIT incremental refresh
 
@@ -69,7 +71,7 @@ For each activity:
 ```text
 New activity
     → download original FIT file
-    → write garmin/fit/{activity_id}.fit to object storage
+    → write garmin/fit/{activity_id}.fit to S3
 
 Existing activity found
     → stop scanning

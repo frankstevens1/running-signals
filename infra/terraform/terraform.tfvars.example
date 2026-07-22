@@ -1,17 +1,16 @@
 # Copy this file to terraform.tfvars and edit the values for your machine.
 # terraform.tfvars is ignored by Git.
 
-# Hetzner Object Storage bucket name.
-raw_bucket_name = "running-signals-raw"
+aws_region  = "eu-central-1"
 
-# Hetzner Object Storage access keys.
-# Generate at: https://console.hetzner.com/projects -> Security -> S3 Credentials
-object_storage_access_key_id     = "<your-access-key-id>"
-object_storage_secret_access_key = "<your-secret-access-key>"
+# Use an AWS IAM Identity Center profile created with:
+# aws configure sso
+# Do not use root user access keys for this project.
+aws_profile = "running-signals-dev"
 
-# Hetzner Console project ID for the Cloudflare API TOKEN credential Account ID field.
-# Find it in the URL: https://console.hetzner.com/projects/<project-ID>
-object_storage_account_id = "<project-id>"
+# Optional. Leave null to use the account-specific default:
+# running-signals-raw-<aws_account_id>
+raw_bucket_name = null
 
 # Separate from garmin/ so Databricks managed catalog storage never overlaps
 # the raw Garmin landing prefix.
@@ -24,10 +23,15 @@ drop_default_schema = true
 # Optional. Set this if you use a named Databricks CLI profile.
 databricks_profile = null
 
-# Set to true for the first apply if credential validation fails.
-# Set to false after confirming the storage credential works.
-skip_databricks_validation = false
+# Brand-new setup starts in bootstrap mode. After the first apply, replace
+# "bootstrap" with:
+# terraform output storage_credential_external_id
+databricks_storage_credential_external_id = "bootstrap"
 
-# Allow Databricks to update the storage credential when dependent
-# external locations already exist.
+# Set to false after replacing the bootstrap external ID with the real
+# Databricks-generated external ID.
+skip_databricks_validation = true
+
+# Required during the bootstrap transition because the storage credential has
+# dependent external locations by the time validation is turned back on.
 databricks_storage_credential_force_update = true

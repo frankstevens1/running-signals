@@ -2,7 +2,7 @@
 
 with runs as (
     select *
-    from {{ ref('silver_runs') }}
+    from {{ ref('runs') }}
 ),
 
 segments as (

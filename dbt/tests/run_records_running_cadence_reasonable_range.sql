@@ -1,5 +1,5 @@
 select *
-from {{ ref('silver_run_records') }}
+from {{ ref('run_records') }}
 where running_cadence is not null
     and (
         running_cadence < 0

@@ -17,40 +17,14 @@
 # MAGIC - `schema`: Target schema, normally `bronze`.
 # MAGIC - `full_refresh`: Set to `true` only for an intentional table rebuild.
 # MAGIC
-# MAGIC The expected source path for the default development setup is an S3A path
-# MAGIC backed by Hetzner Object Storage:
+# MAGIC The expected source path for the default development setup is an external S3-backed
+# MAGIC Unity Catalog volume:
 # MAGIC
 # MAGIC ```text
-# MAGIC s3a://datafluent/garmin/fit
+# MAGIC /Volumes/running_signals/bronze/raw_garmin/fit
 # MAGIC ```
 # MAGIC
-# MAGIC Spark S3A configs are injected from the `running-signals` Databricks secret scope.
 # MAGIC Each FIT filename stem is treated as both `run_id` and `garmin_activity_id`.
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Configure Spark S3A Access
-
-# COMMAND ----------
-
-import os
-
-dbutils_value = globals().get("dbutils")
-
-if dbutils_value is not None:
-    try:
-        hetzner_access_key = dbutils_value.secrets.get("running-signals", "hetzner-access-key")
-        hetzner_secret_key = dbutils_value.secrets.get("running-signals", "hetzner-secret-key")
-
-        spark_value = globals().get("spark")
-        if spark_value is not None:
-            spark_value.conf.set("fs.s3a.endpoint", os.getenv("OBJECT_STORAGE_ENDPOINT_URL", "https://nbg1.your-objectstorage.com"))
-            spark_value.conf.set("fs.s3a.access.key", hetzner_access_key)
-            spark_value.conf.set("fs.s3a.secret.key", hetzner_secret_key)
-            spark_value.conf.set("fs.s3a.path.style.access", "true")
-    except Exception:
-        pass
 
 # COMMAND ----------
 
@@ -124,7 +98,7 @@ def widget_value(name: str, default: str) -> str:
     return str(dbutils_value.widgets.get(name))
 
 
-source_path = widget_value("source_path", "s3a://datafluent/garmin/fit")
+source_path = widget_value("source_path", "/Volumes/running_signals/bronze/raw_garmin/fit")
 catalog = widget_value("catalog", "running_signals")
 schema = widget_value("schema", "bronze")
 full_refresh = widget_value("full_refresh", "false").strip().lower() in {"1", "true", "yes"}

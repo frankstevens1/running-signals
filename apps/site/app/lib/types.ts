@@ -93,6 +93,7 @@ export type RouteSummary = {
   routeDistanceBucketKm: number | null;
   representativeRouteCentroidLatitudeDeg: number | null;
   representativeRouteCentroidLongitudeDeg: number | null;
+  cityGridBucket: string | null;
 };
 
 export type MapProfileRecord = {
@@ -155,6 +156,7 @@ export type WeekRollup = {
   weekEndDate: string;
   runsPerWeek: number;
   weeklyDistanceKm: number;
+  avgRunDistanceKm: number | null;
   weeklyDurationSeconds: number;
   avgPaceMinPerKm: number | null;
   longRunDistanceKm: number | null;

@@ -1,5 +1,5 @@
 select *
-from {{ ref('silver_runs') }}
+from {{ ref('runs') }}
 where garmin_recovery_hr is not null
     and (
         garmin_recovery_hr <= 0

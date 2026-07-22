@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import os
 from datetime import date
 from pathlib import Path
 from typing import Any, Protocol
 
-from ingest.garmin.fit_store import _default_s3_client, normalize_s3_prefix
+from ingest.garmin.fit_store import normalize_s3_prefix
 
 HealthPayloadLocation = Path | str
 HealthPayloadIdentity = tuple[date, str]
@@ -119,9 +120,6 @@ class S3GarminHealthStore:
         bucket: str,
         prefix: str = DEFAULT_HEALTH_S3_PREFIX,
         client: Any | None = None,
-        endpoint_url: str | None = None,
-        access_key_id: str | None = None,
-        secret_access_key: str | None = None,
         region_name: str | None = None,
     ) -> None:
         if not bucket.strip():
@@ -129,12 +127,20 @@ class S3GarminHealthStore:
 
         self.bucket = bucket.strip()
         self.prefix = normalize_s3_prefix(prefix)
-        self.client = client or _default_s3_client(
-            endpoint_url=endpoint_url,
-            access_key_id=access_key_id,
-            secret_access_key=secret_access_key,
-            region_name=region_name,
+        self.client = client or self._default_client(region_name)
+
+    def _default_client(self, region_name: str | None) -> Any:
+        try:
+            import boto3
+        except ImportError as exc:
+            raise ImportError(
+                "boto3 is required for --destination s3. Install project dependencies first."
+            ) from exc
+
+        resolved_region_name = region_name or os.getenv("AWS_REGION") or os.getenv(
+            "AWS_DEFAULT_REGION"
         )
+        return boto3.client("s3", region_name=resolved_region_name)
 
     def key_for_payload(self, calendar_date: date, payload_type: str) -> str:
         return build_s3_health_key(
