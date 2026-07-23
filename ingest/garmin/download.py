@@ -267,12 +267,7 @@ def download_incremental_running_fit_files_to_store(
 
             if activity_id in existing_activity_ids or store.exists(activity_id):
                 skipped_existing_paths.append(output_path)
-                return GarminFitDownloadResult(
-                    downloaded_paths=downloaded_paths,
-                    skipped_existing_paths=skipped_existing_paths,
-                    deleted_existing_paths=[],
-                    inspected_activity_count=inspected_activity_count,
-                )
+                continue
 
             fit_bytes = download_activity_fit_bytes(api, activity_id)
             downloaded_paths.append(store.write(activity_id, fit_bytes))

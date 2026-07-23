@@ -9,10 +9,17 @@ import {
   FitnessEfficiencyChart,
   HrDriftChart,
   PaceHeartRateTrend,
+  RecoveryHeartRateChart,
 } from "@/app/components/trend-charts";
 import { getFitness } from "@/app/lib/data";
 import { speedFromKmh } from "@/app/lib/distance-unit";
-import { formatDecimal3, formatHeartRate, formatInteger, formatSignedPercent } from "@/app/lib/format";
+import {
+  formatDate,
+  formatDecimal2,
+  formatDecimal3,
+  formatHeartRate,
+  formatInteger,
+} from "@/app/lib/format";
 import { explorerPages } from "@/app/lib/page-metadata";
 import { getServerDistanceUnit } from "@/app/lib/server-distance-unit";
 
@@ -25,6 +32,24 @@ function trendDelta(
   const direction =
     diff > 0 ? ("up" as const) : diff < 0 ? ("down" as const) : ("neutral" as const);
   return { direction, diff };
+}
+
+function formatFixedSignedPercent(
+  value: number | null | undefined,
+  spaceBeforeUnit = true,
+): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "n/a";
+  return `${value > 0 ? "+" : ""}${formatDecimal2(value * 100)}${spaceBeforeUnit ? " " : ""}%`;
+}
+
+function relativeTrend(
+  current: number | null | undefined,
+  baseline: number | null | undefined,
+): { direction: "up" | "down" | "neutral"; change: number } | null {
+  if (baseline === null || baseline === undefined || baseline === 0) return null;
+  const delta = trendDelta(current, baseline);
+  if (!delta) return null;
+  return { direction: delta.direction, change: delta.diff / baseline };
 }
 
 export default async function FitnessPage() {
@@ -43,39 +68,44 @@ export default async function FitnessPage() {
           {(data) => {
             const latest = data.at(-1);
             const penultimate = data.at(-2);
-            const recoveryCount = data.filter((point) => point.garminRecoveryHr !== null).length;
-            const driftCount = data.filter((point) => point.hrDriftPct !== null).length;
+            const latestRecovery = [...data]
+              .reverse()
+              .find((point) => point.garminRecoveryHr !== null);
 
-            const driftTrend =
-              latest && penultimate
-                ? trendDelta(latest.hrDriftPct, penultimate.hrDriftPct)
-                : null;
+            const driftTrend = trendDelta(
+              latest?.hrDriftPct,
+              latest?.rolling4RunHrDriftPct,
+            );
 
             const hrTrend =
               latest && penultimate
                 ? trendDelta(latest.avgHeartRate, penultimate.avgHeartRate)
                 : null;
 
-            const efficiencyTrend =
-              latest && penultimate
-                ? trendDelta(latest.efficiencyRatio, penultimate.efficiencyRatio)
-                : null;
+            const recoveryTrend = trendDelta(
+              latestRecovery?.garminRecoveryHr,
+              latestRecovery?.rolling4RunRecoveryHr,
+            );
+
+            const efficiencyTrend = relativeTrend(
+              latest?.efficiencyRatio,
+              latest?.rolling4RunEfficiencyRatio,
+            );
 
             return (
               <div className="space-y-10">
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <MetricCard
                     label="Latest HR drift"
-                    value={formatSignedPercent(latest?.hrDriftPct)}
+                    value={formatFixedSignedPercent(latest?.hrDriftPct)}
                     detail="Second-half versus first-half efficiency"
                     icon={Gauge}
                     trend={
                       driftTrend
-                        ? {
+                          ? {
                             direction: driftTrend.direction,
-                            invert: (penultimate?.hrDriftPct ?? 0) > 0,
-                            value: formatSignedPercent(driftTrend.diff),
-                            label: "vs prior run",
+                            value: formatFixedSignedPercent(driftTrend.diff, false),
+                            label: "vs 4-run rolling",
                           }
                         : undefined
                     }
@@ -83,14 +113,38 @@ export default async function FitnessPage() {
                   <MetricCard
                     label="Latest avg HR"
                     value={formatHeartRate(latest?.avgHeartRate)}
-                    detail={`Recovery HR on ${formatInteger(recoveryCount)} returned runs`}
+                    detail={
+                      latest
+                        ? `Measured during the run on ${formatDate(latest.activityDate)}`
+                        : "No runs in the loaded window"
+                    }
                     icon={HeartPulse}
                     trend={
                       hrTrend
                         ? {
-                            direction: hrTrend.direction,
-                            value: `${hrTrend.diff > 0 ? "+" : ""}${formatInteger(Math.round(hrTrend.diff))} bpm`,
+                          direction: hrTrend.direction,
+                          invert: true,
+                          value: `${hrTrend.diff > 0 ? "+" : ""}${formatInteger(Math.round(hrTrend.diff))} bpm`,
                             label: "vs prior run",
+                          }
+                        : undefined
+                    }
+                  />
+                  <MetricCard
+                    label="Latest recovery HR"
+                    value={formatHeartRate(latestRecovery?.garminRecoveryHr)}
+                    detail={
+                      latestRecovery
+                        ? `Measured after the run on ${formatDate(latestRecovery.activityDate)}`
+                        : "No recovery HR recorded in the loaded window"
+                    }
+                    icon={HeartPulse}
+                    trend={
+                      recoveryTrend
+                        ? {
+                            direction: recoveryTrend.direction,
+                            value: `${recoveryTrend.diff > 0 ? "+" : ""}${formatDecimal2(recoveryTrend.diff)} bpm`,
+                            label: "vs 4-run rolling",
                           }
                         : undefined
                     }
@@ -102,14 +156,14 @@ export default async function FitnessPage() {
                         ? null
                         : speedFromKmh(latest.efficiencyRatio, unit),
                     )}
-                    detail={`${unit === "mi" ? "mph" : "km/h"} per bpm; ${formatInteger(driftCount)} runs with drift`}
+                    detail={`${unit === "mi" ? "mph" : "km/h"} per bpm`}
                     icon={Activity}
                     trend={
                       efficiencyTrend
-                        ? {
+                          ? {
                             direction: efficiencyTrend.direction,
-                            value: `${efficiencyTrend.diff > 0 ? "+" : ""}${formatDecimal3(Math.abs(efficiencyTrend.diff))}`,
-                            label: "vs prior run",
+                            value: formatFixedSignedPercent(efficiencyTrend.change, false),
+                            label: "vs 4-run rolling",
                           }
                         : undefined
                     }
@@ -124,6 +178,9 @@ export default async function FitnessPage() {
                   </ScrollReveal>
                   <ScrollReveal className="h-full" delayMs={120}>
                     <FitnessEfficiencyChart points={data} />
+                  </ScrollReveal>
+                  <ScrollReveal className="h-full" delayMs={160}>
+                    <RecoveryHeartRateChart points={data} />
                   </ScrollReveal>
                 </div>
               </div>

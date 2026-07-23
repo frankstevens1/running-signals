@@ -17,11 +17,11 @@ Consistency describes how regularly running occurs.
 | `missed_day_flag` | Day | `true` when `run_count = 0`. | `mart_days` | Implemented |
 | `rolling_7d_run_count` | Day | Sum of `run_count` over current day and previous six days. | `mart_days` | Implemented |
 | `rolling_28d_run_count` | Day | Sum of `run_count` over current day and previous 27 days. | `mart_days` | Implemented |
-| `runs_per_week` | Week | Sum of daily `run_count` in a completed calendar week. | `mart_weeks` | Compatibility |
+| `runs_per_week` | Week | Sum of daily `run_count` in a closed calendar week; the first observed week is retained when history begins midweek. | `mart_weeks` | Compatibility |
 | `active_week_flag` | Week | `true` when `runs_per_week > 0`. | `mart_weeks` | Compatibility |
 | `missed_week_flag` | Week | `true` when `runs_per_week = 0`. | `mart_weeks` | Compatibility |
 | `rolling_4w_run_count` | Week | Sum of `runs_per_week` over current completed week and previous three. | `mart_weeks` | Compatibility |
-| `active_week_streak` | Week | Consecutive active completed weeks ending in the current week. | `mart_weeks` | Compatibility |
+| `active_week_streak` | Week | Consecutive active closed weeks ending in the current week. | `mart_weeks` | Compatibility |
 | `missed_weeks_12w` | Week | Missed completed weeks over the current week and previous eleven. | `mart_weeks` | Compatibility |
 
 ## Volume Signals
@@ -35,7 +35,7 @@ Volume describes accumulated running load from distance and duration.
 | `long_run_distance_km` | Day | Maximum single-run distance on `calendar_date`. | `mart_days` | Implemented |
 | `rolling_7d_distance_km` | Day | Sum of daily distance over current day and previous six days. | `mart_days` | Implemented |
 | `rolling_28d_distance_km` | Day | Sum of daily distance over current day and previous 27 days. | `mart_days` | Implemented |
-| `weekly_distance_km` | Week | Sum of daily distance in a completed calendar week. | `mart_weeks` | Compatibility |
+| `weekly_distance_km` | Week | Sum of daily distance in a closed calendar week; the first observed week is retained when history begins midweek. | `mart_weeks` | Compatibility |
 | `rolling_4w_distance_km` | Week | Sum of weekly distance over current completed week and previous three. | `mart_weeks` | Compatibility |
 | `rolling_12w_distance_km` | Week | Sum of weekly distance over current completed week and previous eleven. | `mart_weeks` | Compatibility |
 | `monthly_distance_km` | Month | Sum of daily distance in the observed calendar month. | `mart_months` | Implemented |

@@ -1,0 +1,88 @@
+name: Incremental refresh
+
+on:
+  schedule:
+    - cron: "15 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: running-signals-incremental-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      XDG_STATE_HOME: ${{ runner.temp }}/state
+      DBT_PROFILES_DIR: ${{ runner.temp }}/dbt
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: true
+
+      - uses: databricks/setup-cli@8b7b124dc4f5b9621e959ea61cf4d3dd4e421f67 # v1.9.0
+        with:
+          version: 0.257.0
+
+      - run: uv sync --locked
+
+      - name: Configure dbt profile
+        shell: bash
+        env:
+          DBT_PROFILES_YML: ${{ secrets.DBT_PROFILES_YML }}
+        run: |
+          if [ -z "$DBT_PROFILES_YML" ]; then
+            echo "DBT_PROFILES_YML must be configured as a repository secret." >&2
+            exit 1
+          fi
+          mkdir -p "$DBT_PROFILES_DIR"
+          printf '%s\n' "$DBT_PROFILES_YML" > "$DBT_PROFILES_DIR/profiles.yml"
+
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: ${{ vars.AWS_REFRESH_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Refresh running data
+        shell: bash
+        env:
+          GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
+          GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
+          GARMIN_FIT_S3_BUCKET: ${{ vars.GARMIN_FIT_S3_BUCKET }}
+          GARMIN_FIT_S3_PREFIX: ${{ vars.GARMIN_FIT_S3_PREFIX }}
+          GARMIN_HEALTH_S3_BUCKET: ${{ vars.GARMIN_HEALTH_S3_BUCKET }}
+          GARMIN_HEALTH_S3_PREFIX: ${{ vars.GARMIN_HEALTH_S3_PREFIX }}
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          DATABRICKS_HTTP_PATH: ${{ secrets.DATABRICKS_HTTP_PATH }}
+          DATABRICKS_CATALOG: ${{ vars.DATABRICKS_CATALOG }}
+          DATABRICKS_GOLD_SCHEMA: ${{ vars.DATABRICKS_GOLD_SCHEMA }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -o pipefail
+          uv run running-signals refresh incremental --no-input --json --databricks-target production | tee "$RUNNER_TEMP/refresh-result.json"
+
+      - name: Clear AWS credentials
+        if: always()
+        shell: bash
+        run: |
+          echo "AWS_ACCESS_KEY_ID=" >> "$GITHUB_ENV"
+          echo "AWS_SECRET_ACCESS_KEY=" >> "$GITHUB_ENV"
+          echo "AWS_SESSION_TOKEN=" >> "$GITHUB_ENV"
+          echo "AWS_REGION=" >> "$GITHUB_ENV"
+          echo "AWS_DEFAULT_REGION=" >> "$GITHUB_ENV"
+          rm -f "$DBT_PROFILES_DIR/profiles.yml"
+
+      - name: Upload refresh manifests
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: refresh-manifests
+          path: ${{ runner.temp }}/state/running-signals/*.json
+          if-no-files-found: ignore

@@ -223,6 +223,10 @@ drop_default_schema = true
 catalog_managed_storage_prefix = "__databricks_managed/running_signals"
 
 databricks_profile = null
+
+# Restrict GitHub Actions OIDC to the production repository and main branch.
+github_repository = "frankstevens1/running-signals"
+github_ref        = "refs/heads/main"
 ```
 
 Leave the Databricks external ID values in bootstrap mode for a brand-new
@@ -235,6 +239,28 @@ skip_databricks_validation               = true
 
 After the first apply creates the Databricks storage credential, you will replace
 `bootstrap` with the real external ID and turn validation back on.
+
+## GitHub Actions OIDC
+
+Terraform creates an OIDC provider and a `running-signals-refresh-github-actions`
+role. The role is trusted only by the configured `github_repository` and
+`github_ref`, and can list and write only the FIT and health raw S3 prefixes. It
+cannot delete raw objects or access the Databricks managed-storage prefix.
+
+After applying Terraform, set this GitHub repository variable from the output:
+
+```bash
+terraform output -raw github_actions_refresh_role_arn
+```
+
+```text
+AWS_REFRESH_ROLE_ARN=<terraform output>
+```
+
+The GitHub workflow also requires `AWS_REGION`, raw-prefix variables, and the
+Garmin, Databricks, Supabase, and dbt-profile secrets listed in
+`docs/incremental-refresh.md`. Do not run Terraform from GitHub Actions while state
+remains local; apply it manually with the SSO profile.
 
 ## Databricks External ID Bootstrap
 
@@ -423,7 +449,7 @@ Verify Databricks bundle configuration still targets the external volume path:
 
 ```bash
 cd ../../databricks
-uv run databricks bundle validate
+databricks bundle validate --target production
 ```
 
 After these checks pass, run the Garmin FIT S3 landing smoke test documented in

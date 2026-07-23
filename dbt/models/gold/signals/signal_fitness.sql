@@ -114,5 +114,9 @@ select
     avg(hr_drift_pct) over (
         order by activity_date, activity_id
         rows between 3 preceding and current row
-    ) as rolling_4_run_hr_drift_pct
+    ) as rolling_4_run_hr_drift_pct,
+    avg(garmin_recovery_hr) over (
+        order by activity_date, activity_id
+        rows between 3 preceding and current row
+    ) as rolling_4_run_recovery_hr
 from run_fitness

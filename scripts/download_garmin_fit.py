@@ -336,14 +336,15 @@ def print_download_result(args: argparse.Namespace, result: GarminFitDownloadRes
     print(f"Downloaded {len(result.downloaded_paths)} FIT files.")
 
     if result.skipped_existing_paths:
-        print(f"Stopped at existing FIT file: {result.skipped_existing_paths[0]}")
+        print(f"Skipped {len(result.skipped_existing_paths)} existing FIT files.")
 
 
-def main() -> None:
-    args = parse_args()
-    print_download_options(args)
-
-    api = get_garmin_client(args.tokenstore)
+def run(
+    args: argparse.Namespace,
+    *,
+    allow_prompt: bool = True,
+) -> GarminFitDownloadResult:
+    api = get_garmin_client(args.tokenstore, allow_prompt=allow_prompt)
 
     if args.destination == "s3":
         store = S3GarminFitStore(bucket=args.s3_bucket, prefix=args.s3_prefix)
@@ -375,12 +376,20 @@ def main() -> None:
             end_date=args.end_date,
         )
 
+    return result
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    print_download_options(args)
+    result = run(args)
     print_download_result(args, result)
+    return 0
 
 
 if __name__ == "__main__":
     try:
-        main()
+        raise SystemExit(main())
     except (
         GarminConnectAuthenticationError,
         GarminConnectConnectionError,

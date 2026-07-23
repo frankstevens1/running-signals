@@ -2,6 +2,9 @@ resources:
   jobs:
     garmin_fit_bronze_ingestion:
       name: running-signals-garmin-fit-bronze-ingestion
+      parameters:
+        - name: full_refresh
+          default: "false"
       schedule:
         quartz_cron_expression: "0 0 6 * * ?"
         timezone_id: UTC
@@ -25,6 +28,9 @@ resources:
               full_refresh: "false"
     garmin_health_bronze_ingestion:
       name: running-signals-garmin-health-bronze-ingestion
+      parameters:
+        - name: full_refresh
+          default: "false"
       schedule:
         quartz_cron_expression: "0 30 6 * * ?"
         timezone_id: UTC

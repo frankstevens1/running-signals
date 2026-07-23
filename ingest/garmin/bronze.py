@@ -344,7 +344,7 @@ def bronze_spark_schema(
 
 
 def frame_for_spark_schema(frame: pd.DataFrame, spark_schema: Any) -> pd.DataFrame:
-    from pyspark.sql.types import StringType
+    from pyspark.sql.types import StringType  # type: ignore[import-not-found]
 
     aligned = align_columns(frame, spark_schema.fieldNames())
     aligned = aligned.astype(object).where(pd.notna(aligned), None)

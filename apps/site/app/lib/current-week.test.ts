@@ -53,6 +53,7 @@ describe("currentWeekToDate", () => {
       runCount: 1,
       distanceKm: 5.5,
       activeDays: 1,
+      daysSoFar: 2,
     });
   });
 
@@ -64,6 +65,7 @@ describe("currentWeekToDate", () => {
         runCount: 0,
         distanceKm: 0,
         activeDays: 0,
+        daysSoFar: 1,
       });
   });
 });

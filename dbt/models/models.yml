@@ -154,16 +154,12 @@ models:
           - not_null
 
   - name: mart_weeks
-    description: Weekly rollup derived from mart_days, preserving completed-week consistency and volume outputs.
+    description: Weekly rollup derived from mart_days. It excludes the current in-progress week while retaining the initial partial calendar week when observed history starts midweek.
     columns:
       - name: week_start_date
         tests:
           - not_null
           - unique
-          - relationships:
-              arguments:
-                to: ref('dates')
-                field: week_start_date
       - name: week_end_date
         tests:
           - not_null
@@ -179,11 +175,12 @@ models:
         tests:
           - not_null
       - name: completed_day_count
+        description: Number of observed calendar days represented by the week. The first historical week may contain fewer than seven days when observed history starts midweek.
         tests:
           - not_null
           - accepted_values:
               arguments:
-                values: [7]
+                values: [1, 2, 3, 4, 5, 6, 7]
 
   - name: mart_months
     description: Calendar-month rollup derived strictly from mart_days.
@@ -255,6 +252,8 @@ models:
         description: Run-level heart-rate drift, calculated as second-half segment efficiency divided by first-half segment efficiency minus one.
       - name: rolling_4_run_hr_drift_pct
         description: Rolling four-run average of heart-rate drift.
+      - name: rolling_4_run_recovery_hr
+        description: Rolling four-run average of Garmin recovery heart rate. Null recovery readings are excluded from the average.
 
   - name: mart_runs
     description: Compatibility presentation-ready run-level metrics with same-day health context.

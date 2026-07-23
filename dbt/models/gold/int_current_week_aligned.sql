@@ -13,7 +13,7 @@ current_week_days as (
     cross join current_week_boundaries as boundaries
     where days.calendar_date >= boundaries.week_start_date
       and days.calendar_date <= boundaries.week_end_date
-      and days.is_completed_day
+      and days.calendar_date <= current_date()
 )
 
 select
@@ -21,5 +21,6 @@ select
     cast(max(calendar_date) as date) as latest_completed_date,
     coalesce(sum(run_count), 0) as run_count,
     coalesce(sum(distance_km), 0) as distance_km,
-    coalesce(sum(case when active_day_flag then 1 else 0 end), 0) as active_days
+    coalesce(sum(case when active_day_flag then 1 else 0 end), 0) as active_days,
+    datediff(current_date(), cast(date_trunc('week', current_date()) as date)) + 1 as days_so_far
 from current_week_days

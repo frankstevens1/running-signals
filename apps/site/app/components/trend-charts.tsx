@@ -225,7 +225,7 @@ function getPaceDomain(points: PaceHeartRatePoint[]): NumericDomain {
 
 function heartRateBandButtonClass(isSelected: boolean) {
   const base =
-    "inline-flex h-7 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-sm border px-2 font-mono text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--surface)";
+    "inline-flex h-7 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-sm border px-2 font-mono text-[8px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--surface)";
 
   return isSelected
     ? `${base} border-(--accent) bg-(--accent-soft) text-(--accent-strong)`
@@ -435,6 +435,19 @@ function getEfficiencyDomain(points: FitnessPoint[]): NumericDomain {
   return [Math.max(0, min - padding), max + padding];
 }
 
+function getRecoveryHeartRateDomain(points: FitnessPoint[]): NumericDomain {
+  const values = points
+    .flatMap((point) => [point.garminRecoveryHr, point.rolling4RunRecoveryHr])
+    .filter((value): value is number => value !== null && Number.isFinite(value));
+
+  if (values.length === 0) return [0, 30];
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const padding = Math.max((max - min) * 0.2, 3);
+  return [Math.max(0, min - padding), max + padding];
+}
+
 function getCompleteStructureWeeks(weeks: WeekRollup[]): WeeklyStructureDatum[] {
   return weeks.map((week) => ({ ...week, avgRunDistanceKm: week.avgRunDistanceKm }));
 }
@@ -531,6 +544,21 @@ const CHART_INFO = {
     caveats: [
       "This is not normalized for route, weather, workout intent, or device behavior.",
       "Use it with pace-at-heart-rate and HR drift rather than reading it as a standalone fitness score.",
+    ],
+  },
+  recoveryHeartRate: {
+    title: "Post-run recovery response",
+    definition:
+      "Garmin recovery heart rate is the drop from the final recorded heart rate to the recovery measurement after a run. The rolling 4-run line averages the current run and previous three runs, ignoring runs without a recovery reading.",
+    source: "dbt signal_fitness, from Garmin recovery heart-rate events.",
+    interpretation: [
+      "Higher values mean a larger early heart-rate drop after the run.",
+      "The bars show individual recovery readings; the line makes the recent response easier to compare across runs.",
+      "Use the pattern as context alongside workload, heat, sleep, and how hard the run was.",
+    ],
+    caveats: [
+      "Recovery readings are not available for every run and can vary with measurement timing and device behavior.",
+      "A larger drop is generally favorable, but this chart is descriptive rather than a diagnosis of fitness or readiness.",
     ],
   },
   paceHeartRate: {
@@ -948,6 +976,93 @@ export function FitnessEfficiencyChart({ points }: { points: FitnessPoint[] }) {
             dot={false}
           />
         </LineChart>
+      </ResponsiveContainer>
+    </ChartFrame>
+  );
+}
+
+export function RecoveryHeartRateChart({ points }: { points: FitnessPoint[] }) {
+  const recoveryPoints = useMemo(
+    () =>
+      points
+        .filter((point) => point.garminRecoveryHr !== null)
+        .map((point) => ({
+          ...point,
+          activityDateTimestamp: getActivityDateTimestamp(point.activityDate),
+        })),
+    [points],
+  );
+  const recoveryDomain = getRecoveryHeartRateDomain(recoveryPoints);
+
+  return (
+    <ChartFrame
+      title="Post-run recovery response"
+      description="Recovery heart-rate drop after recorded runs."
+      info={CHART_INFO.recoveryHeartRate}
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart data={recoveryPoints} margin={{ top: 8, right: 8, left: 0 }}>
+          <CartesianGrid
+            stroke={CHART_GRID_COLOR}
+            strokeDasharray="2 5"
+            vertical={false}
+          />
+          <XAxis
+            dataKey="activityDateTimestamp"
+            name="Date"
+            type="number"
+            scale="time"
+            domain={
+              recoveryPoints.length > 0
+                ? ["dataMin", "dataMax"]
+                : [0, 1]
+            }
+            tickFormatter={formatTimestampTick}
+            minTickGap={28}
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
+          />
+          <YAxis
+            domain={recoveryDomain}
+            name="Recovery HR"
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
+            tickFormatter={(value) => `${Math.round(Number(value))} bpm`}
+          />
+          <Tooltip
+            {...tooltipStyle}
+            labelFormatter={formatTimestampLabel}
+            formatter={(value, name) => {
+              const parsed = numberValue(value);
+              return [parsed === null ? "n/a" : `${Math.round(parsed)} bpm`, name];
+            }}
+          />
+          <Legend
+            content={
+              <FitnessLineLegend
+                sessionLabel="Recovery drop (bars)"
+                rollingLabel="Rolling 4-run recovery (line)"
+              />
+            }
+          />
+          <Bar
+            dataKey="garminRecoveryHr"
+            name="Recovery drop"
+            fill={MUTED_SERIES_COLOR}
+            maxBarSize={20}
+            radius={[2, 2, 0, 0]}
+          />
+          <Line
+            type="monotone"
+            dataKey="rolling4RunRecoveryHr"
+            name="Rolling 4-run recovery"
+            stroke={SECONDARY_SERIES_COLOR}
+            strokeWidth={3}
+            dot={false}
+          />
+        </ComposedChart>
       </ResponsiveContainer>
     </ChartFrame>
   );

@@ -29,6 +29,7 @@ function routeSummary(
     avgSegmentGrade: null,
     avgRouteAltitudeRangeM: null,
     routeDistanceBucketKm: null,
+    cityGridBucket: null,
     representativeRouteCentroidLatitudeDeg: latitude,
     representativeRouteCentroidLongitudeDeg: longitude,
   };

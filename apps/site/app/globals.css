@@ -233,22 +233,46 @@ html[data-theme="light"] .theme-toggle .theme-icon-moon {
 }
 
 @keyframes marquee {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
 }
 
-.group\/marquee:hover .marquee-scroll {
-  display: inline-block;
-  white-space: nowrap;
-  overflow: visible;
-  text-overflow: clip;
-  animation: marquee 8s linear infinite;
+.marquee-motion {
+  opacity: 0;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 0.5rem,
+    black calc(100% - 0.5rem),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 0.5rem,
+    black calc(100% - 0.5rem),
+    transparent
+  );
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
 }
 
-.group\/marquee:hover .marquee-scroll::after {
-  content: attr(data-text);
-  display: inline-block;
-  padding-left: 1em;
+.marquee-track {
+  will-change: transform;
+}
+
+.marquee-text[data-overflow="true"]:is(:hover, :focus) .marquee-preview {
+  opacity: 0;
+}
+
+.marquee-text[data-overflow="true"]:is(:hover, :focus) .marquee-motion {
+  opacity: 1;
+}
+
+.marquee-text[data-overflow="true"]:is(:hover, :focus) .marquee-track {
+  animation: marquee 10s linear infinite;
 }
 
 @keyframes terminal-cursor {
@@ -317,5 +341,17 @@ html[data-theme="light"] .theme-toggle .theme-icon-moon {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .marquee-text[data-overflow="true"]:is(:hover, :focus) .marquee-preview {
+    opacity: 1;
+  }
+
+  .marquee-text[data-overflow="true"]:is(:hover, :focus) .marquee-motion {
+    opacity: 0;
+  }
+
+  .marquee-text[data-overflow="true"]:is(:hover, :focus) .marquee-track {
+    animation: none !important;
   }
 }

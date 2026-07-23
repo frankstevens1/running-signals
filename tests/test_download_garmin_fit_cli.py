@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 
 from pytest import MonkeyPatch
 
+from ingest.garmin.health_download import GarminHealthDownloadResult, GarminHealthEndpointFailure
 from scripts.download_garmin_fit import parse_args
+from scripts import download_garmin_health
 from scripts.download_garmin_health import parse_args as parse_health_args
 
 
@@ -84,3 +88,25 @@ def test_parse_health_args_supports_range_overwrite_mode() -> None:
     assert args.mode == "range-overwrite"
     assert args.start_date.isoformat() == "2026-01-01"
     assert args.end_date.isoformat() == "2026-01-07"
+
+
+def test_health_command_returns_nonzero_for_endpoint_failures(monkeypatch: MonkeyPatch) -> None:
+    result = GarminHealthDownloadResult(
+        written_paths=[],
+        endpoint_failures=[
+            GarminHealthEndpointFailure(
+                calendar_date=date(2026, 1, 2),
+                payload_type="sleep",
+                source_method="get_sleep_data",
+                error_type="RuntimeError",
+                error_message="unavailable",
+            )
+        ],
+        inspected_day_count=1,
+    )
+    monkeypatch.setattr(download_garmin_health, "parse_args", lambda argv: SimpleNamespace())
+    monkeypatch.setattr(download_garmin_health, "print_download_options", lambda args: None)
+    monkeypatch.setattr(download_garmin_health, "print_download_result", lambda result: None)
+    monkeypatch.setattr(download_garmin_health, "run", lambda args: result)
+
+    assert download_garmin_health.main([]) == 1

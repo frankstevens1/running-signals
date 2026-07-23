@@ -3,9 +3,36 @@
 Small operational entrypoints for local project tasks. Keep scripts thin: argument parsing,
 user prompts, and orchestration belong here; reusable logic should live under `ingest/`.
 
-For the full raw-to-bronze-to-silver-to-gold workflow, use
-`docs/layer-runbook.md`. This file documents the script entrypoints; the runbook
-documents the required execution order.
+For routine production refreshes, use the `running-signals` CLI. It preserves the
+required raw-to-bronze-to-dbt-to-Supabase order, records an atomic local manifest,
+and stops at the first failed stage.
+
+```bash
+uv run running-signals preflight --no-input
+uv run running-signals refresh incremental --no-input --databricks-target production
+```
+
+Use `--json` for one machine-readable result document, `--dry-run` to validate and
+render an incremental plan without remote calls or data writes, and `--no-publish` to
+stop after a successful dbt build. Refresh manifests and the local advisory lock
+live under `$XDG_STATE_HOME/running-signals` or `~/.local/state/running-signals`.
+
+The CLI prints every stage start and completion, streams child command logs, and emits
+a heartbeat every 30 seconds while a raw download or remote command is still running.
+With `--json`, progress and child logs go to stderr while the pretty-printed manifest
+remains the only stdout output. Each completed or failed run ends with an execution
+timing table for every phase and the total runtime; the same durations are recorded
+in the manifest.
+
+`preflight` checks required configuration values, the Databricks SQL warehouse-path
+format, the hosted Supabase PostgreSQL URL shape, and the local dbt profile presence.
+It does not make remote connectivity checks.
+
+`refresh incremental` intentionally has no `--full` or raw range-overwrite mode.
+The existing FIT range-overwrite operation deletes every FIT file under its configured
+destination before downloading, so it remains a manual recovery/backfill operation.
+
+For individual entrypoints, recovery, and investigation, use the commands below.
 
 ## `download_garmin_fit.py`
 
@@ -21,9 +48,8 @@ Local filesystem output remains available only for development and exploration.
 
 Modes:
 
-- `incremental`: appends new runs to an existing destination. This stops when it
-  reaches the first activity that already exists, so it requires at least one
-  existing `.fit` file.
+- `incremental`: scans the configured recent activity window and writes every missing
+  run. It requires at least one existing `.fit` file as the baseline.
 - `range-overwrite`: deletes existing `.fit` files in the configured destination
   scope, then downloads only running activities in the specified date range. For
   S3, deletion is limited to keys under the configured prefix.
@@ -61,7 +87,8 @@ s3://<bucket>/garmin/health/daily/calendar_date=YYYY-MM-DD/{payload_type}.json
 
 Supported `payload_type` values are `hrv`, `rhr`, `sleep`, and `heart_rates`.
 Endpoint failures are reported per day and endpoint without blocking the other
-payloads for that day.
+payloads for that day. The command exits non-zero after processing when any endpoint
+failed, so scheduled refreshes never continue with incomplete health data.
 
 Modes:
 
@@ -220,6 +247,6 @@ After the S3 landing works, run the Databricks bronze ingestion jobs:
 
 ```bash
 cd databricks
-uv run databricks bundle run garmin_fit_bronze_ingestion
-uv run databricks bundle run garmin_health_bronze_ingestion
+databricks bundle run --target production garmin_fit_bronze_ingestion
+databricks bundle run --target production garmin_health_bronze_ingestion
 ```

@@ -108,7 +108,7 @@ def test_incremental_download_requires_existing_fit_baseline(tmp_path: Path) -> 
     assert fake_api.downloaded_activity_ids == []
 
 
-def test_incremental_download_appends_until_first_existing_fit_file(tmp_path: Path) -> None:
+def test_incremental_download_scans_past_existing_fit_files(tmp_path: Path) -> None:
     fit_path(tmp_path, "100").write_bytes(b"existing")
     fake_api = FakeGarmin(
         recent_activities=[
@@ -126,10 +126,10 @@ def test_incremental_download_appends_until_first_existing_fit_file(tmp_path: Pa
         page_size=10,
     )
 
-    assert fake_api.downloaded_activity_ids == ["102", "101"]
-    assert [Path(path).name for path in result.downloaded_paths] == ["102.fit", "101.fit"]
+    assert fake_api.downloaded_activity_ids == ["102", "101", "99"]
+    assert [Path(path).name for path in result.downloaded_paths] == ["102.fit", "101.fit", "99.fit"]
     assert result.skipped_existing_paths == [fit_path(tmp_path, "100")]
-    assert fit_path(tmp_path, "99").exists() is False
+    assert fit_path(tmp_path, "99").exists()
 
 
 def test_range_overwrite_deletes_fit_files_and_downloads_only_range(tmp_path: Path) -> None:
@@ -183,13 +183,14 @@ def test_s3_incremental_skips_existing_key() -> None:
         page_size=10,
     )
 
-    assert fake_api.downloaded_activity_ids == ["102", "101"]
+    assert fake_api.downloaded_activity_ids == ["102", "101", "99"]
     assert result.downloaded_paths == [
         "s3://raw-bucket/garmin/fit/102.fit",
         "s3://raw-bucket/garmin/fit/101.fit",
+        "s3://raw-bucket/garmin/fit/99.fit",
     ]
     assert result.skipped_existing_paths == ["s3://raw-bucket/garmin/fit/100.fit"]
-    assert "garmin/fit/99.fit" not in client.objects
+    assert "garmin/fit/99.fit" in client.objects
 
 
 def test_s3_incremental_requires_existing_fit_baseline() -> None:

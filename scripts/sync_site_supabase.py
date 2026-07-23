@@ -1143,6 +1143,7 @@ EXPORTS: tuple[TableExport, ...] = (
             "rolling_4_run_efficiency_ratio",
             "hr_drift_pct",
             "rolling_4_run_hr_drift_pct",
+            "rolling_4_run_recovery_hr",
             "hr_band",
             "garmin_recovery_hr",
             "resting_heart_rate",
@@ -1163,6 +1164,7 @@ EXPORTS: tuple[TableExport, ...] = (
               rolling_4_run_efficiency_ratio,
               hr_drift_pct,
               rolling_4_run_hr_drift_pct,
+              rolling_4_run_recovery_hr,
               hr_band,
               garmin_recovery_hr,
               resting_heart_rate,
@@ -1350,6 +1352,7 @@ def sync_supabase(
     progress: ProgressReporter,
 ) -> None:
     with psycopg.connect(supabase_db_url) as connection:
+        connection.execute("SET statement_timeout = 0")
         stored_raw = get_metadata_value(connection, FINGERPRINT_METADATA_KEY)
         stored = stored_raw if isinstance(stored_raw, dict) else {}
         changed = plan_sync(fingerprints, cast(dict[str, Any], stored), force_full)

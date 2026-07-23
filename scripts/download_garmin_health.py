@@ -341,11 +341,12 @@ def print_download_result(result: GarminHealthDownloadResult) -> None:
             )
 
 
-def main() -> None:
-    args = parse_args()
-    print_download_options(args)
-
-    api = get_garmin_client(args.tokenstore)
+def run(
+    args: argparse.Namespace,
+    *,
+    allow_prompt: bool = True,
+) -> GarminHealthDownloadResult:
+    api = get_garmin_client(args.tokenstore, allow_prompt=allow_prompt)
 
     if args.destination == "s3":
         store: GarminHealthStore = S3GarminHealthStore(
@@ -370,12 +371,24 @@ def main() -> None:
             end_date=args.end_date,
         )
 
+    return result
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    print_download_options(args)
+    result = run(args)
     print_download_result(result)
+
+    if result.endpoint_failures:
+        return 1
+
+    return 0
 
 
 if __name__ == "__main__":
     try:
-        main()
+        raise SystemExit(main())
     except (
         GarminConnectAuthenticationError,
         GarminConnectConnectionError,

@@ -8,6 +8,7 @@ locals {
   catalog_managed_storage_prefix = trimsuffix(trimprefix(var.catalog_managed_storage_prefix, "/"), "/")
   databricks_profile_arg         = var.databricks_profile == null ? "" : " --profile ${var.databricks_profile}"
   iam_role_name                  = "running-signals-raw-garmin-uc"
+  github_actions_role_name       = "running-signals-refresh-github-actions"
   storage_credential_name        = "running_signals_raw_garmin_s3"
   external_location_name         = "running_signals_raw_garmin"
   managed_location_name          = "running_signals_catalog_managed"
@@ -154,6 +155,104 @@ resource "aws_iam_policy" "raw_garmin_access" {
 resource "aws_iam_role_policy_attachment" "raw_garmin_access" {
   role       = aws_iam_role.raw_garmin_databricks.name
   policy_arn = aws_iam_policy.raw_garmin_access.arn
+}
+
+resource "aws_iam_openid_connect_provider" "github_actions" {
+  url             = "https://token.actions.githubusercontent.com"
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
+}
+
+data "aws_iam_policy_document" "github_actions_refresh_assume_role" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github_actions.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:${var.github_repository}:ref:${var.github_ref}"]
+    }
+  }
+}
+
+resource "aws_iam_role" "github_actions_refresh" {
+  name               = local.github_actions_role_name
+  assume_role_policy = data.aws_iam_policy_document.github_actions_refresh_assume_role.json
+
+  tags = {
+    Project = "running-signals"
+    Purpose = "github-actions-incremental-refresh"
+  }
+}
+
+data "aws_iam_policy_document" "github_actions_refresh_access" {
+  statement {
+    sid = "GetRawBucketLocation"
+
+    actions = ["s3:GetBucketLocation"]
+
+    resources = [aws_s3_bucket.raw.arn]
+  }
+
+  statement {
+    sid = "ListRawGarminPrefixes"
+
+    actions = ["s3:ListBucket"]
+
+    resources = [aws_s3_bucket.raw.arn]
+
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values = [
+        local.fit_object_prefix,
+        "${local.fit_object_prefix}/*",
+        local.health_object_prefix,
+        "${local.health_object_prefix}/*",
+      ]
+    }
+  }
+
+  statement {
+    sid = "WriteRawGarminObjects"
+
+    actions = [
+      "s3:AbortMultipartUpload",
+      "s3:ListMultipartUploadParts",
+      "s3:PutObject",
+    ]
+
+    resources = [
+      "${aws_s3_bucket.raw.arn}/${local.fit_object_prefix}/*",
+      "${aws_s3_bucket.raw.arn}/${local.health_object_prefix}/*",
+    ]
+  }
+}
+
+resource "aws_iam_policy" "github_actions_refresh_access" {
+  name   = "running-signals-refresh-github-actions-access"
+  policy = data.aws_iam_policy_document.github_actions_refresh_access.json
+
+  tags = {
+    Project = "running-signals"
+    Purpose = "github-actions-incremental-refresh"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_refresh_access" {
+  role       = aws_iam_role.github_actions_refresh.name
+  policy_arn = aws_iam_policy.github_actions_refresh_access.arn
 }
 
 resource "databricks_catalog" "running_signals" {

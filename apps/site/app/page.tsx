@@ -63,7 +63,7 @@ export default function Home() {
               <span className="h-4 w-1.5 animate-pulse bg-(--accent) motion-reduce:hidden" aria-hidden="true" />
             </p>
             <h1 className="mt-5 max-w-4xl text-5xl font-medium leading-[1.02] tracking-[-0.045em] text-(--text) sm:text-6xl lg:text-7xl">
-              <TypedRevealText text="Personal running data, modeled into signals." characterDelayMs={18} />
+              <TypedRevealText text="Running data, modeled into signals." characterDelayMs={18} />
             </h1>
             <p className="mt-7 max-w-2xl text-base leading-8 text-(--text-soft) sm:text-lg">
               Running Signals is an end-to-end lakehouse project that makes training patterns

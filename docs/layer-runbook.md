@@ -81,16 +81,20 @@ terraform apply
 cd ../..
 ```
 
-### 4. Databricks jobs
+### 4. Databricks production jobs
 
 Deploys two paused ingestion jobs (`garmin_fit_bronze_ingestion`, `garmin_health_bronze_ingestion`):
 
 ```bash
 cd databricks
-uv run databricks bundle validate
-uv run databricks bundle deploy
+databricks bundle validate --target production
+databricks bundle deploy --target production
 cd ..
 ```
+
+The production deployment workflow performs the same commands on `main` whenever
+the bundle, ingestion code, or job notebooks change. The standalone Databricks CLI
+must be installed locally; GitHub Actions installs its pinned version automatically.
 
 ### 5. Local Supabase (site development only)
 
@@ -101,35 +105,45 @@ supabase migration up
 
 ## Running the Pipeline
 
-Routine refresh, in order.
+### Routine incremental refresh
 
-### 1. Land raw Garmin files
-
-```bash
-uv run python scripts/download_garmin_fit.py --destination s3 --mode incremental
-uv run python scripts/download_garmin_health.py --destination s3 --mode incremental
-```
-
-For an initial backfill, replace `--mode incremental` with
-`--mode range-overwrite --start-date YYYY-MM-DD --end-date YYYY-MM-DD`.
-
-### 2. Build bronze
-
-Both jobs are required; the health job must run before dbt builds `health_days`.
+Use the orchestration CLI for the normal production flow:
 
 ```bash
-cd databricks
-uv run databricks bundle run garmin_fit_bronze_ingestion
-uv run databricks bundle run garmin_health_bronze_ingestion
-cd ..
+uv run running-signals preflight --no-input
+uv run running-signals refresh incremental --no-input --databricks-target production
 ```
+
+The incremental command serially lands FIT and health raw data, waits for both bronze
+jobs, runs `dbt build`, then publishes Supabase read models. A failed stage prevents
+all following stages. `--json` produces a single machine-readable run manifest;
+`--no-publish` stops after dbt; and `--dry-run` validates configuration and prints a
+plan without remote calls or data writes. Run state is recorded outside the repository under
+`$XDG_STATE_HOME/running-signals` or `~/.local/state/running-signals`.
+
+`preflight` checks configuration presence and local value formats; it does not test
+remote credentials or connectivity.
+
+Both bronze jobs are required; the health job must complete before dbt builds
+`health_days`.
 
 Expected bronze tables: `garmin_fit_sessions`, `garmin_fit_events`, `garmin_fit_records`,
 `garmin_health_daily_payloads` in `running_signals.bronze`. If dbt fails with
 `TABLE_OR_VIEW_NOT_FOUND: running_signals.bronze.garmin_health_daily_payloads`, land health JSON and
 rerun the health job.
 
-### 3. Build silver and gold
+### Rebuild derived data from existing raw landing
+
+This replaces bronze data from the existing raw landing zone; it does not download
+Garmin history. The confirmation is required because bronze tables are rebuilt.
+
+```bash
+uv run running-signals bronze --source all --full-refresh --confirm --databricks-target production
+uv run dbt build --project-dir dbt
+uv run running-signals publish --full --confirm
+```
+
+### Build silver and gold manually
 
 ```bash
 uv run dbt build --project-dir dbt
@@ -152,7 +166,7 @@ uv run dbt run --project-dir dbt --select dates+ mart_days+ mart_weeks mart_mont
 uv run dbt run --project-dir dbt --select run_records+ mart_route_prediction_features
 ```
 
-### 4. Sync Supabase read models
+### Sync Supabase read models manually
 
 ```bash
 uv run python scripts/sync_site_supabase.py
@@ -166,6 +180,14 @@ finishes in seconds. Changed tables stream into Postgres with `COPY` in a single
 - `--no-progress` — plain log lines instead of the progress bar.
 
 Defaults to the local Supabase CLI database; set `SUPABASE_DB_URL` for hosted Supabase.
+
+### Raw backfills and recovery
+
+The CLI deliberately does not wrap raw FIT `range-overwrite`. That command deletes
+every FIT file in its configured local directory or S3 prefix before downloading the
+requested date range, so a partial range can discard unrelated history. Use it only
+for a complete intentional reload after verifying the requested range, then run the
+derived rebuild above. Routine refreshes must use incremental mode.
 
 ## Quality Checks
 

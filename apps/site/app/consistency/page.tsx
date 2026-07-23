@@ -6,12 +6,11 @@ import { DataState } from "@/app/components/data-state";
 import { MetricCard } from "@/app/components/metric-card";
 import { ScrollReveal } from "@/app/components/motion-reveal";
 import { SectionHeading } from "@/app/components/section-heading";
-import { currentWeekToDate } from "@/app/lib/current-week";
-import { getDays, getWeeks } from "@/app/lib/data";
+import { getCurrentWeekAligned, getDays, getWeeks, getWeekStreakRecord } from "@/app/lib/data";
 import { formatDate, formatDecimal2, formatDistance, formatInteger } from "@/app/lib/format";
 import { explorerPages } from "@/app/lib/page-metadata";
 import { getServerDistanceUnit } from "@/app/lib/server-distance-unit";
-import type { DayRollup } from "@/app/lib/types";
+import type { DayRollup, WeekRollup } from "@/app/lib/types";
 
 type DailyConsistencyContext = {
   longestDailyRunStreak: number;
@@ -81,10 +80,21 @@ function trendDelta(
   return { direction, diff };
 }
 
+function streakStartDate(week: WeekRollup | undefined): string | null {
+  const streakLength = week?.activeWeekStreak ?? 0;
+  if (!week || streakLength < 1) return null;
+
+  const start = new Date(`${week.weekStartDate}T00:00:00Z`);
+  start.setUTCDate(start.getUTCDate() - (streakLength - 1) * 7);
+  return start.toISOString().slice(0, 10);
+}
+
 export default async function ConsistencyPage() {
-  const [days, weeks, unit] = await Promise.all([
+  const [days, weeks, currentWeekAligned, weekStreakRecord, unit] = await Promise.all([
     getDays(371),
     getWeeks(52),
+    getCurrentWeekAligned(),
+    getWeekStreakRecord(),
     getServerDistanceUnit(),
   ]);
 
@@ -97,17 +107,18 @@ export default async function ConsistencyPage() {
     priorDailyContext = getDailyConsistencyContext(days.data.slice(0, midpoint));
     recentDailyContext = getDailyConsistencyContext(days.data.slice(midpoint));
   }
-  const today = new Date().toISOString().slice(0, 10);
   const currentWeek =
-    days.status === "ok" ? currentWeekToDate(days.data, today) : null;
+    currentWeekAligned.status === "ok" ? currentWeekAligned.data : null;
+  const longestActiveWeekStreak =
+    weekStreakRecord.status === "ok" ? weekStreakRecord.data.longestActiveWeekStreak : 0;
 
   return (
     <AppShell>
       <div className="space-y-10">
         <SectionHeading
-          eyebrow="mart_days and mart_weeks"
+          eyebrow="mart_days, int_current_week_aligned, and mart_weeks"
           title="Consistency signals"
-          description="Daily rollups update through the latest completed day; weekly history remains limited to completed weeks."
+          description="Daily rollups update through the latest completed day; the current week includes any available partial-day data."
           icon={explorerPages.consistency.icon}
         />
         <DataState result={days}>
@@ -122,11 +133,19 @@ export default async function ConsistencyPage() {
             const latest = data.at(-1);
             const penultimate = data.at(-2);
             const activeWeeks = data.filter((week) => week.activeWeekFlag).length;
+            const activeWeekPct =
+              data.length > 0 ? Math.round((activeWeeks / data.length) * 100) : null;
+            const latestStreak = latest?.activeWeekStreak ?? 0;
+            const latestStreakStartDate = streakStartDate(latest);
 
-            const currentWeekTrend = trendDelta(
-              currentWeek?.distanceKm,
-              latest?.weeklyDistanceKm,
-            );
+            const currentWeekPct =
+              currentWeek?.distanceKm &&
+              latest?.weeklyDistanceKm &&
+              latest.weeklyDistanceKm > 0
+                ? Math.round(
+                    (currentWeek.distanceKm / latest.weeklyDistanceKm) * 100,
+                  )
+                : null;
 
             const weeklyDistanceTrend = trendDelta(
               latest?.weeklyDistanceKm,
@@ -138,24 +157,33 @@ export default async function ConsistencyPage() {
                 <MetricCard
                   label="Active weeks in view"
                   value={formatInteger(activeWeeks)}
-                  detail={`${data.length} completed weeks returned`}
+                  detail={`${formatInteger(data.length)} completed weeks in view; ${formatInteger(activeWeeks)} included at least one run`}
                   icon={CalendarDays}
+                  trend={
+                    activeWeekPct !== null
+                      ? {
+                          direction: "neutral",
+                          value: `${activeWeekPct}%`,
+                          label: "of weeks in view",
+                        }
+                      : undefined
+                  }
                 />
                 <MetricCard
                   label="Current week to date"
                   value={formatDistance(currentWeek?.distanceKm, unit)}
                   detail={
-                    currentWeek?.latestCompletedDate
-                      ? `${formatInteger(currentWeek.runCount)} runs across ${formatInteger(currentWeek.activeDays)} active days through ${formatDate(currentWeek.latestCompletedDate)}`
-                      : "No completed day has been published for this week yet."
+                    currentWeek
+                      ? `${formatInteger(currentWeek.runCount)} runs across ${formatInteger(currentWeek.daysSoFar)} calendar days so far${currentWeek.latestCompletedDate ? `, through ${formatDate(currentWeek.latestCompletedDate)}` : ""}`
+                      : "No current-week data has been modeled yet."
                   }
                   icon={Activity}
                   trend={
-                    currentWeekTrend
+                    currentWeekPct !== null
                       ? {
-                          direction: currentWeekTrend.direction,
-                          value: `${currentWeekTrend.diff > 0 ? "+" : ""}${formatDistance(Math.abs(currentWeekTrend.diff), unit)}`,
-                          label: "vs prior week",
+                          direction: "neutral",
+                          value: `${currentWeekPct}%`,
+                          label: "of last week",
                         }
                       : undefined
                   }
@@ -163,8 +191,27 @@ export default async function ConsistencyPage() {
                 <MetricCard
                   label="Completed-week streak"
                   value={formatInteger(latest?.activeWeekStreak)}
-                  detail={`Through ${formatDate(latest?.weekEndDate)}`}
+                  detail={
+                    latestStreakStartDate
+                      ? `Active every week from ${formatDate(latestStreakStartDate)} to ${formatDate(latest?.weekEndDate)}`
+                      : `No run in the week ending ${formatDate(latest?.weekEndDate)}`
+                  }
                   icon={Flame}
+                  trend={
+                    latestStreak > 0 && longestActiveWeekStreak > 0
+                      ? {
+                          direction: "neutral",
+                          value:
+                            latestStreak === longestActiveWeekStreak
+                              ? "current record"
+                              : `${formatInteger(longestActiveWeekStreak - latestStreak)} weeks short`,
+                          label:
+                            latestStreak === longestActiveWeekStreak
+                              ? ""
+                              : `vs ${formatInteger(longestActiveWeekStreak)}-week record`,
+                        }
+                      : undefined
+                  }
                 />
                 <MetricCard
                   label="Latest completed week"
@@ -228,7 +275,7 @@ export default async function ConsistencyPage() {
                   <MetricCard
                     label="Average daily run streak"
                     value={formatDecimal2(dailyContext.averageDailyRunStreak)}
-                    detail="Mean length across active-day runs"
+                    detail="Average consecutive run-day streak in the loaded window"
                     icon={Activity}
                     trend={
                       avgStreakTrend

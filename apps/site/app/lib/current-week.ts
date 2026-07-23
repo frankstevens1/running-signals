@@ -6,6 +6,7 @@ export type CurrentWeekToDate = {
   runCount: number;
   distanceKm: number;
   activeDays: number;
+  daysSoFar: number;
 };
 
 function dateFromIso(value: string): Date {
@@ -16,11 +17,17 @@ function isoDate(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
 
-function weekStartDate(asOfDate: string): string {
+export function weekStartDate(asOfDate: string): string {
   const date = dateFromIso(asOfDate);
   const daysSinceMonday = (date.getUTCDay() + 6) % 7;
   date.setUTCDate(date.getUTCDate() - daysSinceMonday);
   return isoDate(date);
+}
+
+export function daysInWeekToDate(asOfDate: string): number {
+  const asOf = dateFromIso(asOfDate);
+  const weekStart = dateFromIso(weekStartDate(asOfDate));
+  return Math.floor((asOf.getTime() - weekStart.getTime()) / 86_400_000) + 1;
 }
 
 export function currentWeekToDate(
@@ -38,5 +45,6 @@ export function currentWeekToDate(
     runCount: currentWeekDays.reduce((total, day) => total + day.runCount, 0),
     distanceKm: currentWeekDays.reduce((total, day) => total + day.distanceKm, 0),
     activeDays: currentWeekDays.filter((day) => day.activeDayFlag).length,
+    daysSoFar: daysInWeekToDate(asOfDate),
   };
 }

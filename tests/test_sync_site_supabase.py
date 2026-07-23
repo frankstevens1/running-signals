@@ -5,6 +5,7 @@ import io
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Iterator
 from email.message import Message
 from pathlib import Path
 from types import TracebackType
@@ -505,7 +506,7 @@ def test_copy_rows_streams_batches_through_copy() -> None:
         for export in sync_site_supabase.EXPORTS
         if export.table_name == "site_runs"
     )
-    batches = iter(
+    batches: Iterator[list[sync_site_supabase.JsonRow]] = iter(
         [
             [
                 {"run_id": "run-1", "activity_id": "a1"},

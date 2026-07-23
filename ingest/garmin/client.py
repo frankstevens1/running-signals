@@ -45,7 +45,11 @@ def try_login_with_tokens(tokenstore: str | Path) -> Garmin | None:
         return None
 
 
-def get_garmin_client(tokenstore: str | Path = "~/.garminconnect") -> Garmin:
+def get_garmin_client(
+    tokenstore: str | Path = "~/.garminconnect",
+    *,
+    allow_prompt: bool = True,
+) -> Garmin:
     load_dotenv(get_project_root() / ".env")
     tokenstore_path = resolve_tokenstore_path(tokenstore)
 
@@ -53,8 +57,17 @@ def get_garmin_client(tokenstore: str | Path = "~/.garminconnect") -> Garmin:
     if api is not None:
         return api
 
-    email = os.getenv("GARMIN_EMAIL") or input("Garmin email: ").strip()
-    password = os.getenv("GARMIN_PASSWORD") or getpass("Garmin password: ")
+    email = os.getenv("GARMIN_EMAIL")
+    password = os.getenv("GARMIN_PASSWORD")
+
+    if not allow_prompt and (not email or not password):
+        raise GarminConnectAuthenticationError(
+            "Missing Garmin credentials. Provide a valid token store or set GARMIN_EMAIL and "
+            "GARMIN_PASSWORD for non-interactive runs."
+        )
+
+    email = email or input("Garmin email: ").strip()
+    password = password or getpass("Garmin password: ")
 
     if not email or not password:
         raise GarminConnectAuthenticationError("Missing Garmin credentials.")

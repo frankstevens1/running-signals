@@ -226,6 +226,7 @@ export function mapFitness(row: Record<string, unknown>): FitnessPoint {
     rolling4RunEfficiencyRatio: numberValue(row, "rolling_4_run_efficiency_ratio"),
     hrDriftPct: numberValue(row, "hr_drift_pct"),
     rolling4RunHrDriftPct: numberValue(row, "rolling_4_run_hr_drift_pct"),
+    rolling4RunRecoveryHr: numberValue(row, "rolling_4_run_recovery_hr"),
     hrBand: stringValue(row, "hr_band"),
     garminRecoveryHr: numberValue(row, "garmin_recovery_hr"),
     restingHeartRate: numberValue(row, "resting_heart_rate"),

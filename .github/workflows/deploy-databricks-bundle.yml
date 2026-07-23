@@ -1,0 +1,48 @@
+name: Deploy Databricks bundle
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - databricks/**
+      - ingest/**
+      - notebooks/jobs/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: running-signals-databricks-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject non-main manual deployments
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: |
+          echo "Production deployments must run from main." >&2
+          exit 1
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: databricks/setup-cli@8b7b124dc4f5b9621e959ea61cf4d3dd4e421f67 # v1.9.0
+        with:
+          version: 0.257.0
+
+      - name: Validate production bundle
+        working-directory: databricks
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: databricks bundle validate --target production
+
+      - name: Deploy production bundle
+        working-directory: databricks
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: databricks bundle deploy --target production

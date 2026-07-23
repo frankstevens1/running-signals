@@ -9,9 +9,10 @@ import {
 const ACTIVITY_CALENDAR_INFO = {
   title: "Daily activity calendar",
   definition:
-    "Each square is a completed calendar day in the loaded window. Color intensity is based on total run distance for that day. Days with no run use the muted color.",
+    "Each square is a completed calendar day in the loaded window. Color intensity is based on total run distance for that day. Days with no run use the muted color. Columns represent ISO weeks (Monday–Sunday).",
   source: "dbt mart_days, from daily run_count and distance_km.",
   interpretation: [
+    "Each column is one ISO week; empty squares at the start or end of the grid pad partial weeks.",
     "Dense clusters of colored days show periods of regular running.",
     "Darker squares show higher daily distance, not necessarily better training.",
     "Long muted runs show stretches without a recorded run in this data set.",
@@ -29,6 +30,11 @@ const calendarColors = [
   "color-mix(in srgb, var(--accent) 70%, var(--surface))",
   "var(--accent)",
 ] as const;
+
+function isoWeekday(dateStr: string): number {
+  const date = new Date(`${dateStr}T00:00:00Z`);
+  return (date.getUTCDay() + 6) % 7;
+}
 
 function intensityIndex(day: DayRollup): number {
   if (day.distanceKm <= 0) return 0;
@@ -53,6 +59,10 @@ export function ActivityCalendar({
     );
   }
 
+  const startPad = isoWeekday(days[0].calendarDate);
+  const totalCells = startPad + days.length;
+  const endPad = (7 - (totalCells % 7)) % 7;
+
   return (
     <section className="overflow-hidden rounded-sm border border-(--border) bg-(--surface)">
       <div className="flex items-start justify-between gap-3 border-b border-(--border) px-4 py-3">
@@ -75,6 +85,9 @@ export function ActivityCalendar({
           role="list"
           aria-label="Daily running distance"
         >
+          {Array.from({ length: startPad }).map((_, i) => (
+            <div key={`pad-start-${i}`} className="size-4" />
+          ))}
           {days.map((day) => {
             const label = `${shortDate(day.calendarDate)}: ${formatDistance(day.distanceKm, unit)}`;
 
@@ -89,6 +102,9 @@ export function ActivityCalendar({
               />
             );
           })}
+          {Array.from({ length: endPad }).map((_, i) => (
+            <div key={`pad-end-${i}`} className="size-4" />
+          ))}
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em] text-(--text-soft)">
           <span>Less</span>

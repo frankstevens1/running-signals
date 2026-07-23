@@ -6,7 +6,12 @@ with days as (
     where week_start_date <= date_add(cast(date_trunc('week', current_date()) as date), -7)
 ),
 
-weekly as (
+week_bounds as (
+    select min(week_start_date) as first_week_start_date
+    from days
+),
+
+weekly_all as (
     select
         week_start_date,
         week_end_date,
@@ -32,7 +37,14 @@ weekly as (
             as has_heart_rates_payload_week
     from days
     group by week_start_date, week_end_date
-    having count(*) = 7
+),
+
+weekly as (
+    select weekly_all.*
+    from weekly_all
+    cross join week_bounds
+    where completed_day_count = 7
+       or week_start_date = first_week_start_date
 ),
 
 streak_groups as (

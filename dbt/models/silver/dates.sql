@@ -13,7 +13,7 @@ with observed_dates as (
 date_bounds as (
     select
         min(calendar_date) as first_observed_date,
-        date_add(current_date(), -1) as latest_completed_date
+        current_date() as latest_completed_date
     from observed_dates
 ),
 
@@ -30,7 +30,7 @@ date_spine as (
 
 select
     cast(calendar_date as date) as calendar_date,
-    true as is_completed_day,
+    calendar_date < current_date() as is_completed_day,
     dayofweek(calendar_date) as day_of_week_number,
     date_format(calendar_date, 'E') as day_of_week_name,
     dayofmonth(calendar_date) as day_of_month,

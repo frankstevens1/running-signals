@@ -37,3 +37,8 @@ output "storage_credential_external_id" {
   description = "External ID reported by Databricks for the storage credential."
   value       = databricks_storage_credential.raw_garmin.aws_iam_role[0].external_id
 }
+
+output "github_actions_refresh_role_arn" {
+  description = "IAM role ARN GitHub Actions assumes through OIDC for raw Garmin landing."
+  value       = aws_iam_role.github_actions_refresh.arn
+}

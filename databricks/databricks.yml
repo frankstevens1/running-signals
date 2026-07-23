@@ -25,3 +25,9 @@ targets:
   dev:
     mode: development
     default: true
+  production:
+    mode: production
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+    git:
+      branch: main

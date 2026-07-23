@@ -170,6 +170,10 @@ export type WeekRollup = {
   missedWeeks12w: number | null;
 };
 
+export type WeekStreakRecord = {
+  longestActiveWeekStreak: number;
+};
+
 export type MonthRollup = {
   monthStartDate: string;
   calendarYear: number;
@@ -208,6 +212,7 @@ export type FitnessPoint = {
   rolling4RunEfficiencyRatio: number | null;
   hrDriftPct: number | null;
   rolling4RunHrDriftPct: number | null;
+  rolling4RunRecoveryHr: number | null;
   hrBand: string | null;
   garminRecoveryHr: number | null;
   restingHeartRate: number | null;

@@ -35,3 +35,8 @@ skip_databricks_validation = true
 # Required during the bootstrap transition because the storage credential has
 # dependent external locations by the time validation is turned back on.
 databricks_storage_credential_force_update = true
+
+# GitHub Actions OIDC trust is restricted to this repository's main branch.
+# Change these values when applying the infrastructure from a fork.
+github_repository = "frankstevens1/running-signals"
+github_ref        = "refs/heads/main"

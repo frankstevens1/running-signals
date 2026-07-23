@@ -104,3 +104,15 @@ variable "databricks_storage_credential_force_update" {
   type        = bool
   default     = true
 }
+
+variable "github_repository" {
+  description = "GitHub owner/repository trusted to run the scheduled refresh."
+  type        = string
+  default     = "frankstevens1/running-signals"
+}
+
+variable "github_ref" {
+  description = "Git reference trusted to run the scheduled refresh."
+  type        = string
+  default     = "refs/heads/main"
+}

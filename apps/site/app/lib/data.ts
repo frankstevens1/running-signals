@@ -37,9 +37,15 @@ import type {
   RunSession,
   VolumeData,
   WeekRollup,
+  WeekStreakRecord,
   UnitSystem,
 } from "./types";
 import { sampleMapProfileRecords } from "./map-records";
+import {
+  daysInWeekToDate,
+  weekStartDate,
+  type CurrentWeekToDate,
+} from "./current-week";
 
 type SiteDataSource = "supabase" | "databricks";
 
@@ -258,6 +264,97 @@ async function queryLandingStatusFromSupabase(): Promise<LandingStatus> {
     statusLabel: latestCompletedDate ? "Modeled data available" : "No modeled data available",
     goldSchema: metadataString(schemaResult.rows[0]),
   };
+}
+
+async function queryCurrentWeekAlignedFromDatabricks(): Promise<CurrentWeekToDate> {
+  const rows = await queryDatabricks(`
+    select
+      cast(week_start_date as string) as week_start_date,
+      cast(latest_completed_date as string) as latest_completed_date,
+      run_count,
+      distance_km,
+      active_days,
+      days_so_far
+    from ${goldTable("int_current_week_aligned")}
+  `);
+
+  const row = rows[0] ?? {};
+  return {
+    weekStartDate: stringValue(row, "week_start_date") ?? "",
+    latestCompletedDate: stringValue(row, "latest_completed_date"),
+    runCount: numberValue(row, "run_count") ?? 0,
+    distanceKm: numberValue(row, "distance_km") ?? 0,
+    activeDays: numberValue(row, "active_days") ?? 0,
+    daysSoFar: numberValue(row, "days_so_far") ?? 0,
+  };
+}
+
+async function queryCurrentWeekAlignedFromSupabase(): Promise<CurrentWeekToDate> {
+  const today = new Date().toISOString().slice(0, 10);
+  const weekStart = weekStartDate(today);
+
+  const [daysResult, todayRunsResult] = await Promise.all([
+    querySupabase("site_days", {
+      filters: [
+        { column: "calendar_date", operator: "gte", value: weekStart },
+        { column: "calendar_date", operator: "lte", value: today },
+      ],
+      order: [{ column: "calendar_date", direction: "desc", nulls: "last" }],
+    }),
+    querySupabase("site_runs", {
+      filters: [
+        { column: "activity_date", operator: "gte", value: today },
+        { column: "activity_date", operator: "lte", value: today },
+      ],
+    }),
+  ]);
+
+  const days = daysResult.rows.map(mapDay);
+  const todayRunCount = todayRunsResult.rows.length;
+  const todayDistanceKm = todayRunsResult.rows.reduce(
+    (sum, row) => sum + (numberValue(row, "distance_km") ?? 0),
+    0,
+  );
+
+  return {
+    weekStartDate: weekStart,
+    latestCompletedDate: days.at(0)?.calendarDate ?? null,
+    runCount: days.reduce((t, d) => t + d.runCount, 0) + todayRunCount,
+    distanceKm: days.reduce((t, d) => t + d.distanceKm, 0) + todayDistanceKm,
+    activeDays:
+      days.filter((d) => d.activeDayFlag).length + (todayRunCount > 0 ? 1 : 0),
+    daysSoFar: daysInWeekToDate(today),
+  };
+}
+
+async function queryWeekStreakRecordFromDatabricks(): Promise<WeekStreakRecord> {
+  const rows = await queryDatabricks(`
+    select max(active_week_streak) as longest_active_week_streak
+    from ${goldTable("mart_weeks")}
+  `);
+
+  return {
+    longestActiveWeekStreak: numberValue(rows[0] ?? {}, "longest_active_week_streak") ?? 0,
+  };
+}
+
+async function queryWeekStreakRecordFromSupabase(): Promise<WeekStreakRecord> {
+  const result = await querySupabase("site_weeks", {
+    select: "active_week_streak",
+    order: [{ column: "active_week_streak", direction: "desc", nulls: "last" }],
+    limit: 1,
+  });
+
+  return {
+    longestActiveWeekStreak:
+      numberValue(result.rows[0] ?? {}, "active_week_streak") ?? 0,
+  };
+}
+
+function queryCurrentWeekAligned(): Promise<CurrentWeekToDate> {
+  return getSiteDataSource() === "databricks"
+    ? queryCurrentWeekAlignedFromDatabricks()
+    : queryCurrentWeekAlignedFromSupabase();
 }
 
 async function queryDashboardFromDatabricks(): Promise<DashboardSummary> {
@@ -810,6 +907,7 @@ async function queryFitnessFromDatabricks(limit = 150): Promise<FitnessPoint[]> 
       rolling_4_run_efficiency_ratio,
       hr_drift_pct,
       rolling_4_run_hr_drift_pct,
+      rolling_4_run_recovery_hr,
       hr_band,
       garmin_recovery_hr,
       resting_heart_rate,
@@ -903,6 +1001,12 @@ function queryWeeksRaw(limit?: number): Promise<WeekRollup[]> {
     : queryWeeksRawFromSupabase(limit);
 }
 
+function queryWeekStreakRecord(): Promise<WeekStreakRecord> {
+  return getSiteDataSource() === "databricks"
+    ? queryWeekStreakRecordFromDatabricks()
+    : queryWeekStreakRecordFromSupabase();
+}
+
 function queryVolume(): Promise<VolumeData> {
   return getSiteDataSource() === "databricks"
     ? queryVolumeFromDatabricks()
@@ -921,6 +1025,10 @@ export function getDashboardSummary(): Promise<DataResult<DashboardSummary>> {
 
 export function getLandingStatus(): Promise<DataResult<LandingStatus>> {
   return asResult(queryLandingStatus());
+}
+
+export function getCurrentWeekAligned(): Promise<DataResult<CurrentWeekToDate>> {
+  return asResult(queryCurrentWeekAligned());
 }
 
 export function getRuns(filters: RunFilters): Promise<DataResult<PaginatedResult<RunSession>>> {
@@ -958,6 +1066,10 @@ export function getDays(limit?: number): Promise<DataResult<DayRollup[]>> {
 
 export function getWeeks(limit?: number): Promise<DataResult<WeekRollup[]>> {
   return asResult(queryWeeksRaw(limit));
+}
+
+export function getWeekStreakRecord(): Promise<DataResult<WeekStreakRecord>> {
+  return asResult(queryWeekStreakRecord());
 }
 
 export function getVolume(): Promise<DataResult<VolumeData>> {

@@ -18,6 +18,9 @@ dependencies = [
   "hatchling>=1.30.1",
 ]
 
+[project.scripts]
+running-signals = "scripts.pipeline:main"
+
 [project.optional-dependencies]
 dev = [
   "ruff>=0.15.20",
@@ -59,4 +62,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["ingest"]
+packages = ["ingest", "scripts"]

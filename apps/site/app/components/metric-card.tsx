@@ -34,7 +34,7 @@ export function MetricCard({
   }
 
   return (
-    <ConsolePanel className="group flex min-h-36 min-w-0 flex-col">
+    <ConsolePanel className="group flex min-h-36 min-w-0 flex-col overflow-hidden">
       <dl className="flex flex-1 items-start justify-between gap-3 p-4">
         <div className="min-w-0 flex-1">
           <dt>
@@ -59,15 +59,15 @@ export function MetricCard({
         ) : null}
       </dl>
       {detail || source ? (
-        <div className="grid gap-1 border-t border-(--border) px-4 py-3 text-xs leading-5 text-(--text-soft)">
+        <div className="grid min-w-0 grid-cols-1 gap-1 border-t border-(--border) px-4 py-3 text-xs leading-5 text-(--text-soft)">
           {detail ? (
-            <div>
+            <div className="min-w-0">
               <span className="font-mono uppercase tracking-wide text-(--text)">Context</span>
               <MarqueeText text={detail} />
             </div>
           ) : null}
           {source ? (
-            <div>
+            <div className="min-w-0">
               <span className="font-mono uppercase tracking-wide text-(--text)">Source</span>
               <MarqueeText text={source} />
             </div>
