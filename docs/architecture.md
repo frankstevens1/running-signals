@@ -5,13 +5,9 @@ Garmin Connect health context into documented training signal tables.
 
 ```text
 Garmin Connect
-    -> Python FIT and health JSON downloaders
-    -> S3 raw FIT and health JSON landing zones
-    -> Databricks Unity Catalog external volume
-    -> Databricks bronze Delta tables
-    -> dbt silver and gold models
-    -> Supabase site read models
-    -> Next.js presentation layer
+    -> FIT downloader -> FIT S3 -> FIT bronze -> fit_refresh -> FIT core serving tables
+    -> health downloader -> health S3 -> health bronze -> health_refresh
+    -> Supabase FIT core tables -> Next.js presentation layer
 ```
 
 ## Purpose
@@ -103,16 +99,17 @@ See `scripts/README.md` for FIT and health landing commands and the S3 landing s
 
 ## Modeling
 
-dbt treats the bronze FIT and health tables as sources. The current modeled path is:
+dbt treats FIT and health as independent source lanes. The current modeled paths are:
 
 ```text
 bronze FIT sources -> runs, run_records
-bronze health JSON source -> health_days
-runs + health_days -> dates
-dates + runs + health_days -> mart_days
+bronze health JSON source -> health_days -> mart_health_days
+runs -> dates
+dates + runs -> mart_days
 mart_days -> mart_weeks, mart_months, mart_years
 mart_weeks -> signal_consistency, signal_volume, mart_weekly_training_features
 run_records -> mart_activity_records
+mart_activity_records -> mart_map_profile_records
 run_records + mart_segment_resolutions -> mart_run_segments
 runs + run_records -> route_observations
 route_observations -> route_similarity_edges
@@ -120,22 +117,34 @@ route_observations + route_similarity_edges -> int_route_component_roots -> mart
 runs + mart_days + mart_run_segments + mart_route_clusters -> mart_run_sessions
 mart_run_sessions -> mart_routes
 mart_run_sessions + mart_routes -> mart_route_prediction_features
-runs + health_days + mart_run_segments -> signal_fitness
-runs + health_days -> mart_runs
+runs + mart_run_segments -> signal_fitness
+runs -> mart_runs
 signal_fitness + mart_weeks -> mart_running_signals
 ```
+
+The `fit_refresh` selector builds the complete running and presentation graph without a health
+source. The `health_refresh` selector builds only `health_days` and `mart_health_days`.
 
 ## Presentation Serving
 
 The Next.js site does not query Databricks during normal page rendering. After dbt builds the gold
-models, `scripts/sync_site_supabase.py` reloads a narrow set of Supabase `site_*` tables from the
-gold outputs. Those tables contain only presentation-safe fields used by the explorers, charts,
-status panels, and route maps. Route maps use the ordered telemetry from `mart_activity_records`;
-analytical segments remain split-level aggregates.
+models, `scripts/sync_site_supabase.py` loads the FIT presentation tables into Supabase.
+FIT is stored in physical core tables (`site_*_core`) with thin public views over them.
+Window-aware RPCs (`site_period_summary`, `site_route_summaries`,
+`site_run_filter_bounds_for_window`) serve analytics scoped to a selected date range. Monthly and
+yearly rollups are derived by the frontend from published daily rows. Weeks are served directly
+from `site_weeks` with governed rolling values and streaks.
+
+Databricks retains every ordered row in `mart_activity_records`, while Supabase serves the
+deterministic, maximum-500-point `mart_map_profile_records` projection needed by route maps.
+Analytical segments remain split-level aggregates.
 
 Supabase is a serving cache, not the analytical source of truth. If a metric changes, the definition
 belongs in dbt gold first; the Supabase sync should only project that result into the shape required
 by the website.
+
+Health is an independent manual analytics pipeline that stops after dbt. It does not publish to
+Supabase and has no frontend surface.
 
 Silver models standardize date, run-level, per-record, and daily health context fields. The primary
 analytical foundation is `mart_days`; weekly, monthly, and yearly outputs roll up from that daily
@@ -143,7 +152,7 @@ mart. Weekly signal models remain as compatibility outputs. Route clustering bui
 H3 path directly from silver records, so accurate analytical split allocation and additional metric
 or imperial resolutions do not change route identity. Activity records provide full route geometry,
 while route, segment, and run-session marts support route and performance analysis. Health fields are
-descriptive context, not readiness or medical scoring.
+independent, optionally stale descriptive context, not readiness or medical scoring.
 
 ## Analytics Readiness
 
@@ -153,8 +162,9 @@ product:
 - Monitoring: `mart_days`, `mart_weeks`, `mart_months`, and `mart_years` expose daily training
   behavior and calendar rollups.
 - Visual analytics: `mart_runs`, `mart_run_sessions`, `mart_routes`, `mart_route_clusters`,
-  `mart_activity_records`, `mart_run_segments`, and `mart_running_signals` expose run, route,
-  record, segment, and signal views for portfolio communication.
+  `mart_activity_records`, `mart_map_profile_records`, `mart_run_segments`, and
+  `mart_running_signals` expose run, route, record, presentation profile, segment, and signal views
+  for portfolio communication.
 - Offline ML experimentation: `mart_route_prediction_features` and
   `mart_weekly_training_features` provide transparent, versioned feature and label columns for
   active baseline comparisons and validation experiments. No production model, forecast, or

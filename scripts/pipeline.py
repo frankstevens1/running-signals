@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from contextlib import ExitStack
 import json
 import os
 import subprocess
@@ -10,7 +11,7 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable, TextIO, TypeVar
+from typing import Any, Callable, Literal, TextIO, TypeVar, cast
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
@@ -36,12 +37,15 @@ MANIFEST_FAILURE_EXIT_CODE = 8
 USAGE_FAILURE_EXIT_CODE = 2
 
 CommandRunner = Callable[[list[str], Path, str, bool], subprocess.CompletedProcess[str]]
+BundleSummaryRunner = Callable[[list[str], Path], subprocess.CompletedProcess[str]]
 COMMAND_PROGRESS_INTERVAL_SECONDS = 30
 T = TypeVar("T")
+RefreshSource = Literal["fit", "health"]
 
 
 @dataclass(frozen=True)
 class RefreshOptions:
+    source: RefreshSource
     tokenstore: str
     fit_limit: int
     no_input: bool
@@ -90,6 +94,12 @@ def default_command_runner(
             )
 
 
+def default_bundle_summary_runner(
+    argv: list[str], cwd: Path
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(argv, cwd=cwd, check=False, capture_output=True, text=True)
+
+
 def run_with_heartbeat(
     stage: str,
     operation: Callable[[], T],
@@ -120,13 +130,18 @@ def build_parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
 
     preflight = commands.add_parser("preflight", help="Validate refresh configuration without writes.")
+    preflight.add_argument("--source", choices=["fit", "health"], default="fit")
+    preflight.add_argument("--databricks-target", default="dev")
     preflight.add_argument("--tokenstore", default=default_tokenstore())
     preflight.add_argument("--no-input", action="store_true")
     preflight.add_argument("--json", action="store_true", dest="json_output")
 
     refresh = commands.add_parser("refresh", help="Refresh raw, bronze, dbt, and serving data.")
     refresh_commands = refresh.add_subparsers(dest="refresh_command", required=True)
-    incremental = refresh_commands.add_parser("incremental", help="Run the safe incremental refresh.")
+    incremental = refresh_commands.add_parser(
+        "incremental",
+        help="Run a source-isolated incremental refresh; defaults to FIT.",
+    )
     add_refresh_arguments(incremental)
 
     bronze = commands.add_parser("bronze", help="Run one or both bronze jobs.")
@@ -153,6 +168,12 @@ def default_tokenstore() -> str:
 
 
 def add_refresh_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--source",
+        choices=["fit", "health"],
+        default="fit",
+        help="Refresh source. FIT is the scheduled default; health is manual.",
+    )
     parser.add_argument("--tokenstore", default=default_tokenstore())
     parser.add_argument("--fit-limit", type=download_garmin_fit.parse_limit, default=200)
     parser.add_argument("--no-input", action="store_true")
@@ -164,6 +185,7 @@ def add_refresh_arguments(parser: argparse.ArgumentParser) -> None:
 
 def refresh_options(args: argparse.Namespace) -> RefreshOptions:
     return RefreshOptions(
+        source=cast(RefreshSource, args.source),
         tokenstore=args.tokenstore,
         fit_limit=args.fit_limit,
         no_input=args.no_input,
@@ -174,14 +196,22 @@ def refresh_options(args: argparse.Namespace) -> RefreshOptions:
     )
 
 
-def preflight_errors(project_root: Path, tokenstore: str, *, no_input: bool) -> list[str]:
+def preflight_errors(
+    project_root: Path,
+    tokenstore: str,
+    source: RefreshSource = "fit",
+    *,
+    no_input: bool,
+) -> list[str]:
     load_dotenv(project_root / ".env")
     missing: list[str] = []
 
-    if not os.getenv("GARMIN_FIT_S3_BUCKET"):
+    if source == "fit" and not os.getenv("GARMIN_FIT_S3_BUCKET"):
         missing.append("GARMIN_FIT_S3_BUCKET")
 
-    if not (os.getenv("GARMIN_HEALTH_S3_BUCKET") or os.getenv("GARMIN_FIT_S3_BUCKET")):
+    if source == "health" and not (
+        os.getenv("GARMIN_HEALTH_S3_BUCKET") or os.getenv("GARMIN_FIT_S3_BUCKET")
+    ):
         missing.append("GARMIN_HEALTH_S3_BUCKET or GARMIN_FIT_S3_BUCKET")
 
     for name in (
@@ -189,10 +219,12 @@ def preflight_errors(project_root: Path, tokenstore: str, *, no_input: bool) -> 
         "DATABRICKS_TOKEN",
         "DATABRICKS_CATALOG",
         "DATABRICKS_GOLD_SCHEMA",
-        "SUPABASE_DB_URL",
     ):
         if not os.getenv(name):
             missing.append(name)
+
+    if source == "fit" and not os.getenv("SUPABASE_DB_URL"):
+        missing.append("SUPABASE_DB_URL")
 
     http_path = os.getenv("DATABRICKS_HTTP_PATH")
     if not http_path:
@@ -200,7 +232,7 @@ def preflight_errors(project_root: Path, tokenstore: str, *, no_input: bool) -> 
     elif not is_sql_warehouse_http_path(http_path):
         missing.append("a Databricks SQL warehouse DATABRICKS_HTTP_PATH")
 
-    supabase_db_url = os.getenv("SUPABASE_DB_URL")
+    supabase_db_url = os.getenv("SUPABASE_DB_URL") if source == "fit" else None
     if supabase_db_url and not is_postgres_connection_url(supabase_db_url):
         missing.append("a PostgreSQL SUPABASE_DB_URL")
 
@@ -230,21 +262,80 @@ def dbt_profile_path() -> Path:
     return (Path(profiles_dir).expanduser() if profiles_dir else Path.home() / ".dbt") / "profiles.yml"
 
 
-def run_preflight(project_root: Path, tokenstore: str, *, no_input: bool) -> list[str]:
-    errors = preflight_errors(project_root, tokenstore, no_input=no_input)
+def run_preflight(
+    project_root: Path,
+    tokenstore: str,
+    source: RefreshSource = "fit",
+    *,
+    no_input: bool,
+) -> list[str]:
+    errors = preflight_errors(project_root, tokenstore, source, no_input=no_input)
     if errors:
         raise PipelineError(
             "Missing refresh configuration: " + ", ".join(errors),
             USAGE_FAILURE_EXIT_CODE,
         )
 
-    return [
-        "Garmin raw S3 configuration",
+    checks = [
+        f"Garmin {source} raw S3 configuration",
         "Databricks SQL configuration values",
-        "Hosted Supabase connection URL",
         f"dbt profile at {dbt_profile_path()}",
         "Non-interactive Garmin credentials" if no_input else "Garmin credentials or prompt",
     ]
+    if source == "fit":
+        checks.insert(2, "Hosted Supabase connection URL")
+    return checks
+
+
+def ensure_bundle_job_deployed(
+    project_root: Path,
+    source: RefreshSource,
+    target: str,
+    runner: BundleSummaryRunner | None = None,
+) -> str:
+    job_key = f"garmin_{source}_bronze_ingestion"
+    argv = [
+        "databricks",
+        "bundle",
+        "summary",
+        "--target",
+        target,
+        "--output",
+        "json",
+    ]
+
+    try:
+        result = (runner or default_bundle_summary_runner)(argv, project_root / "databricks")
+    except OSError as exc:
+        raise PipelineError(
+            f"Could not inspect Databricks bundle target {target}: {exc}",
+            USAGE_FAILURE_EXIT_CODE,
+        ) from exc
+
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "unknown error").strip()
+        raise PipelineError(
+            f"Could not inspect Databricks bundle target {target}: {detail}",
+            USAGE_FAILURE_EXIT_CODE,
+        )
+
+    try:
+        summary = json.loads(result.stdout)
+        job = summary["resources"]["jobs"][job_key]
+    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        raise PipelineError(
+            f"Databricks bundle summary did not contain the {source} bronze job for target {target}.",
+            USAGE_FAILURE_EXIT_CODE,
+        ) from exc
+
+    if not isinstance(job, dict) or not job.get("id"):
+        raise PipelineError(
+            f"Databricks {source.upper()} bronze job is not deployed for target {target}. "
+            f"Run: cd databricks && databricks bundle deploy --target {target}",
+            USAGE_FAILURE_EXIT_CODE,
+        )
+
+    return f"Databricks {source} bronze job deployed for target {target} (job {job['id']})"
 
 
 def fit_result_details(result: Any) -> dict[str, Any]:
@@ -407,25 +498,140 @@ def run_bronze_jobs(
         )
 
 
+def run_fit_raw_stage(
+    manifest: RunManifest,
+    state_dir: Path,
+    options: RefreshOptions,
+    fit_runner: Callable[..., Any],
+) -> None:
+    start_stage(manifest, state_dir, "fit_raw", {})
+    report_progress("fit_raw", "starting Garmin FIT raw landing", json_output=options.json_output)
+    try:
+        fit_args = download_garmin_fit.parse_args(
+            [
+                "--destination",
+                "s3",
+                "--mode",
+                "incremental",
+                "--tokenstore",
+                options.tokenstore,
+                "--limit",
+                str(options.fit_limit),
+                "--no-interactive",
+            ]
+        )
+        fit_result = run_with_heartbeat(
+            "fit_raw",
+            lambda: fit_runner(fit_args, allow_prompt=not options.no_input),
+            json_output=options.json_output,
+        )
+    except Exception as exc:
+        fail_stage(
+            manifest,
+            state_dir,
+            "fit_raw",
+            {},
+            raw_landing_failure_message("FIT", exc),
+            RAW_FAILURE_EXIT_CODE,
+        )
+        raise AssertionError("unreachable")
+
+    details = fit_result_details(fit_result)
+    complete_stage(manifest, state_dir, "fit_raw", details)
+    report_progress(
+        "fit_raw",
+        f"completed: {details['downloaded_count']} downloaded, "
+        f"{details['skipped_existing_count']} existing",
+        json_output=options.json_output,
+    )
+
+
+def run_health_raw_stage(
+    manifest: RunManifest,
+    state_dir: Path,
+    options: RefreshOptions,
+    health_runner: Callable[..., GarminHealthDownloadResult],
+) -> None:
+    start_stage(manifest, state_dir, "health_raw", {})
+    report_progress("health_raw", "starting Garmin health raw landing", json_output=options.json_output)
+    try:
+        health_args = download_garmin_health.parse_args(
+            [
+                "--destination",
+                "s3",
+                "--mode",
+                "incremental",
+                "--tokenstore",
+                options.tokenstore,
+                "--no-interactive",
+            ]
+        )
+        health_result = run_with_heartbeat(
+            "health_raw",
+            lambda: health_runner(health_args, allow_prompt=not options.no_input),
+            json_output=options.json_output,
+        )
+    except Exception as exc:
+        fail_stage(
+            manifest,
+            state_dir,
+            "health_raw",
+            {},
+            raw_landing_failure_message("Health", exc),
+            RAW_FAILURE_EXIT_CODE,
+        )
+        raise AssertionError("unreachable")
+
+    details = health_result_details(health_result)
+    if health_result.endpoint_failures:
+        fail_stage(
+            manifest,
+            state_dir,
+            "health_raw",
+            details,
+            "Health raw landing completed with endpoint failures.",
+            RAW_FAILURE_EXIT_CODE,
+        )
+    complete_stage(manifest, state_dir, "health_raw", details)
+    report_progress(
+        "health_raw",
+        f"completed: {details['written_count']} written, "
+        f"{details['skipped_existing_count']} existing",
+        json_output=options.json_output,
+    )
+
+
 def execute_incremental(
     options: RefreshOptions,
     project_root: Path,
     *,
     state_dir: Path | None = None,
     command_runner: CommandRunner = default_command_runner,
+    bundle_summary_runner: BundleSummaryRunner | None = None,
     fit_runner: Callable[..., Any] = download_garmin_fit.run,
     health_runner: Callable[..., GarminHealthDownloadResult] = download_garmin_health.run,
 ) -> RunManifest:
-    run_preflight(project_root, options.tokenstore, no_input=options.no_input)
+    run_preflight(
+        project_root,
+        options.tokenstore,
+        options.source,
+        no_input=options.no_input,
+    )
+    ensure_bundle_job_deployed(
+        project_root,
+        options.source,
+        options.databricks_target,
+        bundle_summary_runner,
+    )
     resolved_state_dir = state_dir or get_state_dir()
 
-    with RefreshLock(resolved_state_dir):
-        manifest = RunManifest.create("refresh incremental", asdict(options))
+    with RefreshLock(resolved_state_dir, f"source-{options.source}"):
+        manifest = RunManifest.create(f"refresh incremental {options.source}", asdict(options))
         write_manifest(resolved_state_dir, manifest)
 
-        stage_names = ["fit_raw", "health_raw", "bronze_fit", "bronze_health", "dbt"]
-        if not options.no_publish:
-            stage_names.append("publish")
+        stage_names = [f"{options.source}_raw", f"bronze_{options.source}", f"dbt_{options.source}"]
+        if options.source == "fit" and not options.no_publish:
+            stage_names.append("publish_fit")
 
         if options.dry_run:
             for name in stage_names:
@@ -436,105 +642,16 @@ def execute_incremental(
             write_manifest(resolved_state_dir, manifest)
             return manifest
 
-        start_stage(manifest, resolved_state_dir, "fit_raw", {})
-        report_progress("fit_raw", "starting Garmin FIT raw landing", json_output=options.json_output)
-        try:
-            fit_args = download_garmin_fit.parse_args(
-                [
-                    "--destination",
-                    "s3",
-                    "--mode",
-                    "incremental",
-                    "--tokenstore",
-                    options.tokenstore,
-                    "--limit",
-                    str(options.fit_limit),
-                    "--no-interactive",
-                ]
-            )
-            fit_result = run_with_heartbeat(
-                "fit_raw",
-                lambda: fit_runner(fit_args, allow_prompt=not options.no_input),
-                json_output=options.json_output,
-            )
-        except Exception as exc:
-            fail_stage(
-                manifest,
-                resolved_state_dir,
-                "fit_raw",
-                {},
-                raw_landing_failure_message("FIT", exc),
-                RAW_FAILURE_EXIT_CODE,
-            )
-            raise AssertionError("unreachable")
-        fit_details = fit_result_details(fit_result)
-        complete_stage(manifest, resolved_state_dir, "fit_raw", fit_details)
-        report_progress(
-            "fit_raw",
-            (
-                "completed: "
-                f"{fit_details['downloaded_count']} downloaded, "
-                f"{fit_details['skipped_existing_count']} existing"
-            ),
-            json_output=options.json_output,
-        )
-
-        start_stage(manifest, resolved_state_dir, "health_raw", {})
-        report_progress("health_raw", "starting Garmin health raw landing", json_output=options.json_output)
-        try:
-            health_args = download_garmin_health.parse_args(
-                [
-                    "--destination",
-                    "s3",
-                    "--mode",
-                    "incremental",
-                    "--tokenstore",
-                    options.tokenstore,
-                    "--no-interactive",
-                ]
-            )
-            health_result = run_with_heartbeat(
-                "health_raw",
-                lambda: health_runner(health_args, allow_prompt=not options.no_input),
-                json_output=options.json_output,
-            )
-        except Exception as exc:
-            fail_stage(
-                manifest,
-                resolved_state_dir,
-                "health_raw",
-                {},
-                raw_landing_failure_message("Health", exc),
-                RAW_FAILURE_EXIT_CODE,
-            )
-            raise AssertionError("unreachable")
-
-        health_details = health_result_details(health_result)
-        if health_result.endpoint_failures:
-            fail_stage(
-                manifest,
-                resolved_state_dir,
-                "health_raw",
-                health_details,
-                "Health raw landing completed with endpoint failures.",
-                RAW_FAILURE_EXIT_CODE,
-            )
-        complete_stage(manifest, resolved_state_dir, "health_raw", health_details)
-        report_progress(
-            "health_raw",
-            (
-                "completed: "
-                f"{health_details['written_count']} written, "
-                f"{health_details['skipped_existing_count']} existing"
-            ),
-            json_output=options.json_output,
-        )
+        if options.source == "fit":
+            run_fit_raw_stage(manifest, resolved_state_dir, options, fit_runner)
+        else:
+            run_health_raw_stage(manifest, resolved_state_dir, options, health_runner)
 
         run_bronze_jobs(
             manifest,
             resolved_state_dir,
             project_root,
-            "all",
+            options.source,
             options.databricks_target,
             False,
             command_runner,
@@ -543,20 +660,37 @@ def execute_incremental(
         run_command_stage(
             manifest,
             resolved_state_dir,
-            "dbt",
-            ["uv", "run", "dbt", "build", "--project-dir", "dbt"],
+            f"dbt_{options.source}",
+            [
+                "uv",
+                "run",
+                "dbt",
+                "build",
+                "--project-dir",
+                "dbt",
+                "--selector",
+                f"{options.source}_refresh",
+                "--target-path",
+                f"target/{options.source}",
+            ],
             project_root,
             DBT_FAILURE_EXIT_CODE,
             command_runner,
             json_output=options.json_output,
         )
 
-        if not options.no_publish:
+        if options.source == "fit" and not options.no_publish:
             run_command_stage(
                 manifest,
                 resolved_state_dir,
-                "publish",
-                ["uv", "run", "python", "scripts/sync_site_supabase.py", "--no-progress"],
+                "publish_fit",
+                [
+                    "uv",
+                    "run",
+                    "python",
+                    "scripts/sync_site_supabase.py",
+                    "--no-progress",
+                ],
                 project_root,
                 PUBLISH_FAILURE_EXIT_CODE,
                 command_runner,
@@ -574,6 +708,7 @@ def execute_bronze(
     *,
     state_dir: Path | None = None,
     command_runner: CommandRunner = default_command_runner,
+    bundle_summary_runner: BundleSummaryRunner | None = None,
 ) -> RunManifest:
     if args.full_refresh and not args.confirm:
         raise PipelineError(
@@ -582,7 +717,17 @@ def execute_bronze(
         )
 
     resolved_state_dir = state_dir or get_state_dir()
-    with RefreshLock(resolved_state_dir):
+    selected_sources = ("fit", "health") if args.source == "all" else (args.source,)
+    for source in selected_sources:
+        ensure_bundle_job_deployed(
+            project_root,
+            cast(RefreshSource, source),
+            args.databricks_target,
+            bundle_summary_runner,
+        )
+    with ExitStack() as locks:
+        for source in selected_sources:
+            locks.enter_context(RefreshLock(resolved_state_dir, f"source-{source}"))
         manifest = RunManifest.create(
             "bronze",
             {
@@ -621,16 +766,22 @@ def execute_publish(
         )
 
     resolved_state_dir = state_dir or get_state_dir()
-    with RefreshLock(resolved_state_dir):
+    with RefreshLock(resolved_state_dir, "source-fit"):
         manifest = RunManifest.create("publish", {"full": args.full})
         write_manifest(resolved_state_dir, manifest)
-        argv = ["uv", "run", "python", "scripts/sync_site_supabase.py", "--no-progress"]
+        argv = [
+            "uv",
+            "run",
+            "python",
+            "scripts/sync_site_supabase.py",
+            "--no-progress",
+        ]
         if args.full:
             argv.append("--full")
         run_command_stage(
             manifest,
             resolved_state_dir,
-            "publish",
+            "publish_fit",
             argv,
             project_root,
             PUBLISH_FAILURE_EXIT_CODE,
@@ -658,7 +809,9 @@ def print_execution_summary(manifest: RunManifest, *, json_output: bool) -> None
         for name, stage in manifest.stages.items()
     ]
     phase_width = max([len("Phase"), *(len(name) for name, _, _ in rows)])
-    status_width = max([len("Status"), *(len(status) for _, status, _ in rows)])
+    status_width = max(
+        [len("Status"), len(manifest.status), *(len(status) for _, status, _ in rows)]
+    )
     duration_width = max(
         [len("Duration"), *(len(duration) for _, _, duration in rows), len(format_duration(manifest.duration_seconds))]
     )
@@ -700,7 +853,19 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command == "preflight":
-            checks = run_preflight(project_root, args.tokenstore, no_input=args.no_input)
+            checks = run_preflight(
+                project_root,
+                args.tokenstore,
+                cast(RefreshSource, args.source),
+                no_input=args.no_input,
+            )
+            checks.append(
+                ensure_bundle_job_deployed(
+                    project_root,
+                    cast(RefreshSource, args.source),
+                    args.databricks_target,
+                )
+            )
             if args.json_output:
                 print(json.dumps({"status": "succeeded", "checks": checks}, indent=2, sort_keys=True))
             else:

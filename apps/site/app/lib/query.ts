@@ -34,6 +34,7 @@ export type RunFilters = {
   routeId?: string;
   hasRecoveryHr?: boolean;
   minGpsCoverage?: number;
+  minAltitudeRange?: number;
 };
 
 const RUN_SORTS = new Set<RunSort>([
@@ -55,9 +56,29 @@ export function parsePositiveInt(
   fallback: number,
   max: number,
 ): number {
-  const parsed = Number.parseInt(value ?? "", 10);
-  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  if (value === null) return fallback;
+  if (!/^[1-9]\d*$/.test(value)) return fallback;
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed)) return fallback;
   return Math.min(parsed, max);
+}
+
+export function parseOffset(value: string | null, fallback = 0, max = 100_000): number {
+  if (value === null) return fallback;
+  if (!/^(0|[1-9]\d*)$/.test(value)) return fallback;
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed)) return fallback;
+  return Math.min(parsed, max);
+}
+
+export function isStrictPositiveInt(value: string | null, max: number): boolean {
+  if (value === null) return true;
+  return /^[1-9]\d*$/.test(value) && Number.isSafeInteger(Number(value)) && Number(value) <= max;
+}
+
+export function isStrictOffset(value: string | null, max = 100_000): boolean {
+  if (value === null) return true;
+  return /^(0|[1-9]\d*)$/.test(value) && Number.isSafeInteger(Number(value)) && Number(value) <= max;
 }
 
 export function parseOptionalNumber(value: string | null): number | undefined {
@@ -68,7 +89,10 @@ export function parseOptionalNumber(value: string | null): number | undefined {
 
 export function parseOptionalDate(value: string | null): string | undefined {
   if (!value || !DATE_PATTERN.test(value)) return undefined;
-  return value;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value
+    ? value
+    : undefined;
 }
 
 export function parseOptionalBoolean(value: string | null): boolean | undefined {
@@ -86,7 +110,7 @@ export function parseRunFilters(
 
   return {
     limit: parsePositiveInt(params.get("limit"), 25, 100),
-    offset: parsePositiveInt(params.get("offset"), 0, 10000),
+    offset: parseOffset(params.get("offset"), 0, 100_000),
     sort: sort && RUN_SORTS.has(sort as RunSort) ? (sort as RunSort) : "activity_date",
     direction: direction === "asc" ? "asc" : "desc",
     dateFrom: parseOptionalDate(params.get("dateFrom")),
@@ -112,6 +136,7 @@ export function parseRunFilters(
     routeId: params.get("routeId") || undefined,
     hasRecoveryHr: parseOptionalBoolean(params.get("hasRecoveryHr")),
     minGpsCoverage: parseOptionalNumber(params.get("minGpsCoverage")),
+    minAltitudeRange: parseOptionalNumber(params.get("minAltitudeRange")),
   };
 }
 

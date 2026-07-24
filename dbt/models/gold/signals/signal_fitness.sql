@@ -5,11 +5,6 @@ with runs as (
     from {{ ref('runs') }}
 ),
 
-health_days as (
-    select *
-    from {{ ref('health_days') }}
-),
-
 segments as (
     select *
     from {{ ref('mart_run_segments') }}
@@ -86,21 +81,8 @@ run_fitness as (
             else 'other'
         end as hr_band,
         runs.garmin_recovery_hr,
-        health_days.resting_heart_rate,
-        health_days.hrv_value,
-        health_days.hrv_status,
-        health_days.sleep_score,
-        health_days.sleep_duration_seconds,
-        health_days.sleep_start_time,
-        health_days.sleep_end_time,
-        health_days.has_hrv_payload,
-        health_days.has_rhr_payload,
-        health_days.has_sleep_payload,
-        health_days.has_heart_rates_payload,
         hr_drift.hr_drift_pct
     from runs
-    left join health_days
-        on runs.activity_date = health_days.calendar_date
     left join hr_drift
         on runs.run_id = hr_drift.run_id
 )
@@ -118,5 +100,9 @@ select
     avg(garmin_recovery_hr) over (
         order by activity_date, activity_id
         rows between 3 preceding and current row
-    ) as rolling_4_run_recovery_hr
+    ) as rolling_4_run_recovery_hr,
+    avg(garmin_recovery_hr) over (
+        order by activity_date
+        range between interval '27' day preceding and current row
+    ) as rolling_4_week_recovery_hr
 from run_fitness

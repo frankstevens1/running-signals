@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { ExternalLink, Mail } from "lucide-react";
-import { siGithub } from "simple-icons";
+import { siGithub, siStrava } from "simple-icons";
+import { Suspense } from "react";
 
+import { AnalyticsWindowSelector } from "@/app/components/analytics-window-selector";
 import { AppNav } from "@/app/components/app-nav";
 import { CommandPalette } from "@/app/components/command-palette";
 import { DistanceUnitToggle } from "@/app/components/distance-unit-toggle";
@@ -49,6 +51,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
             <div className="flex shrink-0 items-center gap-2">
               <CommandPalette />
+              <Suspense fallback={<div className="h-9 w-9 border border-(--border)" />}>
+                <AnalyticsWindowSelector />
+              </Suspense>
               <DistanceUnitToggle />
               <ThemeToggle />
             </div>
@@ -72,7 +77,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               analytics-engineering / 2026
             </p>
             <p className="mt-1.5 text-xs text-(--text-faint)">
-              Personal running data, modeled for clarity rather than coaching.
+              Personal running data, modeled for clarity not coaching.
             </p>
           </div>
 
@@ -87,6 +92,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <path d={siGithub.path} />
               </svg>
               Repository
+            </a>
+            <a
+              href="https://www.strava.com/athletes/142530754"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 transition-colors hover:text-(--accent)"
+            >
+              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
+                <path d={siStrava.path} />
+              </svg>
+              Strava
             </a>
             <a
               href="https://datafluent.one"

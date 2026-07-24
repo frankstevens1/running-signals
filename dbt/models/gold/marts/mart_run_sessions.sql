@@ -17,11 +17,6 @@ route_clusters as (
     from {{ ref('mart_route_clusters') }}
 ),
 
-daily_context as (
-    select *
-    from {{ ref('mart_days') }}
-),
-
 prior_training_context as (
     select
         runs.run_id,
@@ -36,8 +31,7 @@ prior_training_context as (
             else 0.0
         end) as prior_7d_distance_km,
         sum(days.run_count) as prior_28d_run_count,
-        sum(days.distance_km) as prior_28d_distance_km,
-        avg(days.resting_heart_rate) as prior_28d_avg_resting_heart_rate
+        sum(days.distance_km) as prior_28d_distance_km
     from runs
     left join {{ ref('mart_days') }} as days
         on days.calendar_date between date_add(runs.activity_date, -28)
@@ -100,24 +94,14 @@ select
     segment_summary.avg_segment_grade,
     segment_summary.route_altitude_range_m,
     segment_summary.net_elevation_change_m,
-    daily_context.resting_heart_rate,
-    daily_context.hrv_value,
-    daily_context.hrv_status,
-    daily_context.sleep_score,
-    daily_context.sleep_duration_seconds,
-    daily_context.rolling_7d_resting_heart_rate,
-    daily_context.rolling_30d_resting_heart_rate,
     prior_training_context.prior_7d_run_count,
     prior_training_context.prior_7d_distance_km,
     prior_training_context.prior_28d_run_count,
-    prior_training_context.prior_28d_distance_km,
-    prior_training_context.prior_28d_avg_resting_heart_rate
+    prior_training_context.prior_28d_distance_km
 from runs
 left join route_clusters
     on runs.run_id = route_clusters.run_id
 left join segment_summary
     on runs.run_id = segment_summary.run_id
-left join daily_context
-    on runs.activity_date = daily_context.calendar_date
 left join prior_training_context
     on runs.run_id = prior_training_context.run_id

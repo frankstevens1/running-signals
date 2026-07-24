@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { ChevronDown, RotateCcw, Search, SlidersHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -8,7 +8,6 @@ import { distanceFromKm, paceFromMinPerKm, type DistanceUnit } from "@/app/lib/d
 import { formatDistance, formatRouteId } from "@/app/lib/format";
 import {
   EMPTY_RUN_FILTER_BOUNDS,
-  formatRunFilterNumber,
   hasActiveRunFilterParams,
   hasPersistedRunFilters,
   normalizeRunFilters,
@@ -36,6 +35,14 @@ function formatBound(
   return value === null ? undefined : convert(value);
 }
 
+function paceMinutesToTimeString(minutes: number): string {
+  if (!Number.isFinite(minutes)) return "";
+  const mins = Math.floor(minutes);
+  const secs = Math.round((minutes - mins) * 60);
+  if (secs >= 60) return `${mins + 1}:00`;
+  return `${mins}:${String(secs % 60).padStart(2, "0")}`;
+}
+
 export function RunFilters({
   paramsString,
   routes,
@@ -61,11 +68,13 @@ export function RunFilters({
   const [values, setValues] = useState<RunFilterFormValues>(() =>
     runFilterFormValues(currentFilters, filterBounds, unit),
   );
+  const didRestore = useRef(false);
 
   useEffect(() => {
     if (!bounds) return;
 
     if (hasActiveRunFilterParams(params)) {
+      didRestore.current = true;
       const rawFilters = runFiltersFromSearchParams(params, unit);
       if (!runFiltersEqual(rawFilters, currentFilters)) {
         const nextParams = withRunFilters(params, currentFilters, unit);
@@ -75,12 +84,15 @@ export function RunFilters({
       return;
     }
 
+    if (didRestore.current) return;
+
     try {
       const rawValue = window.localStorage.getItem(RUN_FILTER_STORAGE_KEY);
       const restoredFilters = parseStoredRunFilters(rawValue, bounds);
 
       if (!restoredFilters) {
         if (rawValue !== null) window.localStorage.removeItem(RUN_FILTER_STORAGE_KEY);
+        didRestore.current = true;
         return;
       }
 
@@ -92,38 +104,46 @@ export function RunFilters({
       if (nextParams.toString() !== paramsString) {
         router.replace(hrefFor(nextParams), { scroll: false });
       }
+      didRestore.current = true;
     } catch {
-      // Storage can be unavailable in privacy-restricted browser contexts.
+      didRestore.current = true;
     }
   }, [bounds, currentFilters, params, paramsString, router, unit]);
 
   const selectedRouteId = values.routeId;
   const hasSelectedRouteOption = routes.some((route) => route.routeId === selectedRouteId);
   const controlClass =
-    "h-10 w-full rounded-none border border-(--border) bg-(--background) px-3 font-mono text-xs text-(--text) outline-none transition placeholder:text-(--text-soft) focus:border-(--accent) focus:bg-(--surface) focus:ring-1 focus:ring-(--accent)";
-  const selectControlClass = `${controlClass} appearance-none pr-9`;
-  const fieldClass = "space-y-1.5";
+    "h-8 w-full rounded-none border border-(--border) bg-(--background) px-2.5 font-mono text-[11px] text-(--text) outline-none transition placeholder:text-(--text-soft) focus:border-(--accent) focus:bg-(--surface) focus:ring-1 focus:ring-(--accent)";
+  const selectControlClass = `${controlClass} appearance-none pr-8`;
+  const fieldClass = "space-y-1";
   const fieldLabelClass =
     "block font-mono text-[10px] uppercase tracking-[0.12em] text-(--text-soft)";
   const pairedFieldClass = `${fieldClass} sm:col-span-2 xl:col-span-3`;
   const dateMinimum = filterBounds.minActivityDate ?? undefined;
   const dateMaximum = filterBounds.maxActivityDate ?? undefined;
-  const distanceMinimum = formatBound(filterBounds.minDistanceKm, (value) =>
-    formatRunFilterNumber(distanceFromKm(value, unit)),
+  const distanceMinimum = formatBound(
+    filterBounds.minDistanceKm,
+    (value) => distanceFromKm(value, unit).toFixed(2),
   );
-  const distanceMaximum = formatBound(filterBounds.maxDistanceKm, (value) =>
-    formatRunFilterNumber(distanceFromKm(value, unit)),
+  const distanceMaximum = formatBound(
+    filterBounds.maxDistanceKm,
+    (value) => distanceFromKm(value, unit).toFixed(2),
   );
   const paceMinimum = formatBound(filterBounds.minPaceMinPerKm, (value) =>
-    formatRunFilterNumber(paceFromMinPerKm(value, unit)),
+    paceMinutesToTimeString(paceFromMinPerKm(value, unit)),
   );
   const paceMaximum = formatBound(filterBounds.maxPaceMinPerKm, (value) =>
-    formatRunFilterNumber(paceFromMinPerKm(value, unit)),
+    paceMinutesToTimeString(paceFromMinPerKm(value, unit)),
   );
-  const heartRateMinimum = formatBound(filterBounds.minAvgHeartRate, formatRunFilterNumber);
-  const heartRateMaximum = formatBound(filterBounds.maxAvgHeartRate, formatRunFilterNumber);
-  const gpsMinimum = formatBound(filterBounds.minGpsCoverage, formatRunFilterNumber);
-  const gpsMaximum = formatBound(filterBounds.maxGpsCoverage, formatRunFilterNumber);
+  const heartRateMinimum = formatBound(filterBounds.minAvgHeartRate, (value) =>
+    String(Math.round(value)),
+  );
+  const heartRateMaximum = formatBound(filterBounds.maxAvgHeartRate, (value) =>
+    String(Math.round(value)),
+  );
+  const altitudeRangeMinimum = formatBound(filterBounds.minAltitudeRangeM, (value) =>
+    String(Math.round(value)),
+  );
 
   function updateValue(event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     const { name, value } = event.target;
@@ -176,7 +196,7 @@ export function RunFilters({
 
   return (
     <form onSubmit={applyFilters} className="border border-(--border) bg-(--surface)">
-      <div className="flex items-center justify-between gap-4 border-b border-(--border) px-4 py-3">
+      <div className="flex items-center justify-between gap-4 border-b border-(--border) px-3 py-2.5">
         <div className="flex min-w-0 items-center gap-3">
           <SlidersHorizontal className="h-4 w-4 shrink-0 text-(--accent)" aria-hidden="true" />
           <div>
@@ -184,7 +204,7 @@ export function RunFilters({
               Query parameters
             </p>
             <p className="mt-0.5 text-xs text-(--text-soft)">
-              Narrow the session mart without changing the underlying signal definitions.
+              Filter sessions by date, distance, pace, heart rate, and route to narrow the visible list.
             </p>
           </div>
         </div>
@@ -192,7 +212,7 @@ export function RunFilters({
           ready
         </span>
       </div>
-      <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-6 xl:grid-cols-12 xl:items-end">
+      <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-6 xl:grid-cols-12 xl:items-end">
         <label className={`${fieldClass} lg:col-span-1 xl:col-span-2`}>
           <span className={fieldLabelClass}>Date from</span>
           <input
@@ -243,7 +263,7 @@ export function RunFilters({
               ))}
             </select>
             <ChevronDown
-              className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-(--text-soft)"
+              className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-(--text-soft)"
               aria-hidden="true"
             />
           </span>
@@ -264,23 +284,23 @@ export function RunFilters({
               <option value="false">Missing</option>
             </select>
             <ChevronDown
-              className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-(--text-soft)"
+              className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-(--text-soft)"
               aria-hidden="true"
             />
           </span>
         </label>
 
         <label className={`${fieldClass} lg:col-span-1 xl:col-span-2`}>
-          <span className={fieldLabelClass}>GPS min</span>
+          <span className={fieldLabelClass}>Min Alt range m</span>
           <input
-            name="minGpsCoverage"
+            name="minAltitudeRange"
             type="number"
             suppressHydrationWarning
             inputMode="decimal"
-            min={gpsMinimum}
-            max={gpsMaximum}
+            min={altitudeRangeMinimum}
             step="any"
-            value={values.minGpsCoverage}
+            aria-label="Minimum route altitude range in metres"
+            value={values.minAltitudeRange}
             onChange={updateValue}
             className={controlClass}
           />
@@ -323,26 +343,24 @@ export function RunFilters({
           <div className="grid grid-cols-2 gap-2">
             <input
               name="minPace"
-              type="number"
+              type="text"
               suppressHydrationWarning
-              inputMode="decimal"
-              min={paceMinimum}
-              max={values.maxPace || paceMaximum}
-              step="any"
-              aria-label={`Minimum pace in decimal minutes per ${unit === "mi" ? "mile" : "kilometre"}`}
+              inputMode="numeric"
+              pattern="\d{1,2}(:\d{1,2})?"
+              placeholder={paceMinimum ?? ""}
+              aria-label={`Minimum pace in min:sec per ${unit === "mi" ? "mile" : "kilometre"}`}
               value={values.minPace}
               onChange={updateValue}
               className={controlClass}
             />
             <input
               name="maxPace"
-              type="number"
+              type="text"
               suppressHydrationWarning
-              inputMode="decimal"
-              min={values.minPace || paceMinimum}
-              max={paceMaximum}
-              step="any"
-              aria-label={`Maximum pace in decimal minutes per ${unit === "mi" ? "mile" : "kilometre"}`}
+              inputMode="numeric"
+              pattern="\d{1,2}(:\d{1,2})?"
+              placeholder={paceMaximum ?? ""}
+              aria-label={`Maximum pace in min:sec per ${unit === "mi" ? "mile" : "kilometre"}`}
               value={values.maxPace}
               onChange={updateValue}
               className={controlClass}
@@ -385,17 +403,17 @@ export function RunFilters({
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:col-span-2 lg:col-span-6 xl:col-span-3">
           <button
             type="submit"
-            className="inline-flex h-10 min-w-0 items-center justify-center gap-2 bg-(--accent) px-3 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-(--accent-foreground) transition-colors hover:bg-(--accent-strong)"
+            className="inline-flex h-8 min-w-0 items-center justify-center gap-2 bg-(--accent) px-3 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-(--accent-foreground) transition-colors hover:bg-(--accent-strong)"
           >
-            <Search className="h-4 w-4" aria-hidden="true" />
+            <Search className="h-3.5 w-3.5" aria-hidden="true" />
             Apply
           </button>
           <button
             type="button"
             onClick={clearFilters}
-            className="inline-flex h-10 items-center justify-center gap-2 border border-(--border) px-3 font-mono text-xs uppercase tracking-[0.08em] text-(--text-soft) transition-colors hover:border-(--text-soft) hover:bg-(--surface-muted) hover:text-(--text)"
+            className="inline-flex h-8 items-center justify-center gap-2 border border-(--border) px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-(--text-soft) transition-colors hover:border-(--text-soft) hover:bg-(--surface-muted) hover:text-(--text)"
           >
-            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         </div>
       </div>

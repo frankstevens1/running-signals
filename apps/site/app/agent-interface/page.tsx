@@ -122,7 +122,7 @@ const responseFields = [
 
 const boundaries = [
   "No arbitrary SQL or unrestricted table access.",
-  "No raw FIT, health JSON, or GPS payload access.",
+  "No raw FIT or GPS payload access.",
   "No writes, mutations, or pipeline operations.",
   "No medical advice or interpretation.",
   "No readiness scoring or production predictions.",

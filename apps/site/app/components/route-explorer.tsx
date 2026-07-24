@@ -66,21 +66,19 @@ function compareNullable(
 
 function sortRoutes(routes: RouteSummary[], sort: RouteSort) {
   return [...routes].sort((left, right) => {
+    let comparison: number;
     if (sort === "recent") {
-      return (right.latestObservedActivityDate ?? "").localeCompare(
+      comparison = (right.latestObservedActivityDate ?? "").localeCompare(
         left.latestObservedActivityDate ?? "",
       );
+    } else if (sort === "distance") {
+      comparison = compareNullable(left.avgDistanceKm, right.avgDistanceKm, "descending");
+    } else if (sort === "pace") {
+      comparison = compareNullable(left.avgPaceMinPerKm, right.avgPaceMinPerKm, "ascending");
+    } else {
+      comparison = compareNullable(left.avgHeartRate, right.avgHeartRate, "ascending");
     }
-
-    if (sort === "distance") {
-      return compareNullable(left.avgDistanceKm, right.avgDistanceKm, "descending");
-    }
-
-    if (sort === "pace") {
-      return compareNullable(left.avgPaceMinPerKm, right.avgPaceMinPerKm, "ascending");
-    }
-
-    return compareNullable(left.avgHeartRate, right.avgHeartRate, "ascending");
+    return comparison || left.routeId.localeCompare(right.routeId);
   });
 }
 
@@ -100,12 +98,25 @@ function replaceRouteParam(routeId: string | null) {
   window.history.replaceState(null, "", query ? `${url.pathname}?${query}` : url.pathname);
 }
 
+function replaceRoutePagination(offset: number, limit: number) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("routeOffset", String(offset));
+  url.searchParams.set("routeLimit", String(limit));
+  window.history.replaceState(null, "", `${url.pathname}?${url.searchParams.toString()}`);
+}
+
 export function RouteExplorer({
   routes,
   initialSelectedRouteId,
+  initialOffset,
+  initialLimit,
+  comparisonRouteCount,
 }: {
   routes: RouteSummary[];
   initialSelectedRouteId: string | null;
+  initialOffset: number;
+  initialLimit: number;
+  comparisonRouteCount: number | null;
 }) {
   const { unit } = useDistanceUnit();
   const [selectedRouteId, setSelectedRouteId] = useState(initialSelectedRouteId);
@@ -113,6 +124,13 @@ export function RouteExplorer({
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const [filter, setFilter] = useState<RouteFilter>("all");
   const [sort, setSort] = useState<RouteSort>("recent");
+  const [routeOffset, setRouteOffset] = useState(() => {
+    if (!initialSelectedRouteId) return initialOffset;
+    const sorted = sortRoutes(routes, "recent");
+    const selectedIndex = sorted.findIndex((route) => route.routeId === initialSelectedRouteId);
+    return selectedIndex < 0 ? initialOffset : Math.floor(selectedIndex / initialLimit) * initialLimit;
+  });
+  const [routeLimit, setRouteLimit] = useState(initialLimit);
   const [countryBoundaries, setCountryBoundaries] = useState<CountryBoundary[]>([]);
   const [countryBoundariesReady, setCountryBoundariesReady] = useState(false);
   const [locationStatus, setLocationStatus] = useState<
@@ -201,6 +219,10 @@ export function RouteExplorer({
     () => new Set(visibleRoutes.map((route) => route.routeId)),
     [visibleRoutes],
   );
+  const safeRouteOffset = visibleRoutes.length === 0
+    ? 0
+    : Math.min(routeOffset, Math.floor((visibleRoutes.length - 1) / routeLimit) * routeLimit);
+  const paginatedRoutes = visibleRoutes.slice(safeRouteOffset, safeRouteOffset + routeLimit);
   const countryFeatures = useMemo(
     () =>
       countryBoundaries.length > 0
@@ -212,8 +234,8 @@ export function RouteExplorer({
         : null,
     [countryBoundaries, geography.routeCountryIds, visibleRouteIds],
   );
-  const activeSelectedRouteId =
-    selectedRouteId && visibleRouteIds.has(selectedRouteId) ? selectedRouteId : null;
+  // Geometry is immutable and remains deep-linkable even if this route has no runs in the window.
+  const activeSelectedRouteId = selectedRouteId;
   const routeRecordState = useRouteRecords(activeSelectedRouteId);
 
   useEffect(() => {
@@ -224,6 +246,11 @@ export function RouteExplorer({
       block: "nearest",
     });
   }, [activeSelectedRouteId]);
+
+  function resetPagination() {
+    setRouteOffset(0);
+    replaceRoutePagination(0, routeLimit);
+  }
 
   const clearRouteSelection = useCallback(() => {
     setSelectedRouteId(null);
@@ -245,8 +272,14 @@ export function RouteExplorer({
 
   const selectRoute = useCallback((routeId: string) => {
     setSelectedRouteId(routeId);
+    const index = visibleRoutes.findIndex((route) => route.routeId === routeId);
+    if (index >= 0) {
+      const nextOffset = Math.floor(index / routeLimit) * routeLimit;
+      setRouteOffset(nextOffset);
+      replaceRoutePagination(nextOffset, routeLimit);
+    }
     replaceRouteParam(routeId);
-  }, []);
+  }, [routeLimit, visibleRoutes]);
 
   const selectCountry = useCallback(
     (countryId: string | null) => {
@@ -424,6 +457,9 @@ export function RouteExplorer({
               <h2 className="text-base font-semibold text-(--text)">Routes</h2>
               <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-(--text-soft)" aria-live="polite">
                 {visibleRoutes.length.toLocaleString()} of {routes.length.toLocaleString()} routes
+                {comparisonRouteCount !== null
+                  ? ` / ${routes.length - comparisonRouteCount >= 0 ? "+" : ""}${routes.length - comparisonRouteCount} vs comparison`
+                  : ""}
               </p>
             </div>
           </div>
@@ -448,7 +484,10 @@ export function RouteExplorer({
             <span className="relative block">
               <select
                 value={filter}
-                onChange={(event) => setFilter(event.target.value as RouteFilter)}
+                onChange={(event) => {
+                  setFilter(event.target.value as RouteFilter);
+                  resetPagination();
+                }}
                 className={selectControlClass}
               >
                 <option value="all">All distances</option>
@@ -467,7 +506,10 @@ export function RouteExplorer({
             <span className="relative block">
               <select
                 value={sort}
-                onChange={(event) => setSort(event.target.value as RouteSort)}
+                onChange={(event) => {
+                  setSort(event.target.value as RouteSort);
+                  resetPagination();
+                }}
                 className={selectControlClass}
               >
                 <option value="recent">Most recent</option>
@@ -480,6 +522,52 @@ export function RouteExplorer({
           </label>
         </div>
 
+        <div className="flex items-center justify-between gap-3 border-b border-(--border) px-4 py-2 font-mono text-[10px] text-(--text-soft)">
+          <span>
+            {visibleRoutes.length === 0 ? 0 : safeRouteOffset + 1}-
+            {Math.min(safeRouteOffset + routeLimit, visibleRoutes.length)} of {visibleRoutes.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <select
+              aria-label="Routes per page"
+              value={routeLimit}
+              onChange={(event) => {
+                const nextLimit = Number(event.target.value);
+                setRouteLimit(nextLimit);
+                setRouteOffset(0);
+                replaceRoutePagination(0, nextLimit);
+              }}
+              className="h-7 border border-(--border) bg-(--background) px-1 text-(--text)"
+            >
+              {[10, 25, 50, 100].map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+            <button
+              type="button"
+              disabled={safeRouteOffset === 0}
+              onClick={() => {
+                const nextOffset = Math.max(0, safeRouteOffset - routeLimit);
+                setRouteOffset(nextOffset);
+                replaceRoutePagination(nextOffset, routeLimit);
+              }}
+              className="h-7 border border-(--border) px-2 text-(--text) disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <button
+              type="button"
+              disabled={safeRouteOffset + routeLimit >= visibleRoutes.length}
+              onClick={() => {
+                const nextOffset = safeRouteOffset + routeLimit;
+                setRouteOffset(nextOffset);
+                replaceRoutePagination(nextOffset, routeLimit);
+              }}
+              className="h-7 border border-(--border) px-2 text-(--text) disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+
         <div className="min-h-0 flex-1 overflow-y-auto" aria-label="Route list">
           {visibleRoutes.length === 0 ? (
             <div className="p-6 text-center">
@@ -490,7 +578,7 @@ export function RouteExplorer({
             </div>
           ) : (
             <ul className="divide-y divide-(--border)">
-              {visibleRoutes.map((route) => {
+              {paginatedRoutes.map((route) => {
                 const selected = route.routeId === activeSelectedRouteId;
 
                 return (

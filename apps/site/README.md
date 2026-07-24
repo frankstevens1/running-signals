@@ -13,8 +13,7 @@ aggregates at quarter, half, and full metric or imperial resolutions.
 
 ## Data Source
 
-The site reads from Supabase `site_*` tables by default. Those tables are refreshed by
-`scripts/sync_site_supabase.py` after dbt builds the Databricks gold models. Supabase publishes the
+The site reads exclusively from Supabase `site_*` relations and RPCs. Supabase publishes the
 presentation-safe activity telemetry needed for route maps rather than every modeled FIT field.
 
 Use `apps/site/.env.example` for site runtime variables. Local development defaults to the Supabase
@@ -31,7 +30,6 @@ Optional values:
 SUPABASE_URL=http://127.0.0.1:54321
 SUPABASE_ANON_KEY=<override anon key>
 SITE_DATA_REVALIDATE_SECONDS=900
-SITE_DATA_SOURCE=databricks
 ```
 
 Create `apps/site/.env.local` from the example only when overriding local defaults or configuring a
@@ -41,11 +39,9 @@ hosted deployment locally:
 cp apps/site/.env.example apps/site/.env.local
 ```
 
-`SITE_DATA_SOURCE=databricks` is a local debugging fallback only. Normal browsing should use
-Supabase so page loads do not wait on Databricks SQL statement execution.
-
 For local development, start Supabase with `supabase start`, apply migrations with
-`supabase db reset`, and run `scripts/sync_site_supabase.py` after dbt succeeds. The sync script
+`supabase db reset`, and run `scripts/sync_site_supabase.py` after the FIT selector
+succeeds. The sync script
 defaults to the local Supabase CLI database at `127.0.0.1:54322`, so `SUPABASE_DB_URL` is only needed
 for hosted Supabase and belongs in the root operational `.env`, not the site runtime env.
 

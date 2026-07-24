@@ -22,6 +22,7 @@ import {
 } from "@/app/lib/format";
 import { explorerPages } from "@/app/lib/page-metadata";
 import { getServerDistanceUnit } from "@/app/lib/server-distance-unit";
+import { getServerAnalyticsWindow } from "@/app/lib/analytics-window-server";
 
 function trendDelta(
   current: number | null | undefined,
@@ -52,8 +53,18 @@ function relativeTrend(
   return { direction: delta.direction, change: delta.diff / baseline };
 }
 
-export default async function FitnessPage() {
-  const [fitness, unit] = await Promise.all([getFitness(180), getServerDistanceUnit()]);
+export default async function FitnessPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const resolved = await searchParams;
+  const analyticsWindow = await getServerAnalyticsWindow(resolved);
+  const [fitness, comparisonFitness, unit] = await Promise.all([
+    getFitness(analyticsWindow.primary),
+    analyticsWindow.comparison ? getFitness(analyticsWindow.comparison) : null,
+    getServerDistanceUnit(),
+  ]);
 
   return (
     <AppShell>
@@ -61,16 +72,24 @@ export default async function FitnessPage() {
         <SectionHeading
           eyebrow="signal_fitness"
           title="Descriptive fitness trends"
-          description="Fitness views stay descriptive: heart-rate drift over time, pace at comparable heart rate, speed per heartbeat, recovery HR availability, and same-day health context."
+          description="Fitness views stay descriptive: heart-rate drift over time, pace at comparable heart rate, speed per heartbeat, and post-run recovery HR."
           icon={explorerPages.fitness.icon}
         />
         <DataState result={fitness}>
           {(data) => {
+            const comparison = comparisonFitness?.status === "ok" ? comparisonFitness.data : null;
             const latest = data.at(-1);
             const penultimate = data.at(-2);
             const latestRecovery = [...data]
               .reverse()
               .find((point) => point.garminRecoveryHr !== null);
+            const comparisonEfficiencies = comparison
+              ?.map((point) => point.efficiencyRatio)
+              .filter((value): value is number => value !== null) ?? [];
+            const comparisonEfficiency = comparisonEfficiencies.length > 0
+              ? comparisonEfficiencies.reduce((sum, value) => sum + value, 0)
+                / comparisonEfficiencies.length
+              : null;
 
             const driftTrend = trendDelta(
               latest?.hrDriftPct,
@@ -87,9 +106,10 @@ export default async function FitnessPage() {
               latestRecovery?.rolling4RunRecoveryHr,
             );
 
+            const efficiencyBaseline = comparisonEfficiency ?? latest?.rolling4RunEfficiencyRatio;
             const efficiencyTrend = relativeTrend(
               latest?.efficiencyRatio,
-              latest?.rolling4RunEfficiencyRatio,
+              efficiencyBaseline,
             );
 
             return (
@@ -163,7 +183,7 @@ export default async function FitnessPage() {
                           ? {
                             direction: efficiencyTrend.direction,
                             value: formatFixedSignedPercent(efficiencyTrend.change, false),
-                            label: "vs 4-run rolling",
+                            label: comparisonEfficiency !== null ? "vs comparison window" : "vs 4-run rolling",
                           }
                         : undefined
                     }
@@ -179,7 +199,7 @@ export default async function FitnessPage() {
                   <ScrollReveal className="h-full" delayMs={120}>
                     <FitnessEfficiencyChart points={data} />
                   </ScrollReveal>
-                  <ScrollReveal className="h-full" delayMs={160}>
+                  <ScrollReveal className="h-full xl:col-span-2" delayMs={160}>
                     <RecoveryHeartRateChart points={data} />
                   </ScrollReveal>
                 </div>

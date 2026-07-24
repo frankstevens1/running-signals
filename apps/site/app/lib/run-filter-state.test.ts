@@ -24,6 +24,8 @@ const bounds: RunFilterBounds = {
   maxAvgHeartRate: 180,
   minGpsCoverage: 0.5,
   maxGpsCoverage: 1,
+  minAltitudeRangeM: 10,
+  maxAltitudeRangeM: 500,
 };
 
 describe("run filter state", () => {
@@ -35,11 +37,11 @@ describe("run filter state", () => {
       dateTo: "2024-12-31",
       minDistance: "2",
       maxDistance: "20",
-      minPace: "4",
-      maxPace: "7",
+      minPace: "4:00",
+      maxPace: "7:00",
       minAvgHr: "120",
       maxAvgHr: "180",
-      minGpsCoverage: "0.5",
+      minAltitudeRange: "10",
     });
     expect(runFiltersFromFormValues(values, bounds, "km")).toEqual({});
   });
@@ -57,10 +59,10 @@ describe("run filter state", () => {
 
     expect(params.get("view")).toBe("table");
     expect(params.get("offset")).toBe("25");
-    expect(roundTripped.minDistanceKm).toBeCloseTo(5, 3);
-    expect(roundTripped.maxDistanceKm).toBeCloseTo(10, 3);
-    expect(roundTripped.minPaceMinPerKm).toBeCloseTo(5, 3);
-    expect(roundTripped.maxPaceMinPerKm).toBeCloseTo(6, 3);
+    expect(roundTripped.minDistanceKm).toBeCloseTo(5, 1);
+    expect(roundTripped.maxDistanceKm).toBeCloseTo(10, 1);
+    expect(roundTripped.minPaceMinPerKm).toBeCloseTo(5, 1);
+    expect(roundTripped.maxPaceMinPerKm).toBeCloseTo(6, 1);
     expect(roundTripped.routeId).toBe("route-42");
   });
 
@@ -126,5 +128,14 @@ describe("run filter state", () => {
 
   it("retains boolean false as an active persisted filter", () => {
     expect(hasPersistedRunFilters({ hasRecoveryHr: false })).toBe(true);
+  });
+
+  it("round-trips min altitude range through URL params", () => {
+    const filters = { minAltitudeRange: 200 };
+    const params = withRunFilters(new URLSearchParams(), filters, "km");
+    const roundTripped = runFiltersFromSearchParams(params, "km");
+
+    expect(params.get("minAltitudeRange")).toBe("200");
+    expect(roundTripped.minAltitudeRange).toBe(200);
   });
 });

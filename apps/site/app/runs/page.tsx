@@ -10,6 +10,7 @@ import { explorerPages } from "@/app/lib/page-metadata";
 import { parseRunFilters, parseRunView, searchParamsFromRecord } from "@/app/lib/query";
 import { clampRunFiltersToBounds } from "@/app/lib/run-filter-state";
 import { getServerDistanceUnit } from "@/app/lib/server-distance-unit";
+import { getServerAnalyticsWindow } from "@/app/lib/analytics-window-server";
 
 export default async function RunsPage({
   searchParams,
@@ -19,19 +20,29 @@ export default async function RunsPage({
   const resolved = await searchParams;
   const params = searchParamsFromRecord(resolved);
   const unit = await getServerDistanceUnit();
+  const analyticsWindow = await getServerAnalyticsWindow(resolved);
   const parsedFilters = parseRunFilters(params, unit);
   const view = parseRunView(params);
-  const [routes, filterBoundsResult] = await Promise.all([getRoutes(100), getRunFilterBounds()]);
+  const [routes, filterBoundsResult] = await Promise.all([
+    getRoutes(analyticsWindow.primary),
+    getRunFilterBounds(analyticsWindow.primary),
+  ]);
   const routeOptions = routes.status === "ok" ? routes.data : [];
   const filterBounds = filterBoundsResult.status === "ok" ? filterBoundsResult.data : null;
   const filters = filterBounds
     ? clampRunFiltersToBounds(parsedFilters, filterBounds)
     : parsedFilters;
-  const result = await getRuns(filters);
+  const [result, comparisonResult] = await Promise.all([
+    getRuns(filters, analyticsWindow.primary),
+    analyticsWindow.comparison
+      ? getRuns({ ...filters, dateFrom: undefined, dateTo: undefined, limit: 1, offset: 0 }, analyticsWindow.comparison)
+      : null,
+  ]);
+  const comparisonTotal = comparisonResult?.status === "ok" ? comparisonResult.data.total : null;
 
   return (
     <AppShell>
-      <div className="space-y-10">
+      <div className="space-y-4">
         <SectionHeading
           eyebrow="mart_run_sessions"
           title="Run explorer"
@@ -53,7 +64,8 @@ export default async function RunsPage({
                 view={view}
                 total={data.total}
                 limit={data.limit}
-                offset={data.offset}
+                 offset={data.offset}
+                 comparisonTotal={comparisonTotal}
               />
               {view === "table" ? (
                 <RunTable runs={data.items} params={params} unit={unit} />

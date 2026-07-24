@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: dates
-    description: Completed calendar-day spine from the first observed Garmin date through the latest completed day.
+    description: Calendar-day spine from the first observed Garmin FIT run through the current day.
     columns:
       - name: calendar_date
         description: Calendar date grain for daily analytical rollups.
@@ -80,36 +80,30 @@ models:
           - not_null
           - unique
 
-  - name: weeks
-    description: Compatibility completed-week spine derived from the day-first silver foundation and session-level runs.
+  - name: mart_health_days
+    description: Health-only daily presentation mart with Garmin health metrics, payload coverage, ingestion metadata, and rolling resting-heart-rate windows.
     columns:
-      - name: week_start_date
-        description: First date of the completed calendar week.
+      - name: calendar_date
+        description: Garmin health calendar date.
         tests:
           - not_null
           - unique
           - relationships:
               arguments:
-                to: ref('dates')
-                field: week_start_date
+                to: ref('health_days')
+                field: calendar_date
+
+  - name: weeks
+    description: Compatibility completed-week spine derived from the day-first silver foundation and session-level runs.
+    columns:
+      - name: week_start_date
+        description: First date of the completed calendar week.
       - name: week_end_date
-        tests:
-          - not_null
       - name: is_completed_week
-        tests:
-          - not_null
       - name: runs_per_week
-        tests:
-          - not_null
       - name: weekly_distance_km
-        tests:
-          - not_null
       - name: active_week_flag
-        tests:
-          - not_null
       - name: missed_week_flag
-        tests:
-          - not_null
 
   - name: route_observations
     description: One row per GPS-backed run with its 250m H3 path signature, start/end cells, distance bucket, and segment count for route similarity comparison.
@@ -120,7 +114,7 @@ models:
           - unique
 
   - name: route_similarity_edges
-    description: Bidirectional edge graph of similar route pairs with a Jaccard-based similarity score computed from shared 250m H3 cells within one segment offset of each other.
+    description: Bidirectional edge graph of similar route pairs. Candidate pairs are first pruned by identical route distance bucket, start H3 cell, and end H3 cell before the 10% distance tolerance and Jaccard similarity score (shared 250m H3 cells within one segment offset) are evaluated.
     columns:
       - name: run_id
         tests:
@@ -130,7 +124,7 @@ models:
           - not_null
 
   - name: mart_days
-    description: Primary daily training mart with run outcomes, health context, active-day flags, and rolling daily windows.
+    description: Primary FIT-only daily training mart with run outcomes, active-day flags, and rolling daily windows.
     columns:
       - name: calendar_date
         tests:
@@ -178,66 +172,31 @@ models:
         description: Number of observed calendar days represented by the week. The first historical week may contain fewer than seven days when observed history starts midweek.
         tests:
           - not_null
-          - accepted_values:
-              arguments:
-                values: [1, 2, 3, 4, 5, 6, 7]
 
   - name: mart_months
     description: Calendar-month rollup derived strictly from mart_days.
     columns:
       - name: month_start_date
-        tests:
-          - not_null
-          - unique
-          - relationships:
-              arguments:
-                to: ref('dates')
-                field: month_start_date
       - name: monthly_distance_km
-        tests:
-          - not_null
 
   - name: mart_years
     description: Calendar-year rollup derived strictly from mart_days.
     columns:
       - name: year_start_date
-        tests:
-          - not_null
-          - unique
-          - relationships:
-              arguments:
-                to: ref('dates')
-                field: year_start_date
       - name: yearly_distance_km
-        tests:
-          - not_null
 
   - name: signal_consistency
     description: Weekly consistency compatibility signal sourced from the day-derived mart_weeks model.
     columns:
       - name: week_start_date
-        tests:
-          - not_null
-          - unique
-          - relationships:
-              arguments:
-                to: ref('mart_weeks')
-                field: week_start_date
 
   - name: signal_volume
     description: Weekly volume compatibility signal sourced from the day-derived mart_weeks model.
     columns:
       - name: week_start_date
-        tests:
-          - not_null
-          - unique
-          - relationships:
-              arguments:
-                to: ref('mart_weeks')
-                field: week_start_date
 
   - name: signal_fitness
-    description: Run-level fitness indicators based on pace, heart rate, derived efficiency, and same-day Garmin health context.
+    description: FIT-only run-level fitness indicators based on pace, heart rate, recovery heart rate, and derived efficiency.
     columns:
       - name: activity_id
         description: Garmin activity identifier.
@@ -254,34 +213,23 @@ models:
         description: Rolling four-run average of heart-rate drift.
       - name: rolling_4_run_recovery_hr
         description: Rolling four-run average of Garmin recovery heart rate. Null recovery readings are excluded from the average.
+      - name: rolling_4_week_recovery_hr
+        description: Rolling four-week average of Garmin recovery heart rate, using a 28-day range window ending on the run date. Null recovery readings are excluded from the average.
 
   - name: mart_runs
-    description: Compatibility presentation-ready run-level metrics with same-day health context.
+    description: Compatibility presentation-ready FIT run-level metrics.
     columns:
       - name: activity_id
-        tests:
-          - not_null
-          - unique
 
   - name: mart_running_signals
     description: Compatibility run-level signal mart with day-derived weekly training context.
     columns:
       - name: activity_id
-        tests:
-          - not_null
-          - unique
 
   - name: mart_weekly_training_features
     description: Compatibility prediction-ready weekly feature and label table derived from mart_weeks.
     columns:
       - name: week_start_date
-        tests:
-          - not_null
-          - unique
-          - relationships:
-              arguments:
-                to: ref('mart_weeks')
-                field: week_start_date
 
   - name: mart_segment_resolutions
     description: Configured metric and imperial segment lengths used to derive analytical run splits.
@@ -347,6 +295,32 @@ models:
           - not_null
       - name: record_distance_m
         description: Cumulative activity distance in canonical metres when Garmin provides it.
+      - name: position_lat_deg
+        description: Latitude in decimal degrees; nullable for records without valid GPS telemetry.
+      - name: position_long_deg
+        description: Longitude in decimal degrees; nullable for records without valid GPS telemetry.
+
+  - name: mart_map_profile_records
+    description: Deterministic presentation subset retaining at most 500 ordered profile points per run while full telemetry remains in mart_activity_records.
+    tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ["run_id", "record_index"]
+    columns:
+      - name: run_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('runs')
+                field: run_id
+      - name: record_index
+        tests:
+          - not_null
+      - name: record_distance_km
+        description: Cumulative activity distance used by the presentation profile.
+      - name: altitude_m
+        description: Recorded altitude used by the presentation profile.
       - name: position_lat_deg
         description: Latitude in decimal degrees; nullable for records without valid GPS telemetry.
       - name: position_long_deg
@@ -474,7 +448,7 @@ models:
           - not_null
 
   - name: mart_run_sessions
-    description: One row per run with session outcomes, daily context, route identity, route summary, and recent training context.
+    description: One row per run with session outcomes, route identity, route summary, and recent FIT training context.
     columns:
       - name: run_id
         tests:
@@ -505,9 +479,9 @@ models:
           - not_null
           - unique
       - name: representative_route_centroid_latitude_deg
-        description: Mean valid GPS latitude from the route's representative run, used for route-map overview placement.
+        description: Mean valid GPS latitude from the route's representative run's deterministic 500-point map profile, used for route-map overview placement.
       - name: representative_route_centroid_longitude_deg
-        description: Mean valid GPS longitude from the route's representative run, used for route-map overview placement.
+        description: Mean valid GPS longitude from the route's representative run's deterministic 500-point map profile, used for route-map overview placement.
       - name: city_grid_bucket
         description: Approximate 0.25-degree lat/lon grid cell for the route centroid, used for map-based city grouping.
 

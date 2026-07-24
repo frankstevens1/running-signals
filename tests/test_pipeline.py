@@ -18,6 +18,24 @@ from scripts import pipeline
 from scripts.pipeline_state import RefreshLock, RefreshLockHeldError, RunManifest
 
 
+@pytest.fixture(autouse=True)
+def deployed_dev_bundle(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_summary(
+        argv: list[str], cwd: Path
+    ) -> subprocess.CompletedProcess[str]:
+        summary = {
+            "resources": {
+                "jobs": {
+                    "garmin_fit_bronze_ingestion": {"id": "fit-job"},
+                    "garmin_health_bronze_ingestion": {"id": "health-job"},
+                }
+            }
+        }
+        return subprocess.CompletedProcess(argv, 0, json.dumps(summary), "")
+
+    monkeypatch.setattr(pipeline, "default_bundle_summary_runner", fake_summary)
+
+
 @pytest.fixture
 def configured_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> str:
     for name, value in {
@@ -43,6 +61,7 @@ def configured_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> s
 
 def options(tokenstore: str, **overrides: Any) -> pipeline.RefreshOptions:
     values: dict[str, Any] = {
+        "source": "fit",
         "tokenstore": tokenstore,
         "fit_limit": 200,
         "no_input": True,
@@ -89,9 +108,10 @@ def test_incremental_refresh_runs_stages_in_order(
         prompt_flags.append(allow_prompt)
         return fit_result()
 
-    def fake_health_runner(args: object, *, allow_prompt: bool) -> GarminHealthDownloadResult:
-        prompt_flags.append(allow_prompt)
-        return health_result()
+    def unexpected_health_runner(
+        args: object, *, allow_prompt: bool
+    ) -> GarminHealthDownloadResult:
+        raise AssertionError("FIT refresh must not invoke health landing")
 
     manifest = pipeline.execute_incremental(
         options(configured_environment),
@@ -99,10 +119,10 @@ def test_incremental_refresh_runs_stages_in_order(
         state_dir=tmp_path / "state",
         command_runner=fake_command,
         fit_runner=fake_fit_runner,
-        health_runner=fake_health_runner,
+        health_runner=unexpected_health_runner,
     )
 
-    assert prompt_flags == [False, False]
+    assert prompt_flags == [False]
     assert [call[0] for call in command_calls] == [
         [
             "databricks",
@@ -113,18 +133,28 @@ def test_incremental_refresh_runs_stages_in_order(
             "garmin_fit_bronze_ingestion",
         ],
         [
-            "databricks",
-            "bundle",
+            "uv",
             "run",
-            "--target",
-            "dev",
-            "garmin_health_bronze_ingestion",
+            "dbt",
+            "build",
+            "--project-dir",
+            "dbt",
+            "--selector",
+            "fit_refresh",
+            "--target-path",
+            "target/fit",
         ],
-        ["uv", "run", "dbt", "build", "--project-dir", "dbt"],
-        ["uv", "run", "python", "scripts/sync_site_supabase.py", "--no-progress"],
+        [
+            "uv",
+            "run",
+            "python",
+            "scripts/sync_site_supabase.py",
+            "--no-progress",
+        ],
     ]
     assert manifest.status == "succeeded"
-    assert [stage.status for stage in manifest.stages.values()] == ["succeeded"] * 6
+    assert list(manifest.stages) == ["fit_raw", "bronze_fit", "dbt_fit", "publish_fit"]
+    assert [stage.status for stage in manifest.stages.values()] == ["succeeded"] * 4
     assert (tmp_path / "state" / f"{manifest.run_id}.json").exists()
 
 
@@ -156,11 +186,11 @@ def test_health_endpoint_failure_stops_downstream_stages(
 
     with pytest.raises(pipeline.PipelineError) as error:
         pipeline.execute_incremental(
-            options(configured_environment),
+            options(configured_environment, source="health"),
             Path.cwd(),
             state_dir=tmp_path / "state",
             command_runner=fake_command,
-            fit_runner=lambda args, allow_prompt: fit_result(),
+            fit_runner=lambda args, allow_prompt: pytest.fail("health invoked FIT landing"),
             health_runner=lambda args, allow_prompt: failed_health_result,
         )
 
@@ -168,6 +198,56 @@ def test_health_endpoint_failure_stops_downstream_stages(
     assert commands == []
     assert error.value.manifest is not None
     assert error.value.manifest.stages["health_raw"].status == "failed"
+
+
+def test_health_refresh_runs_only_health_pipeline(
+    configured_environment: str,
+    tmp_path: Path,
+) -> None:
+    commands: list[list[str]] = []
+
+    def fake_command(
+        argv: list[str], cwd: Path, stage: str, json_output: bool
+    ) -> subprocess.CompletedProcess[str]:
+        commands.append(argv)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    manifest = pipeline.execute_incremental(
+        options(configured_environment, source="health"),
+        Path.cwd(),
+        state_dir=tmp_path / "state",
+        command_runner=fake_command,
+        fit_runner=lambda args, allow_prompt: pytest.fail("health invoked FIT landing"),
+        health_runner=lambda args, allow_prompt: health_result(),
+    )
+
+    assert commands == [
+        [
+            "databricks",
+            "bundle",
+            "run",
+            "--target",
+            "dev",
+            "garmin_health_bronze_ingestion",
+        ],
+        [
+            "uv",
+            "run",
+            "dbt",
+            "build",
+            "--project-dir",
+            "dbt",
+            "--selector",
+            "health_refresh",
+            "--target-path",
+            "target/health",
+        ],
+    ]
+    assert list(manifest.stages) == [
+        "health_raw",
+        "bronze_health",
+        "dbt_health",
+    ]
 
 
 def test_dbt_failure_prevents_publish(
@@ -194,11 +274,7 @@ def test_dbt_failure_prevents_publish(
         )
 
     assert error.value.exit_code == pipeline.DBT_FAILURE_EXIT_CODE
-    assert [call[:2] for call in commands] == [
-        ["databricks", "bundle"],
-        ["databricks", "bundle"],
-        ["uv", "run"],
-    ]
+    assert [call[:2] for call in commands] == [["databricks", "bundle"], ["uv", "run"]]
 
 
 def test_dry_run_does_not_invoke_stages(
@@ -228,6 +304,7 @@ def test_dry_run_does_not_invoke_stages(
     )
 
     assert manifest.status == "succeeded"
+    assert list(manifest.stages) == ["fit_raw", "bronze_fit", "dbt_fit", "publish_fit"]
     assert {stage.status for stage in manifest.stages.values()} == {"skipped"}
 
 
@@ -237,13 +314,34 @@ def test_refresh_lock_prevents_overlapping_runs(
 ) -> None:
     state_dir = tmp_path / "state"
 
-    with RefreshLock(state_dir):
+    with RefreshLock(state_dir, "source-fit"):
         with pytest.raises(RefreshLockHeldError):
             pipeline.execute_incremental(
                 options(configured_environment),
                 Path.cwd(),
                 state_dir=state_dir,
             )
+
+
+def test_fit_and_health_refresh_locks_are_independent(tmp_path: Path) -> None:
+    state_dir = tmp_path / "state"
+
+    with RefreshLock(state_dir, "source-fit"):
+        with RefreshLock(state_dir, "source-health"):
+            pass
+
+
+def test_standalone_fit_commands_share_refresh_lock(tmp_path: Path) -> None:
+    parser = pipeline.build_parser()
+    bronze_args = parser.parse_args(["bronze", "--source", "fit"])
+    publish_args = parser.parse_args(["publish"])
+    state_dir = tmp_path / "state"
+
+    with RefreshLock(state_dir, "source-fit"):
+        with pytest.raises(RefreshLockHeldError):
+            pipeline.execute_bronze(bronze_args, Path.cwd(), state_dir=state_dir)
+        with pytest.raises(RefreshLockHeldError):
+            pipeline.execute_publish(publish_args, Path.cwd(), state_dir=state_dir)
 
 
 def test_full_bronze_uses_job_parameter_and_requires_confirmation(tmp_path: Path) -> None:
@@ -300,6 +398,96 @@ def test_preflight_rejects_non_warehouse_http_path(
 
     with pytest.raises(pipeline.PipelineError, match="SQL warehouse"):
         pipeline.run_preflight(Path.cwd(), configured_environment, no_input=True)
+
+
+def test_fit_preflight_does_not_require_health_s3_configuration(
+    configured_environment: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GARMIN_HEALTH_S3_BUCKET", raising=False)
+    monkeypatch.delenv("GARMIN_HEALTH_S3_PREFIX", raising=False)
+
+    checks = pipeline.run_preflight(
+        Path.cwd(), configured_environment, "fit", no_input=True
+    )
+
+    assert "Garmin fit raw S3 configuration" in checks
+
+
+def test_health_preflight_does_not_require_fit_s3_configuration(
+    configured_environment: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GARMIN_FIT_S3_BUCKET", raising=False)
+
+    checks = pipeline.run_preflight(
+        Path.cwd(), configured_environment, "health", no_input=True
+    )
+
+    assert "Garmin health raw S3 configuration" in checks
+
+
+def test_health_preflight_does_not_require_supabase_configuration(
+    configured_environment: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SUPABASE_DB_URL")
+
+    checks = pipeline.run_preflight(
+        Path.cwd(), configured_environment, "health", no_input=True
+    )
+
+    assert "Hosted Supabase connection URL" not in checks
+
+
+def test_publish_cli_is_fit_only() -> None:
+    parser = pipeline.build_parser()
+
+    args = parser.parse_args(["publish"])
+    assert not hasattr(args, "group")
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["publish", "--group", "health"])
+
+
+def test_undeployed_bundle_target_fails_before_raw_landing(
+    configured_environment: str,
+    tmp_path: Path,
+) -> None:
+    raw_called = False
+
+    def undeployed_summary(
+        argv: list[str], cwd: Path
+    ) -> subprocess.CompletedProcess[str]:
+        summary = {
+            "resources": {
+                "jobs": {
+                    "garmin_fit_bronze_ingestion": {"modified_status": "created"}
+                }
+            }
+        }
+        return subprocess.CompletedProcess(argv, 0, json.dumps(summary), "")
+
+    def unexpected_fit_runner(
+        args: object, *, allow_prompt: bool
+    ) -> GarminFitDownloadResult:
+        nonlocal raw_called
+        raw_called = True
+        return fit_result()
+
+    with pytest.raises(pipeline.PipelineError, match="not deployed for target missing") as error:
+        pipeline.execute_incremental(
+            options(configured_environment, databricks_target="missing"),
+            Path.cwd(),
+            state_dir=tmp_path / "state",
+            bundle_summary_runner=undeployed_summary,
+            fit_runner=unexpected_fit_runner,
+        )
+
+    assert error.value.exit_code == pipeline.USAGE_FAILURE_EXIT_CODE
+    assert "databricks bundle deploy --target missing" in str(error.value)
+    assert raw_called is False
+    assert not (tmp_path / "state").exists()
 
 
 def test_no_input_raw_failure_uses_raw_exit_code(

@@ -43,8 +43,8 @@ Volume describes accumulated running load from distance and duration.
 
 ## Fitness Signals
 
-Fitness describes directional aerobic performance using run-level pace, speed, heart rate, Recovery
-HR when Garmin provides it, and descriptive daily health context.
+Fitness describes directional aerobic performance using run-level pace, speed, heart rate, and
+Recovery HR when Garmin provides it. Daily health remains an independently refreshed context lane.
 
 | Metric | Grain | Formula / Definition | Source Model | Status |
 |---|---|---|---|---|
@@ -57,9 +57,9 @@ HR when Garmin provides it, and descriptive daily health context.
 | `hr_drift_pct` | Run | Second-half segment efficiency divided by first-half segment efficiency minus one, where segment efficiency is `avg_speed_kmh / avg_heart_rate`; the established calculation remains pinned to 250m metric segments. | `signal_fitness`, `mart_run_segments` | Implemented when segment HR and speed are present |
 | `rolling_4_run_hr_drift_pct` | Run | Average HR drift over the current and previous three runs. | `signal_fitness` | Implemented |
 | `garmin_recovery_hr` | Run | Final recorded run heart rate minus the latest FIT `recovery_hr` event value, reported as bpm recovered. | `runs` | Implemented when present |
-| `resting_heart_rate` | Day | Garmin daily resting heart rate. | `health_days`, `mart_days` | Implemented when present |
-| `hrv_value` | Day | Garmin daily HRV value when present. | `health_days`, `mart_days` | Implemented when present |
-| `sleep_score` | Day | Garmin sleep score when present. | `health_days`, `mart_days` | Implemented when present |
+| `resting_heart_rate` | Day | Garmin daily resting heart rate. | `health_days`, `mart_health_days` | Implemented when present |
+| `hrv_value` | Day | Garmin daily HRV value when present. | `health_days`, `mart_health_days` | Implemented when present |
+| `sleep_score` | Day | Garmin sleep score when present. | `health_days`, `mart_health_days` | Implemented when present |
 
 Daily resting heart rate, HRV, and sleep score are context fields only.
 
@@ -97,8 +97,9 @@ Route and within-run analytics are portfolio-oriented feature marts, not a produ
 - Analytical segment distance and duration are allocated from adjacent record intervals. Cumulative
   distance corrections are treated as stationary until a new maximum is reached; stationary elapsed
   time belongs to the interval endpoint's segment.
-- Route rendering uses all ordered coordinate records from `mart_activity_records`; split endpoints
-  are intentionally not used to reconstruct the route.
+- Databricks route analysis uses all ordered coordinate records from `mart_activity_records`;
+  Supabase route rendering uses the deterministic maximum-500-point `mart_map_profile_records`
+  projection. Split endpoints are intentionally not used to reconstruct the route.
 - Route identity uses ordered H3 segment-path clustering with a 90% similarity threshold and
   approximate distance buckets. It is stable enough for portfolio analytics, but not a replacement
   for precise map matching.
@@ -109,6 +110,6 @@ Route and within-run analytics are portfolio-oriented feature marts, not a produ
 
 Use `dbt/analyses/run_data_availability.sql` to audit Recovery HR, session heart rate, record
 coverage, GPS coverage, and segment telemetry availability overall and by month. Use
-`supabase/queries/site_activity_records_availability.sql` and
+`supabase/queries/site_map_profile_records_availability.sql` and
 `supabase/queries/site_route_segments_availability.sql` after applying Supabase migrations and
-running the site sync to verify complete route telemetry and populated split resolutions.
+running the site sync to verify sampled map profiles and populated split resolutions.

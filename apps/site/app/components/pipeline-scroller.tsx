@@ -9,7 +9,7 @@ const steps = [
     label: "Ingest",
     title: "Python lands Garmin source payloads.",
     icon: RadioTower,
-    copy: "Ingestion jobs authenticate to Garmin Connect, download FIT and health payloads, and write source files into the raw S3 landing zone before analytical assumptions are applied.",
+    copy: "Ingestion jobs authenticate to Garmin Connect, download FIT activity payloads, and write source files into the raw S3 landing zone before analytical assumptions are applied.",
   },
   {
     id: "bronze",
@@ -23,14 +23,14 @@ const steps = [
     label: "Silver",
     title: "Silver standardizes reusable entities.",
     icon: Layers3,
-    copy: "dbt silver models clean, type, deduplicate, and standardize run, record, date, week, and health-day entities into tested building blocks for downstream analytics.",
+    copy: "dbt silver models clean, type, deduplicate, and standardize run, record, date, and week entities into tested building blocks for downstream analytics.",
   },
   {
     id: "gold",
     label: "Gold",
     title: "Gold publishes analytical signal marts.",
     icon: Database,
-    copy: "Gold models encode consistency, volume, route, and descriptive fitness definitions as marts for frontend explorers and downstream ML feature work. The website reads those marts through server-side Databricks SQL calls.",
+    copy: "Gold models encode consistency, volume, route, and descriptive fitness definitions as marts for frontend explorers and downstream ML feature work. Curated projections are published to Supabase for the website.",
   },
 ];
 
@@ -155,6 +155,20 @@ export function PipelineScroller() {
                   {step.title}
                 </h3>
                 <p className="mt-4 max-w-2xl text-sm leading-7 text-(--text-soft)">{step.copy}</p>
+                {step.id === "ingest" && (
+                  <p className="mt-2 max-w-2xl text-xs text-(--text-faint)">
+                    These same runs sync to{" "}
+                    <a
+                      href="https://www.strava.com/athletes/142530754"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-(--accent) hover:underline"
+                    >
+                      Strava
+                    </a>
+                    .
+                  </p>
+                )}
               </article>
             </section>
           );

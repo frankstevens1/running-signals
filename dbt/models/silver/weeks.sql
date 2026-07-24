@@ -8,7 +8,10 @@ with dates as (
 run_bounds as (
     select
         cast(date_trunc('week', min(calendar_date)) as date) as first_week_start_date,
-        date_add(cast(date_trunc('week', current_date()) as date), -7) as latest_completed_week_start_date
+        date_add(
+            cast(date_trunc('week', {{ analytics_current_date() }}) as date),
+            -7
+        ) as latest_completed_week_start_date
     from dates
 ),
 

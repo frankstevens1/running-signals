@@ -3,6 +3,7 @@ import type { DayRollup } from "./types";
 export type CurrentWeekToDate = {
   weekStartDate: string;
   latestCompletedDate: string | null;
+  includesLiveToday: boolean;
   runCount: number;
   distanceKm: number;
   activeDays: number;
@@ -42,6 +43,7 @@ export function currentWeekToDate(
   return {
     weekStartDate: currentWeekStartDate,
     latestCompletedDate: currentWeekDays.at(-1)?.calendarDate ?? null,
+    includesLiveToday: false,
     runCount: currentWeekDays.reduce((total, day) => total + day.runCount, 0),
     distanceKm: currentWeekDays.reduce((total, day) => total + day.distanceKm, 0),
     activeDays: currentWeekDays.filter((day) => day.activeDayFlag).length,

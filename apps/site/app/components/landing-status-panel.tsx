@@ -44,10 +44,6 @@ function landingStatusFromPayload(payload: unknown): LandingStatus | null {
     return {
       latestCompletedDate: payload.latestCompletedDate,
       statusLabel: payload.statusLabel,
-      goldSchema:
-        "goldSchema" in payload && typeof payload.goldSchema === "string"
-          ? payload.goldSchema
-          : null,
     };
   }
 

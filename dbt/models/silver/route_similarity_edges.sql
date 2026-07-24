@@ -9,6 +9,9 @@ with candidate_pairs as (
     from {{ ref('route_observations') }} as left_routes
     inner join {{ ref('route_observations') }} as right_routes
         on left_routes.run_id < right_routes.run_id
+            and left_routes.route_distance_bucket_km = right_routes.route_distance_bucket_km
+            and left_routes.start_h3_cell_resolution_9 = right_routes.start_h3_cell_resolution_9
+            and left_routes.end_h3_cell_resolution_9 = right_routes.end_h3_cell_resolution_9
             and abs(left_routes.distance_km - right_routes.distance_km)
                 <= least(left_routes.distance_km, right_routes.distance_km) * 0.10
 ),

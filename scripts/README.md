@@ -4,13 +4,22 @@ Small operational entrypoints for local project tasks. Keep scripts thin: argume
 user prompts, and orchestration belong here; reusable logic should live under `ingest/`.
 
 For routine production refreshes, use the `running-signals` CLI. It preserves the
-required raw-to-bronze-to-dbt-to-Supabase order, records an atomic local manifest,
-and stops at the first failed stage.
+required stage order, records an atomic local manifest, and stops at the first failed
+stage. FIT continues through Supabase; health stops after dbt.
 
 ```bash
-uv run running-signals preflight --no-input
-uv run running-signals refresh incremental --no-input --databricks-target production
+uv run running-signals preflight --source fit --no-input --databricks-target dev
+uv run running-signals refresh incremental --no-input --databricks-target dev
 ```
+
+The default refresh is FIT-only. Health is independent and manual:
+
+```bash
+uv run running-signals refresh incremental --source health --no-input --databricks-target dev
+```
+
+The health command runs raw landing, bronze ingestion, and `dbt_health`. It does not
+publish health data to Supabase.
 
 Use `--json` for one machine-readable result document, `--dry-run` to validate and
 render an incremental plan without remote calls or data writes, and `--no-publish` to
@@ -25,8 +34,9 @@ timing table for every phase and the total runtime; the same durations are recor
 in the manifest.
 
 `preflight` checks required configuration values, the Databricks SQL warehouse-path
-format, the hosted Supabase PostgreSQL URL shape, and the local dbt profile presence.
-It does not make remote connectivity checks.
+format, and the local dbt profile presence. FIT preflight also checks the hosted
+Supabase PostgreSQL URL; health preflight does not require `SUPABASE_DB_URL`. It does
+not make remote connectivity checks.
 
 `refresh incremental` intentionally has no `--full` or raw range-overwrite mode.
 The existing FIT range-overwrite operation deletes every FIT file under its configured
@@ -116,22 +126,26 @@ S3 configuration is read from CLI arguments first, then from the repository
 
 ## `sync_site_supabase.py`
 
-Reloads the Supabase `site_*` presentation read models from Databricks gold tables. Run it only after
-dbt has successfully built and tested the gold layer.
+Reloads FIT Supabase presentation tables from Databricks gold tables. Run it only
+after the FIT dbt selector succeeds.
 
 ```bash
 uv run python scripts/sync_site_supabase.py --dry-run
 uv run python scripts/sync_site_supabase.py
 ```
 
-The sync is incremental by default. Before fetching, the script computes a content fingerprint per
-export (`count(*)` plus a sum of whole-row `xxhash64` hashes over the exact export query) and
-compares it with the fingerprint stored in Supabase `site_metadata.export_fingerprints`. Unchanged
-tables are skipped entirely — no download, no truncate, no reload — so re-running after a dbt build
-that rewrote identical data finishes in seconds. Changed tables stream from Databricks in chunks
-straight into Postgres via `COPY`, so large tables are never buffered in memory and load far faster
-than row-by-row inserts. All changes commit in a single transaction, so the site always sees a
-consistent snapshot and failures roll back cleanly.
+The sync is incremental by default. Before fetching, one Databricks statement computes a content
+fingerprint per export (`count(*)` plus a sum of whole-row `xxhash64` hashes over the exact export query) and
+compares it with fingerprint metadata in Supabase. Unchanged
+tables are skipped entirely — no download, no truncate, no reload. Changed tables use the Databricks
+SQL connector's compressed parallel CloudFetch path and stream bounded batches through `COPY` into
+temporary Postgres staging tables. Failed reads retry the complete table with fresh result links.
+A short final transaction replaces all changed serving tables and metadata atomically, so the site
+keeps its previous consistent snapshot while remote data is downloading.
+
+The publisher exports daily and weekly FIT read models. Monthly and yearly aggregates are derived
+from days by the frontend and are not published. Route matching internals and non-serving segment
+telemetry are also excluded from the export contract.
 
 Flags:
 
@@ -247,6 +261,6 @@ After the S3 landing works, run the Databricks bronze ingestion jobs:
 
 ```bash
 cd databricks
-databricks bundle run --target production garmin_fit_bronze_ingestion
-databricks bundle run --target production garmin_health_bronze_ingestion
+databricks bundle run --target dev garmin_fit_bronze_ingestion
+databricks bundle run --target dev garmin_health_bronze_ingestion
 ```

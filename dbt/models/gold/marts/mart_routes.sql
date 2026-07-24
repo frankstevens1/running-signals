@@ -40,7 +40,7 @@ representative_route_centroids as (
         avg(records.position_lat_deg) as representative_route_centroid_latitude_deg,
         avg(records.position_long_deg) as representative_route_centroid_longitude_deg
     from route_summaries as routes
-    inner join {{ ref('mart_activity_records') }} as records
+    inner join {{ ref('mart_map_profile_records') }} as records
         on records.run_id = routes.route_representative_run_id
     where records.position_lat_deg between -90 and 90
       and records.position_long_deg between -180 and 180

@@ -19,9 +19,6 @@ select
     lag(active_week_flag) over (
         order by week_start_date
     ) as prior_week_active_week_flag,
-    lag(avg_resting_heart_rate) over (
-        order by week_start_date
-    ) as prior_week_avg_resting_heart_rate,
     lead(runs_per_week) over (
         order by week_start_date
     ) as next_week_runs_per_week,

@@ -26,11 +26,6 @@ daily_runs as (
     group by activity_date
 ),
 
-health_days as (
-    select *
-    from {{ ref('health_days') }}
-),
-
 days as (
     select
         dates.calendar_date,
@@ -56,23 +51,10 @@ days as (
         daily_runs.avg_run_heart_rate,
         daily_runs.avg_pace_min_per_km,
         coalesce(daily_runs.run_count, 0) > 0 as active_day_flag,
-        coalesce(daily_runs.run_count, 0) = 0 as missed_day_flag,
-        health_days.resting_heart_rate,
-        health_days.hrv_value,
-        health_days.hrv_status,
-        health_days.sleep_score,
-        health_days.sleep_duration_seconds,
-        health_days.sleep_start_time,
-        health_days.sleep_end_time,
-        coalesce(health_days.has_hrv_payload, false) as has_hrv_payload,
-        coalesce(health_days.has_rhr_payload, false) as has_rhr_payload,
-        coalesce(health_days.has_sleep_payload, false) as has_sleep_payload,
-        coalesce(health_days.has_heart_rates_payload, false) as has_heart_rates_payload
+        coalesce(daily_runs.run_count, 0) = 0 as missed_day_flag
     from dates
     left join daily_runs
         on dates.calendar_date = daily_runs.calendar_date
-    left join health_days
-        on dates.calendar_date = health_days.calendar_date
 )
 
 select
@@ -100,13 +82,5 @@ select
     sum(duration_seconds) over (
         order by calendar_date
         rows between 27 preceding and current row
-    ) as rolling_28d_duration_seconds,
-    avg(resting_heart_rate) over (
-        order by calendar_date
-        rows between 6 preceding and current row
-    ) as rolling_7d_resting_heart_rate,
-    avg(resting_heart_rate) over (
-        order by calendar_date
-        rows between 29 preceding and current row
-    ) as rolling_30d_resting_heart_rate
+    ) as rolling_28d_duration_seconds
 from days

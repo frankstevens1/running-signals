@@ -49,3 +49,53 @@ without forcing the improved analytical segments to retain legacy boundary behav
 Legacy buckets select the lowest-distance H3 record and break equal-distance ties with
 `record_index`. Previous `min_by` ties were undefined, so this may resolve an ambiguous historical
 bucket once; subsequent route signatures are deterministic.
+
+## Why full telemetry stays in Databricks
+
+`mart_activity_records` retains every ordered FIT record in Databricks for route analysis, feature
+engineering, model development, and future questions that require the original analytical grain.
+Supabase is a presentation serving layer rather than a second big-data store, so it receives only
+`mart_map_profile_records`: the six fields used by the site and at most 500 deterministic points per
+run.
+
+This boundary preserves full-fidelity analytical data where distributed processing belongs while
+keeping the downstream web payload, synchronization time, database size, and serving indexes
+proportional to the presentation requirement. A new analytical use case should read the complete
+Databricks mart; Supabase should expand only when a concrete site contract requires more data.
+
+## Why route centroids use map profile records instead of full telemetry
+
+`mart_routes` needs a representative GPS centroid for each detected route so the site can place a
+route card on a map overview. The initial implementation computed that centroid from
+`mart_activity_records`, which holds every ordered telemetry record for every run. As the dataset
+grew, joining the full telemetry table for the representative run of every route became the
+longest-running part of the route mart and contributed to the `fit_refresh` pipeline timing out.
+
+`mart_map_profile_records` already exists as the deterministic, presentation-safe subset of each
+run: at most 500 ordered points containing exactly the fields the site needs, including latitude
+and longitude. Using it for the centroid computation reduces the scan from potentially millions of
+records per representative run to a maximum of 500 points per run, without changing the public
+publisher contract or the site payload.
+
+The tradeoff is a small loss in centroid precision for routes whose representative run contains
+many more than 500 records. For the purpose of grouping routes into city-grid buckets and placing
+a map marker, the 500-point sample is sufficient and far cheaper. Full telemetry remains available
+in `mart_activity_records` for any future analytical work that needs sub-meter accuracy.
+
+## Why route similarity edges prune by H3 start, end, and distance bucket
+
+Route clustering compares every pair of GPS-backed runs to find routes that are likely the same
+physical loop. The original implementation applied only a 10% distance tolerance before computing
+a Jaccard-like similarity over 250m H3 path cells. As run volume increased, the candidate-pair
+explosion in `route_similarity_edges` became the dominant cost of the entire `fit_refresh` job.
+
+Adding equality filters on `route_distance_bucket_km`, `start_h3_cell_resolution_9`, and
+`end_h3_cell_resolution_9` before the distance and Jaccard checks eliminates the vast majority of
+non-matching pairs early. Any two runs that are 90% path-similar almost certainly share the same
+half-kilometer distance bucket and the same H3 start/end cells, so the pruning rarely excludes
+true matches while dramatically reducing shuffle and computation.
+
+The tradeoff is a small risk of splitting near-identical routes whose start or end points fall in
+adjacent H3 cells due to GPS drift. If that becomes measurable, the filter can be relaxed to a
+small set of neighboring cells. Until then, the H3-and-bucket guard keeps the clustering step
+proportional to the number of distinct routes rather than the square of the number of runs.

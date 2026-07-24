@@ -26,7 +26,7 @@ export type SupabaseOrder = {
 };
 
 export type SupabaseQueryOptions = {
-  select?: string;
+  select: string;
   filters?: SupabaseFilter[];
   order?: SupabaseOrder[];
   limit?: number;
@@ -117,7 +117,7 @@ function parseCount(value: string | null): number | null {
 
 export async function querySupabase(
   table: string,
-  options: SupabaseQueryOptions = {},
+  options: SupabaseQueryOptions,
 ): Promise<SupabaseQueryResult> {
   const config = getConfig();
   const url = new URL(`${config.url}/rest/v1/${table}`);
@@ -130,7 +130,7 @@ export async function querySupabase(
     headers.Prefer = "count=exact";
   }
 
-  url.searchParams.set("select", options.select ?? "*");
+  url.searchParams.set("select", options.select);
 
   for (const filter of options.filters ?? []) {
     url.searchParams.append(
@@ -180,6 +180,7 @@ export async function querySupabase(
 export async function querySupabaseRpc(
   functionName: string,
   parameters: SupabaseRpcParameters,
+  select: string,
 ): Promise<Record<string, unknown>[]> {
   const config = getConfig();
   const url = new URL(`${config.url}/rest/v1/rpc/${functionName}`);
@@ -188,6 +189,8 @@ export async function querySupabaseRpc(
     if (value === null) continue;
     url.searchParams.set(name, supabaseValue(value));
   }
+
+  url.searchParams.set("select", select);
 
   const response = await fetch(url, {
     headers: {

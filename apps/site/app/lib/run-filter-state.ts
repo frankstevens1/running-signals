@@ -21,6 +21,8 @@ export const EMPTY_RUN_FILTER_BOUNDS: RunFilterBounds = {
   maxAvgHeartRate: null,
   minGpsCoverage: null,
   maxGpsCoverage: null,
+  minAltitudeRangeM: null,
+  maxAltitudeRangeM: null,
 };
 
 const RUN_FILTER_STORAGE_VERSION = 1;
@@ -40,6 +42,7 @@ const runFilterQueryKeys = [
   "routeId",
   "hasRecoveryHr",
   "minGpsCoverage",
+  "minAltitudeRange",
 ] as const;
 
 export type PersistedRunFilters = {
@@ -54,6 +57,7 @@ export type PersistedRunFilters = {
   routeId?: string;
   hasRecoveryHr?: boolean;
   minGpsCoverage?: number;
+  minAltitudeRange?: number;
 };
 
 export type RunFilterFormValues = {
@@ -67,7 +71,7 @@ export type RunFilterFormValues = {
   maxAvgHr: string;
   routeId: string;
   hasRecoveryHr: "" | "true" | "false";
-  minGpsCoverage: string;
+  minAltitudeRange: string;
 };
 
 type StoredRunFilters = {
@@ -202,6 +206,7 @@ function validateUnboundedRunFilters(filters: PersistedRunFilters): PersistedRun
     hasRecoveryHr:
       typeof filters.hasRecoveryHr === "boolean" ? filters.hasRecoveryHr : undefined,
     minGpsCoverage: optionalStoredNumber(filters.minGpsCoverage),
+    minAltitudeRange: optionalStoredNumber(filters.minAltitudeRange),
   };
 }
 
@@ -242,6 +247,9 @@ function withoutDefaultRangeValues(
     minGpsCoverage: isAtBound(filters.minGpsCoverage, bounds.minGpsCoverage)
       ? undefined
       : filters.minGpsCoverage,
+    minAltitudeRange: isAtBound(filters.minAltitudeRange, bounds.minAltitudeRangeM)
+      ? undefined
+      : filters.minAltitudeRange,
   };
 }
 
@@ -292,6 +300,11 @@ export function normalizeRunFilters(
         bounds.minGpsCoverage,
         bounds.maxGpsCoverage,
       ),
+      minAltitudeRange: clampNumber(
+        filters.minAltitudeRange,
+        bounds.minAltitudeRangeM,
+        bounds.maxAltitudeRangeM,
+      ),
     },
     bounds,
   );
@@ -316,7 +329,8 @@ export function runFiltersEqual(
     left.maxAvgHr === right.maxAvgHr &&
     left.routeId === right.routeId &&
     left.hasRecoveryHr === right.hasRecoveryHr &&
-    left.minGpsCoverage === right.minGpsCoverage
+    left.minGpsCoverage === right.minGpsCoverage &&
+    left.minAltitudeRange === right.minAltitudeRange
   );
 }
 
@@ -355,6 +369,7 @@ export function parseStoredRunFilters(
         hasRecoveryHr:
           typeof filters.hasRecoveryHr === "boolean" ? filters.hasRecoveryHr : undefined,
         minGpsCoverage: optionalStoredNumber(filters.minGpsCoverage),
+        minAltitudeRange: optionalStoredNumber(filters.minAltitudeRange),
       },
       bounds,
     );
@@ -382,6 +397,7 @@ function persistedFiltersFromRunFilters(filters: RunFilters): PersistedRunFilter
     routeId: filters.routeId,
     hasRecoveryHr: filters.hasRecoveryHr,
     minGpsCoverage: filters.minGpsCoverage,
+    minAltitudeRange: filters.minAltitudeRange,
   };
 }
 
@@ -404,6 +420,7 @@ export function clampRunFiltersToBounds(
     routeId: normalized.routeId,
     hasRecoveryHr: normalized.hasRecoveryHr,
     minGpsCoverage: normalized.minGpsCoverage,
+    minAltitudeRange: normalized.minAltitudeRange,
   };
 }
 
@@ -421,18 +438,41 @@ export function hasActiveRunFilterParams(params: URLSearchParams): boolean {
   });
 }
 
-export function formatRunFilterNumber(value: number | null | undefined): string {
+export function formatRunFilterNumber(
+  value: number | null | undefined,
+  precision = 2,
+): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "";
 
-  const rounded = Number(value.toFixed(4));
+  const rounded = Number(value.toFixed(precision));
   return String(Object.is(rounded, -0) ? 0 : rounded);
+}
+
+function paceMinutesToTimeString(minutes: number): string {
+  if (!Number.isFinite(minutes)) return "";
+  const mins = Math.floor(minutes);
+  const secs = Math.round((minutes - mins) * 60);
+  if (secs >= 60) return `${mins + 1}:00`;
+  return `${mins}:${String(secs % 60).padStart(2, "0")}`;
+}
+
+function parsePaceTimeString(value: string): number | undefined {
+  if (!value.trim()) return undefined;
+  const match = value.trim().match(/^(\d{1,2})(?::(\d{1,2}))?$/);
+  if (!match) return undefined;
+  const mins = Number(match[1]);
+  const secs = match[2] !== undefined ? Number(match[2]) : 0;
+  if (secs >= 60) return undefined;
+  if (!Number.isFinite(mins) || !Number.isFinite(secs)) return undefined;
+  return mins + secs / 60;
 }
 
 function formatConvertedBound(
   value: number | null,
   convert: (value: number) => number,
+  precision?: number,
 ): string {
-  return value === null ? "" : formatRunFilterNumber(convert(value));
+  return value === null ? "" : formatRunFilterNumber(convert(value), precision);
 }
 
 export function runFilterFormValues(
@@ -453,12 +493,12 @@ export function runFilterFormValues(
         : formatRunFilterNumber(distanceFromKm(filters.maxDistanceKm, unit)),
     minPace:
       filters.minPaceMinPerKm === undefined
-        ? formatConvertedBound(bounds.minPaceMinPerKm, (value) => paceFromMinPerKm(value, unit))
-        : formatRunFilterNumber(paceFromMinPerKm(filters.minPaceMinPerKm, unit)),
+        ? (bounds.minPaceMinPerKm === null ? "" : paceMinutesToTimeString(paceFromMinPerKm(bounds.minPaceMinPerKm, unit)))
+        : paceMinutesToTimeString(paceFromMinPerKm(filters.minPaceMinPerKm, unit)),
     maxPace:
       filters.maxPaceMinPerKm === undefined
-        ? formatConvertedBound(bounds.maxPaceMinPerKm, (value) => paceFromMinPerKm(value, unit))
-        : formatRunFilterNumber(paceFromMinPerKm(filters.maxPaceMinPerKm, unit)),
+        ? (bounds.maxPaceMinPerKm === null ? "" : paceMinutesToTimeString(paceFromMinPerKm(bounds.maxPaceMinPerKm, unit)))
+        : paceMinutesToTimeString(paceFromMinPerKm(filters.maxPaceMinPerKm, unit)),
     minAvgHr:
       filters.minAvgHr === undefined
         ? formatRunFilterNumber(bounds.minAvgHeartRate)
@@ -470,10 +510,10 @@ export function runFilterFormValues(
     routeId: filters.routeId ?? "",
     hasRecoveryHr:
       filters.hasRecoveryHr === true ? "true" : filters.hasRecoveryHr === false ? "false" : "",
-    minGpsCoverage:
-      filters.minGpsCoverage === undefined
-        ? formatRunFilterNumber(bounds.minGpsCoverage)
-        : formatRunFilterNumber(filters.minGpsCoverage),
+    minAltitudeRange:
+      filters.minAltitudeRange === undefined
+        ? formatRunFilterNumber(bounds.minAltitudeRangeM, 0)
+        : formatRunFilterNumber(filters.minAltitudeRange, 0),
   };
 }
 
@@ -484,8 +524,8 @@ export function runFiltersFromFormValues(
 ): PersistedRunFilters {
   const minDistance = optionalInputNumber(values.minDistance);
   const maxDistance = optionalInputNumber(values.maxDistance);
-  const minPace = optionalInputNumber(values.minPace);
-  const maxPace = optionalInputNumber(values.maxPace);
+  const minPace = parsePaceTimeString(values.minPace);
+  const maxPace = parsePaceTimeString(values.maxPace);
 
   const filters = {
     dateFrom: values.dateFrom || undefined,
@@ -503,7 +543,7 @@ export function runFiltersFromFormValues(
         : values.hasRecoveryHr === "false"
           ? false
           : undefined,
-    minGpsCoverage: optionalInputNumber(values.minGpsCoverage),
+    minAltitudeRange: optionalInputNumber(values.minAltitudeRange),
   };
 
   return bounds ? normalizeRunFilters(filters, bounds) : validateUnboundedRunFilters(filters);
@@ -542,6 +582,9 @@ export function withRunFilters(
   }
   if (filters.minGpsCoverage !== undefined) {
     next.set("minGpsCoverage", formatRunFilterNumber(filters.minGpsCoverage));
+  }
+  if (filters.minAltitudeRange !== undefined) {
+    next.set("minAltitudeRange", formatRunFilterNumber(filters.minAltitudeRange, 0));
   }
 
   return next;

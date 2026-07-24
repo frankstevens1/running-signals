@@ -33,7 +33,7 @@ const dbtIcon: TechIcon = {
 const logos: TechLogoProps[] = [
   {
     label: "Garmin",
-    description: "Supplies activity and daily health source data.",
+    description: "Supplies activity and route telemetry source data.",
     icon: siGarmin,
   },
   {
@@ -43,7 +43,7 @@ const logos: TechLogoProps[] = [
   },
   {
     label: "AWS S3",
-    description: "Preserves recoverable raw FIT and health files.",
+    description: "Preserves recoverable raw FIT activity files.",
     icon: awsS3Icon,
   },
   {

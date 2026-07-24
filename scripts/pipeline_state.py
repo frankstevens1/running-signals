@@ -37,13 +37,14 @@ class RefreshLockHeldError(RuntimeError):
 
 
 class RefreshLock:
-    def __init__(self, state_dir: Path) -> None:
+    def __init__(self, state_dir: Path, name: str = "refresh") -> None:
         self._state_dir = state_dir
+        self._name = name
         self._handle: TextIO | None = None
 
     def __enter__(self) -> RefreshLock:
         self._state_dir.mkdir(parents=True, exist_ok=True)
-        self._handle = (self._state_dir / "refresh.lock").open("a+", encoding="utf-8")
+        self._handle = (self._state_dir / f"{self._name}.lock").open("a+", encoding="utf-8")
 
         try:
             fcntl.flock(self._handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)

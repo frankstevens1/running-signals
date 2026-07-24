@@ -3,7 +3,10 @@
 with days as (
     select *
     from {{ ref('mart_days') }}
-    where week_start_date <= date_add(cast(date_trunc('week', current_date()) as date), -7)
+    where week_start_date <= date_add(
+        cast(date_trunc('week', {{ analytics_current_date() }}) as date),
+        -7
+    )
 ),
 
 week_bounds as (
@@ -24,17 +27,7 @@ weekly_all as (
         sum(case when missed_day_flag then 1 else 0 end) as missed_days,
         sum(run_count) > 0 as active_week_flag,
         sum(run_count) = 0 as missed_week_flag,
-        count(*) as completed_day_count,
-        count(resting_heart_rate) as health_days_observed,
-        avg(resting_heart_rate) as avg_resting_heart_rate,
-        avg(hrv_value) as avg_hrv_value,
-        avg(sleep_score) as avg_sleep_score,
-        avg(sleep_duration_seconds) as avg_sleep_duration_seconds,
-        max(case when has_hrv_payload then 1 else 0 end) = 1 as has_hrv_payload_week,
-        max(case when has_rhr_payload then 1 else 0 end) = 1 as has_rhr_payload_week,
-        max(case when has_sleep_payload then 1 else 0 end) = 1 as has_sleep_payload_week,
-        max(case when has_heart_rates_payload then 1 else 0 end) = 1
-            as has_heart_rates_payload_week
+        count(*) as completed_day_count
     from days
     group by week_start_date, week_end_date
 ),
@@ -117,14 +110,5 @@ select
     active_week_streak,
     missed_weeks_12w,
     rolling_4w_distance_km,
-    rolling_12w_distance_km,
-    health_days_observed,
-    avg_resting_heart_rate,
-    avg_hrv_value,
-    avg_sleep_score,
-    avg_sleep_duration_seconds,
-    has_hrv_payload_week,
-    has_rhr_payload_week,
-    has_sleep_payload_week,
-    has_heart_rates_payload_week
+    rolling_12w_distance_km
 from weekly_with_windows

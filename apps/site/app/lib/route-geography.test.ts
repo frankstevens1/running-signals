@@ -15,21 +15,11 @@ function routeSummary(
 ): RouteSummary {
   return {
     routeId,
-    firstObservedActivityDate: null,
     latestObservedActivityDate: null,
     runCount: 1,
     avgDistanceKm: null,
-    minDistanceKm: null,
-    maxDistanceKm: null,
-    avgDurationSeconds: null,
     avgPaceMinPerKm: null,
     avgHeartRate: null,
-    avgTotalAscent: null,
-    avgTotalDescent: null,
-    avgSegmentGrade: null,
-    avgRouteAltitudeRangeM: null,
-    routeDistanceBucketKm: null,
-    cityGridBucket: null,
     representativeRouteCentroidLatitudeDeg: latitude,
     representativeRouteCentroidLongitudeDeg: longitude,
   };

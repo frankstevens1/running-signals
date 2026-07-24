@@ -13,9 +13,6 @@ const days: DayRollup[] = [
     activeDayFlag: true,
     rolling7dDistanceKm: null,
     rolling28dDistanceKm: null,
-    restingHeartRate: null,
-    hrvValue: null,
-    sleepScore: null,
   },
   {
     calendarDate: "2026-07-20",
@@ -26,9 +23,6 @@ const days: DayRollup[] = [
     activeDayFlag: true,
     rolling7dDistanceKm: null,
     rolling28dDistanceKm: null,
-    restingHeartRate: null,
-    hrvValue: null,
-    sleepScore: null,
   },
   {
     calendarDate: "2026-07-21",
@@ -39,9 +33,6 @@ const days: DayRollup[] = [
     activeDayFlag: false,
     rolling7dDistanceKm: null,
     rolling28dDistanceKm: null,
-    restingHeartRate: null,
-    hrvValue: null,
-    sleepScore: null,
   },
 ];
 
@@ -50,6 +41,7 @@ describe("currentWeekToDate", () => {
     expect(currentWeekToDate(days, "2026-07-21")).toEqual({
       weekStartDate: "2026-07-20",
       latestCompletedDate: "2026-07-21",
+      includesLiveToday: false,
       runCount: 1,
       distanceKm: 5.5,
       activeDays: 1,
@@ -62,6 +54,7 @@ describe("currentWeekToDate", () => {
       .toEqual({
         weekStartDate: "2026-07-20",
         latestCompletedDate: null,
+        includesLiveToday: false,
         runCount: 0,
         distanceKm: 0,
         activeDays: 0,

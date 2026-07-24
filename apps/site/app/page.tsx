@@ -34,7 +34,7 @@ const pillars = [
     command: "signal::fitness",
     href: "/fitness",
     icon: explorerPages.fitness.icon,
-    copy: "Explore descriptive changes in pace, heart rate, efficiency, recovery HR, HRV, and sleep context.",
+    copy: "Explore descriptive changes in pace, heart rate, efficiency, and post-run recovery HR.",
     source: "signal_fitness",
   },
 ];
@@ -97,7 +97,7 @@ export default function Home() {
             <SectionHeading
               eyebrow="01 / Signal families"
               title="Three questions, answered with inspectable data."
-              description="The experience stays descriptive. It surfaces evidence and definitions without turning observations into coaching or health claims."
+              description="The experience stays descriptive. It surfaces evidence and definitions without turning observations into coaching or medical claims."
               level={2}
             />
             <div className="mt-10 border-t border-(--border)">

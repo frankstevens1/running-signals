@@ -1,4 +1,4 @@
-name: Incremental refresh
+name: Incremental FIT refresh
 
 on:
   schedule:
@@ -10,7 +10,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: running-signals-incremental-refresh
+  group: running-signals-fit-refresh
   cancel-in-progress: false
 
 jobs:
@@ -56,8 +56,6 @@ jobs:
           GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
           GARMIN_FIT_S3_BUCKET: ${{ vars.GARMIN_FIT_S3_BUCKET }}
           GARMIN_FIT_S3_PREFIX: ${{ vars.GARMIN_FIT_S3_PREFIX }}
-          GARMIN_HEALTH_S3_BUCKET: ${{ vars.GARMIN_HEALTH_S3_BUCKET }}
-          GARMIN_HEALTH_S3_PREFIX: ${{ vars.GARMIN_HEALTH_S3_PREFIX }}
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           DATABRICKS_HTTP_PATH: ${{ secrets.DATABRICKS_HTTP_PATH }}
@@ -66,7 +64,7 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set -o pipefail
-          uv run running-signals refresh incremental --no-input --json --databricks-target production | tee "$RUNNER_TEMP/refresh-result.json"
+          uv run running-signals refresh incremental --no-input --json --databricks-target dev | tee "$RUNNER_TEMP/refresh-result.json"
 
       - name: Clear AWS credentials
         if: always()
@@ -83,6 +81,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: refresh-manifests
+          name: fit-refresh-manifests
           path: ${{ runner.temp }}/state/running-signals/*.json
           if-no-files-found: ignore

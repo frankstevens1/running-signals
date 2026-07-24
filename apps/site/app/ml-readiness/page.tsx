@@ -20,7 +20,7 @@ const featureGroups = [
     source: "mart_weekly_training_features",
     items: [
       "Completed-week grain inherited from mart_weeks.",
-      "Current and prior-week run count, distance, duration, active-week flag, and resting heart rate.",
+      "Current and prior-week run count, distance, duration, and active-week flag.",
       "Next-week run count, distance, duration, and active-week labels for future forecasting experiments.",
     ],
   },
@@ -30,7 +30,6 @@ const featureGroups = [
     items: [
       "Prior 7-day and 28-day run counts before each session.",
       "Prior 7-day and 28-day distance before each session.",
-      "Prior 28-day average resting heart rate for session-level context.",
     ],
   },
   {
@@ -40,15 +39,6 @@ const featureGroups = [
       "Stable route identity derived from representative H3 path and distance bucket.",
       "Lifetime route run count and historical averages for distance, pace, duration, and heart rate.",
       "Prior same-route run count and prior same-route averages before the target run.",
-    ],
-  },
-  {
-    title: "Health context",
-    source: "mart_days, health_days",
-    items: [
-      "Same-day resting heart rate, HRV, HRV status, sleep score, and sleep duration.",
-      "Rolling resting heart-rate context for daily and session-level analysis.",
-      "Payload availability flags so missing Garmin health endpoints remain inspectable.",
     ],
   },
   {
@@ -65,7 +55,7 @@ const featureGroups = [
 const useCases = [
   {
     title: "Route pace prediction",
-    copy: "Baseline comparisons are testing how route shape, prior route history, recent training, and same-day health context explain pace outcomes.",
+    copy: "Baseline comparisons are testing how route shape, prior route history, and recent training explain pace outcomes.",
   },
   {
     title: "Weekly training load forecasting",

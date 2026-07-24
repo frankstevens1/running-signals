@@ -21,10 +21,12 @@ This document describes the implemented analytical model contract for Running Si
 | Run session | `runs`, `mart_run_sessions` | `run_id` / `activity_id` |
 | Record telemetry | `run_records` | `run_id`, `record_timestamp` |
 | Activity record | `mart_activity_records` | `run_id`, `record_index` |
+| Map profile point | `mart_map_profile_records` | `run_id`, `record_index` |
 | Segment resolution | `mart_segment_resolutions` | `unit_system`, `segment_length_value` |
 | Analytical segment | `mart_run_segments` | `run_id`, `unit_system`, `segment_length_value`, `segment_index` |
 | Route observation | `mart_route_clusters` | `run_id` |
 | Route profile | `mart_routes` | `route_id` |
+| Health day | `mart_health_days` | `calendar_date` |
 | Week | `mart_weeks` | `week_start_date` |
 | Month | `mart_months` | `month_start_date` |
 | Year | `mart_years` | `year_start_date` |
@@ -40,9 +42,10 @@ bronze.garmin_fit_records
     -> run_records
 bronze.garmin_health_daily_payloads
     -> health_days
-runs + health_days
+    -> mart_health_days
+runs
     -> dates
-dates + runs + health_days
+dates + runs
     -> mart_days
 mart_days
     -> mart_weeks
@@ -54,6 +57,8 @@ mart_weeks
     -> mart_weekly_training_features
 run_records
     -> mart_activity_records
+mart_activity_records
+    -> mart_map_profile_records
 run_records + mart_segment_resolutions
     -> mart_run_segments
 runs + run_records
@@ -69,14 +74,14 @@ mart_run_sessions
     -> mart_routes
 mart_run_sessions + mart_routes
     -> mart_route_prediction_features
-runs + health_days + mart_run_segments
+runs + mart_run_segments
     -> signal_fitness
-runs + health_days
+runs
     -> mart_runs
 signal_fitness + mart_weeks
     -> mart_running_signals
-gold presentation outputs
-    -> Supabase site_* read models
+FIT gold presentation outputs
+    -> Supabase site_*_core tables
 ```
 
 `weeks`, `signal_consistency`, `signal_volume`, `mart_weeks`, `mart_running_signals`, and
@@ -85,11 +90,13 @@ of the daily foundation.
 
 ## Presentation Read Models
 
-Supabase `site_*` tables mirror the public-facing gold fields used by the Next.js site. They are
-loaded after dbt succeeds and are optimized for low-latency reads, filtering, sorting, charts, and
-route maps. Ordered activity records provide map geometry; analytical segment endpoints are not a
-route reconstruction format. The read tables are not a replacement for the Databricks/dbt model
-contracts.
+Supabase FIT core tables mirror the public-facing running fields used by the Next.js site.
+Public views over the core tables provide the `site_*` API surface. Ordered activity records
+provide map geometry; analytical segment endpoints are not a route reconstruction format. The
+serving relations are not a replacement for the Databricks/dbt model contracts.
+
+Health outputs (`mart_health_days`) remain in Databricks for offline analysis and do not have a
+Supabase surface.
 
 ## Bronze Tables
 
@@ -232,6 +239,15 @@ Grain: one row per `run_id` and `record_index`.
 Purpose: publish the ordered, presentation-safe activity telemetry needed to render complete route
 geometry and within-run charts. It retains every silver record, including rows without coordinates,
 so consumers can preserve ordering and avoid reconnecting separate GPS sequences across gaps.
+
+### mart_map_profile_records
+
+Grain: at most 500 rows per `run_id`, uniquely ordered by `record_index`.
+
+Purpose: provide the narrow presentation projection published to Supabase. Runs with at most 500
+records retain every row; longer runs retain 500 deterministic, evenly distributed record positions,
+including the first and last. Complete telemetry remains in `mart_activity_records` for Databricks
+analysis.
 
 ### mart_run_segments
 

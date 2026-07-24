@@ -1,169 +1,126 @@
-## Incremental refresh automation
+## Independent Incremental Refreshes
+
+FIT is the scheduled pipeline. Health is an independent manual analytics pipeline.
 
 ```text
 Daily GitHub Actions schedule
             |
             v
-Authenticate with OIDC and install with uv
+FIT raw -> FIT bronze -> dbt fit_refresh -> Supabase FIT tables -> Next.js site
+
+Manual command
             |
             v
-running-signals refresh incremental --no-input --json --databricks-target production
-            |
-            v
-FIT raw -> health raw -> FIT bronze -> health bronze -> dbt build -> Supabase sync
-            |
-            v
-Next.js site
+Health raw -> health bronze -> dbt health_refresh
 ```
 
-### 1. GitHub Actions starts
+## FIT Refresh
 
-The tracked workflow at `.github/workflows/incremental-refresh.yml` runs once per
-day at 05:15 UTC and also supports manual dispatch. GitHub Actions concurrency
-prevents overlapping scheduled or manually dispatched refreshes.
-
-The separate `.github/workflows/deploy-databricks-bundle.yml` workflow deploys the
-stable `production` bundle target whenever bundle, ingestion, or job-notebook code
-changes on `main`. Run it manually once after configuring secrets before enabling the
-scheduled refresh.
-
-It checks out the repository and runs:
+The default command is FIT-only:
 
 ```bash
-uv sync --locked
-uv run running-signals refresh incremental --no-input --json --databricks-target production
+uv run running-signals preflight --source fit --no-input --databricks-target dev
+uv run running-signals refresh incremental \
+  --no-input \
+  --json \
+  --databricks-target dev
 ```
 
-It receives:
-
-- Garmin credentials from GitHub secrets
-- Temporary AWS credentials through OIDC
-- S3 bucket configuration from workflow variables
-- Databricks, Supabase, and dbt-profile secrets
-
-No local SSO session is involved.
-
-### Required GitHub configuration
-
-Apply the Terraform OIDC resources, then set the repository variable
-`AWS_REFRESH_ROLE_ARN` to `terraform output -raw github_actions_refresh_role_arn`.
-Set `AWS_REGION`, `GARMIN_FIT_S3_BUCKET`, `GARMIN_FIT_S3_PREFIX`,
-`GARMIN_HEALTH_S3_BUCKET`, `GARMIN_HEALTH_S3_PREFIX`, `DATABRICKS_CATALOG`, and
-`DATABRICKS_GOLD_SCHEMA` as repository variables.
-
-Set `GARMIN_EMAIL`, `GARMIN_PASSWORD`, `DATABRICKS_HOST`, `DATABRICKS_TOKEN`,
-`DATABRICKS_HTTP_PATH`, `SUPABASE_DB_URL`, and `DBT_PROFILES_YML` as repository
-secrets. `DBT_PROFILES_YML` is the complete CI dbt `profiles.yml` content and is
-written to the runner's temporary directory for the job.
-
-### 2. CLI stage behavior
-
-The CLI checks required Garmin raw S3, Databricks, hosted Supabase, and
-non-interactive Garmin configuration values before it writes. It validates the
-Databricks SQL warehouse path, PostgreSQL connection URL shape, and local dbt profile
-presence, but does not test remote connectivity. It stores an atomic JSON manifest
-per run under `$XDG_STATE_HOME/running-signals` or
-`~/.local/state/running-signals`; the workflow uploads these manifests as artifacts.
-
-The FIT downloader lists existing objects under:
+Its stages are:
 
 ```text
-s3://bucket/garmin/fit/
+fit_raw -> bronze_fit -> dbt_fit -> publish_fit
 ```
 
-It scans the configured recent Garmin activity window and downloads every activity
-whose FIT object is missing. Existing activities are recorded as skips rather than
-ending the scan, so a failed or reordered activity inside that window is retried.
+The tracked `.github/workflows/incremental-fit-refresh.yml` workflow runs this command daily at
+05:15 UTC and supports manual dispatch. It uses the `running-signals-fit-refresh` concurrency group.
+The workflow requires FIT S3 configuration but no health S3 variables.
 
-If there are no existing FIT files, incremental mode fails intentionally. The first
-run must establish a complete raw baseline manually.
+The project currently uses only the Databricks `dev` bundle target. Preflight reads the bundle
+summary and fails before raw landing when the source-specific job is not deployed.
 
-### 3. Health incremental refresh
+Configure repository variables `AWS_REFRESH_ROLE_ARN`, `AWS_REGION`, `GARMIN_FIT_S3_BUCKET`,
+`GARMIN_FIT_S3_PREFIX`, `DATABRICKS_CATALOG`, and `DATABRICKS_GOLD_SCHEMA`. Configure repository
+secrets `GARMIN_EMAIL`, `GARMIN_PASSWORD`, `DATABRICKS_HOST`, `DATABRICKS_TOKEN`,
+`DATABRICKS_HTTP_PATH`, `SUPABASE_DB_URL`, and `DBT_PROFILES_YML`.
 
-The health downloader tracks four payload identities:
+The FIT dbt selector contains no health source or health model. FIT publishing updates only FIT
+serving tables.
 
-```text
-(calendar_date, payload_type)
-hrv, rhr, sleep, heart_rates
+## Health Refresh
+
+Health is currently manual-only:
+
+```bash
+uv run running-signals preflight --source health --no-input --databricks-target dev
+uv run running-signals refresh incremental \
+  --source health \
+  --no-input \
+  --json \
+  --databricks-target dev
 ```
 
-Missing payloads are fetched and written to:
+Its stages are:
 
 ```text
-s3://bucket/garmin/health/daily/
-  calendar_date=2026-07-13/hrv.json
-  calendar_date=2026-07-13/rhr.json
-  calendar_date=2026-07-13/sleep.json
-  calendar_date=2026-07-13/heart_rates.json
+health_raw -> bronze_health -> dbt_health
 ```
 
-Existing payloads are skipped. If a previous run fetched three of four payloads,
-the next run retries only the missing payload. Any endpoint failure makes the raw
-stage fail after all endpoints have been attempted, so bronze is never triggered
-with incomplete health data.
+Health endpoint failures fail only the health run. They do not prevent the scheduled FIT lane from
+landing, modeling, or publishing running data. Health preflight does not require
+`SUPABASE_DB_URL`, and there is no health publisher or scheduled health workflow.
 
-### 4. Databricks bronze ingestion
+## Serving Behavior
 
-Only after both raw stages succeed does the CLI wait for both Databricks bronze jobs.
+The publisher loads FIT output into `site_*_core`, route, map-profile, segment, day, week, and
+fitness tables. It does not export months or years; the frontend derives those periods
+from published days. Existing public names such as `site_runs`, `site_days`, `site_fitness`, and
+`site_dashboard_summary` remain compatibility views over their core tables.
 
-- FIT bronze reads new or changed FIT files and replaces affected session, event,
-  and record rows.
-- Health bronze reads new or changed JSON envelopes and replaces affected payload
-  rows.
+## dbt Selectors
 
-The CLI records the exact Databricks command and exit status in the manifest. It
-does not publish downstream data after a bronze failure.
+The source-isolated commands are:
 
-### 5. dbt and presentation refresh
-
-After both bronze jobs succeed, the CLI runs:
-
-```text
-dbt build
-sync_site_supabase.py --no-progress
+```bash
+uv run dbt build --project-dir dbt --selector fit_refresh --target-path target/fit
+uv run dbt build --project-dir dbt --selector health_refresh --target-path target/health
 ```
 
-`dbt build` materializes and tests the full graph. Supabase publishing only runs if
-that command succeeds. The site then reads the refreshed Supabase `site_*` tables.
+`fit_refresh` starts from the three FIT bronze sources and builds the complete presented running
+graph. `health_refresh` starts from `garmin_health_daily_payloads` and builds `health_days` plus
+`mart_health_days`.
 
-### What happens when nothing changed?
+## FIT Publisher
 
-A normal no-change run looks like:
+The publisher is FIT-only:
 
-```text
-FIT:     0 files downloaded
-Health:  0 payloads downloaded
-Bronze:  no source changes
-dbt:     rebuilt and tested
-Site:    unchanged
+```bash
+uv run python scripts/sync_site_supabase.py --no-progress
 ```
 
-The initial CLI intentionally still runs bronze, dbt, and publishing after a
-no-change raw landing. Skipping downstream layers safely requires a durable
-cross-layer reconciliation checkpoint, rather than only raw download counts.
+It maintains the unprefixed fingerprints, row counts, generation time, and latest-date metadata.
+Removed exports are pruned from fingerprint and row-count metadata after a successful publish.
 
-### Failure behavior
+## Locks And Manifests
 
-The important property is safe reruns:
+FIT and health use separate local lock files and manifests under `$XDG_STATE_HOME/running-signals`
+or `~/.local/state/running-signals`. dbt also uses separate target paths. Every run streams child
+logs, emits 30-second heartbeats, records phase durations, and prints a final timing table.
+
+## Failure Behavior
 
 ```text
-FIT succeeds
+FIT fails
+    -> health snapshot remains unchanged
+    -> no partial FIT publish
+
 Health fails
-    -> no bronze trigger
-    -> next run skips FIT files already landed
-    -> next run retries missing health payloads
+    -> FIT pipeline is unaffected
+    -> no Supabase operation is attempted
 
-Raw landing succeeds
-Bronze fails
-    -> next run skips unchanged raw files
-    -> bronze retries processing
-
-Bronze succeeds
-dbt fails
-    -> raw and bronze remain available
-    -> dbt can be rerun independently
+Either dbt selector fails
+    -> downstream stages stop; only FIT has a publish stage
 ```
 
-`range-overwrite` remains a manual raw-backfill workflow and is not exposed through
-the CLI. Current FIT range overwrite deletes every raw FIT file in its configured
-destination before loading the requested range, so it is unsafe for partial history.
+Raw FIT `range-overwrite` remains excluded from the CLI because it deletes every FIT object in its
+configured destination before downloading the requested range.

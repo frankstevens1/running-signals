@@ -3,17 +3,12 @@
 with observed_dates as (
     select activity_date as calendar_date
     from {{ ref('runs') }}
-
-    union all
-
-    select calendar_date
-    from {{ ref('health_days') }}
 ),
 
 date_bounds as (
     select
         min(calendar_date) as first_observed_date,
-        current_date() as latest_completed_date
+        {{ analytics_current_date() }} as latest_completed_date
     from observed_dates
 ),
 
@@ -30,7 +25,7 @@ date_spine as (
 
 select
     cast(calendar_date as date) as calendar_date,
-    calendar_date < current_date() as is_completed_day,
+    calendar_date < {{ analytics_current_date() }} as is_completed_day,
     dayofweek(calendar_date) as day_of_week_number,
     date_format(calendar_date, 'E') as day_of_week_name,
     dayofmonth(calendar_date) as day_of_month,

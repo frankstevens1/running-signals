@@ -22,7 +22,7 @@ export function DataState<T>({
       statusLabel={isNotConfigured ? "configuration required" : "query failed"}
       tone={isNotConfigured ? "warning" : "error"}
       icon={<Icon className="h-4 w-4" aria-hidden="true" />}
-      title={isNotConfigured ? "Databricks is not configured" : "Live data query failed"}
+      title={isNotConfigured ? "Supabase is not configured" : "Live data query failed"}
       description={result.message}
       className="max-w-3xl"
     >

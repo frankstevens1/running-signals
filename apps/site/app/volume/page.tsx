@@ -11,9 +11,10 @@ import {
   WeeklyVolumeChart,
 } from "@/app/components/trend-charts";
 import { getVolume } from "@/app/lib/data";
-import { formatDistance, formatInteger, shortDate } from "@/app/lib/format";
+import { formatDate, formatDistance, formatInteger, shortDate } from "@/app/lib/format";
 import { explorerPages } from "@/app/lib/page-metadata";
 import { getServerDistanceUnit } from "@/app/lib/server-distance-unit";
+import { getServerAnalyticsWindow } from "@/app/lib/analytics-window-server";
 
 function trendDelta(
   current: number | null | undefined,
@@ -26,8 +27,18 @@ function trendDelta(
   return { direction, diff };
 }
 
-export default async function VolumePage() {
-  const [volume, unit] = await Promise.all([getVolume(), getServerDistanceUnit()]);
+export default async function VolumePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const resolved = await searchParams;
+  const analyticsWindow = await getServerAnalyticsWindow(resolved);
+  const [volume, comparisonVolume, unit] = await Promise.all([
+    getVolume(analyticsWindow.primary),
+    analyticsWindow.comparison ? getVolume(analyticsWindow.comparison) : null,
+    getServerDistanceUnit(),
+  ]);
 
   return (
     <AppShell>
@@ -40,12 +51,11 @@ export default async function VolumePage() {
         />
         <DataState result={volume}>
           {(data) => {
+            const comparison = comparisonVolume?.status === "ok" ? comparisonVolume.data : null;
             const latestWeek = data.weeks.at(-1);
             const penultimateWeek = data.weeks.at(-2);
             const latestMonth = data.months.at(-1);
             const priorMonth = data.months.at(-2);
-            const latestYear = data.years.at(-1);
-            const priorYear = data.years.at(-2);
             const longestRunWeek = data.weeks.reduce(
               (selected, week) => {
                 if (week.longRunDistanceKm === null) return selected;
@@ -63,12 +73,12 @@ export default async function VolumePage() {
 
             const rollingTrend = trendDelta(
               latestWeek?.rolling4wDistanceKm,
-              penultimateWeek?.rolling4wDistanceKm,
+              comparison?.weeks.at(-1)?.rolling4wDistanceKm ?? penultimateWeek?.rolling4wDistanceKm,
             );
 
             const monthlyTrend = trendDelta(
               latestMonth?.monthlyDistanceKm,
-              priorMonth?.monthlyDistanceKm,
+              comparison?.months.at(-1)?.monthlyDistanceKm ?? priorMonth?.monthlyDistanceKm,
             );
 
             const longRunTrend = trendDelta(
@@ -76,10 +86,12 @@ export default async function VolumePage() {
               previousLongest,
             );
 
-            const yearlyTrend = trendDelta(
-              latestYear?.yearlyDistanceKm,
-              priorYear?.yearlyDistanceKm,
-            );
+            const yearlyTrend = comparison
+              ? trendDelta(
+                  data.years.reduce((sum, year) => sum + year.yearlyDistanceKm, 0),
+                  comparison.years.reduce((sum, year) => sum + year.yearlyDistanceKm, 0),
+                )
+              : null;
 
             return (
               <div className="space-y-10">
@@ -94,7 +106,7 @@ export default async function VolumePage() {
                         ? {
                             direction: rollingTrend.direction,
                             value: `${rollingTrend.diff > 0 ? "+" : ""}${formatDistance(Math.abs(rollingTrend.diff), unit)}`,
-                            label: "vs prior week",
+                            label: comparison ? "vs comparison" : "vs prior week",
                           }
                         : undefined
                     }
@@ -109,7 +121,7 @@ export default async function VolumePage() {
                         ? {
                             direction: monthlyTrend.direction,
                             value: `${monthlyTrend.diff > 0 ? "+" : ""}${formatDistance(Math.abs(monthlyTrend.diff), unit)}`,
-                            label: "vs prior month",
+                            label: comparison ? "vs comparison" : "vs prior month",
                           }
                         : undefined
                     }
@@ -130,16 +142,16 @@ export default async function VolumePage() {
                     }
                   />
                   <MetricCard
-                    label="Latest year"
-                    value={formatDistance(latestYear?.yearlyDistanceKm, unit)}
-                    detail={`${formatInteger(latestYear?.activeDays)} active days`}
+                    label="Distance in window"
+                    value={formatDistance(data.totalDistanceKm, unit)}
+                    detail={`${formatInteger(data.totalRuns)} runs · ${formatInteger(data.activeDays)} active days through ${formatDate(data.latestDate)}`}
                     icon={Route}
                     trend={
                       yearlyTrend
                         ? {
                             direction: yearlyTrend.direction,
                             value: `${yearlyTrend.diff > 0 ? "+" : ""}${formatDistance(Math.abs(yearlyTrend.diff), unit)}`,
-                            label: "vs prior year",
+                            label: comparison ? "vs comparison" : "vs prior year",
                           }
                         : undefined
                     }

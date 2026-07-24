@@ -1,0 +1,24 @@
+selectors:
+  - name: fit_refresh
+    description: Build and test the FIT-only pipeline from bronze FIT sources and static segment configuration.
+    definition:
+      union:
+        - method: source
+          value: garmin_raw.garmin_fit_sessions
+          children: true
+        - method: source
+          value: garmin_raw.garmin_fit_events
+          children: true
+        - method: source
+          value: garmin_raw.garmin_fit_records
+          children: true
+        - method: fqn
+          value: mart_segment_resolutions
+          children: true
+
+  - name: health_refresh
+    description: Build and test the health-only pipeline from the bronze daily health source.
+    definition:
+      method: source
+      value: garmin_raw.garmin_health_daily_payloads
+      children: true

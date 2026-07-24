@@ -26,14 +26,16 @@ export function RunPagination({
   total,
   limit,
   offset,
+  comparisonTotal,
 }: {
   params: URLSearchParams;
   view: RunView;
   total: number;
   limit: number;
   offset: number;
+  comparisonTotal: number | null;
 }) {
-  const safeOffset = total === 0 ? 0 : Math.min(offset, Math.max(total - 1, 0));
+  const safeOffset = total === 0 ? 0 : Math.min(offset, Math.floor(Math.max(total - 1, 0) / limit) * limit);
   const currentPage = Math.floor(safeOffset / limit) + 1;
   const pageCount = Math.max(Math.ceil(total / limit), 1);
   const start = total === 0 ? 0 : safeOffset + 1;
@@ -73,6 +75,12 @@ export function RunPagination({
           <span className="ml-3 text-(--text-soft)">
             page {currentPage.toLocaleString()}:{pageCount.toLocaleString()}
           </span>
+          {comparisonTotal !== null ? (
+            <span className="ml-3 text-(--text-soft)">
+              comparison {comparisonTotal.toLocaleString()} ({total - comparisonTotal >= 0 ? "+" : ""}
+              {(total - comparisonTotal).toLocaleString()})
+            </span>
+          ) : null}
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">

@@ -1,4 +1,4 @@
-name: Deploy Databricks bundle
+name: Deploy Databricks dev bundle
 
 on:
   push:
@@ -24,7 +24,7 @@ jobs:
       - name: Reject non-main manual deployments
         if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
         run: |
-          echo "Production deployments must run from main." >&2
+          echo "Shared dev deployments must run from main." >&2
           exit 1
 
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -33,16 +33,29 @@ jobs:
         with:
           version: 0.257.0
 
-      - name: Validate production bundle
+      - name: Validate dev bundle
         working-directory: databricks
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-        run: databricks bundle validate --target production
+        run: databricks bundle validate --target dev
 
-      - name: Deploy production bundle
+      - name: Deploy dev bundle
         working-directory: databricks
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-        run: databricks bundle deploy --target production
+        run: databricks bundle deploy --target dev
+
+      - name: Verify dev jobs
+        working-directory: databricks
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        shell: bash
+        run: |
+          summary="$(databricks bundle summary --target dev --output json)"
+          jq -e '
+            .resources.jobs.garmin_fit_bronze_ingestion.id
+            and .resources.jobs.garmin_health_bronze_ingestion.id
+          ' <<< "$summary" > /dev/null

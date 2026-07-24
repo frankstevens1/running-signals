@@ -53,11 +53,6 @@ export function mapRun(row: Record<string, unknown>): RunSession {
     segmentCount: numberValue(row, "segment_count"),
     avgSegmentGrade: numberValue(row, "avg_segment_grade"),
     routeAltitudeRangeM: numberValue(row, "route_altitude_range_m"),
-    restingHeartRate: numberValue(row, "resting_heart_rate"),
-    hrvValue: numberValue(row, "hrv_value"),
-    hrvStatus: stringValue(row, "hrv_status"),
-    sleepScore: numberValue(row, "sleep_score"),
-    sleepDurationSeconds: numberValue(row, "sleep_duration_seconds"),
     prior7dDistanceKm: numberValue(row, "prior_7d_distance_km"),
     prior28dDistanceKm: numberValue(row, "prior_28d_distance_km"),
   };
@@ -75,26 +70,19 @@ export function mapRunFilterBounds(row: Record<string, unknown>): RunFilterBound
     maxAvgHeartRate: numberValue(row, "max_avg_heart_rate"),
     minGpsCoverage: numberValue(row, "min_gps_coverage"),
     maxGpsCoverage: numberValue(row, "max_gps_coverage"),
+    minAltitudeRangeM: numberValue(row, "min_route_altitude_range_m"),
+    maxAltitudeRangeM: numberValue(row, "max_route_altitude_range_m"),
   };
 }
 
 export function mapRoute(row: Record<string, unknown>): RouteSummary {
   return {
     routeId: stringValue(row, "route_id") ?? "",
-    firstObservedActivityDate: stringValue(row, "first_observed_activity_date"),
     latestObservedActivityDate: stringValue(row, "latest_observed_activity_date"),
     runCount: numberValue(row, "run_count") ?? 0,
     avgDistanceKm: numberValue(row, "avg_distance_km"),
-    minDistanceKm: numberValue(row, "min_distance_km"),
-    maxDistanceKm: numberValue(row, "max_distance_km"),
-    avgDurationSeconds: numberValue(row, "avg_duration_seconds"),
     avgPaceMinPerKm: numberValue(row, "avg_pace_min_per_km"),
     avgHeartRate: numberValue(row, "avg_heart_rate"),
-    avgTotalAscent: numberValue(row, "avg_total_ascent"),
-    avgTotalDescent: numberValue(row, "avg_total_descent"),
-    avgSegmentGrade: numberValue(row, "avg_segment_grade"),
-    avgRouteAltitudeRangeM: numberValue(row, "avg_route_altitude_range_m"),
-    routeDistanceBucketKm: numberValue(row, "route_distance_bucket_km"),
     representativeRouteCentroidLatitudeDeg: numberValue(
       row,
       "representative_route_centroid_latitude_deg",
@@ -103,7 +91,6 @@ export function mapRoute(row: Record<string, unknown>): RouteSummary {
       row,
       "representative_route_centroid_longitude_deg",
     ),
-    cityGridBucket: stringValue(row, "city_grid_bucket"),
   };
 }
 
@@ -122,33 +109,19 @@ export function mapMapProfileRecord(
 export function mapSegment(row: Record<string, unknown>): RunSegment {
   return {
     runId: stringValue(row, "run_id") ?? "",
-    routeId: stringValue(row, "route_id"),
-    activityDate: stringValue(row, "activity_date") ?? "",
     unitSystem: stringValue(row, "unit_system") === "imperial" ? "imperial" : "metric",
     segmentLengthValue: numberValue(row, "segment_length_value") ?? 0,
-    segmentLengthM: numberValue(row, "segment_length_m") ?? 0,
-    segmentLengthLabel: stringValue(row, "segment_length_label") ?? "",
-    isCanonical: booleanValue(row, "is_canonical"),
     segmentIndex: numberValue(row, "segment_index") ?? 0,
     segmentDistanceKm: numberValue(row, "segment_distance_km"),
     segmentDurationSeconds: numberValue(row, "segment_duration_seconds"),
     segmentPaceMinPerKm: numberValue(row, "segment_pace_min_per_km"),
-    avgSpeedKmh: numberValue(row, "avg_speed_kmh"),
     avgHeartRate: numberValue(row, "avg_heart_rate"),
     maxHeartRate: numberValue(row, "max_heart_rate"),
     avgRunningCadence: numberValue(row, "avg_running_cadence"),
-    minAltitudeM: numberValue(row, "min_altitude_m"),
-    maxAltitudeM: numberValue(row, "max_altitude_m"),
     elevationChangeM: numberValue(row, "elevation_change_m"),
     segmentGrade: numberValue(row, "segment_grade"),
     segmentStartDistanceKm: numberValue(row, "segment_start_distance_km"),
     segmentEndDistanceKm: numberValue(row, "segment_end_distance_km"),
-    segmentStartBoundaryM: numberValue(row, "segment_start_boundary_m"),
-    segmentEndBoundaryM: numberValue(row, "segment_end_boundary_m"),
-    segmentStartLatitudeDeg: numberValue(row, "segment_start_latitude_deg"),
-    segmentStartLongitudeDeg: numberValue(row, "segment_start_longitude_deg"),
-    segmentEndLatitudeDeg: numberValue(row, "segment_end_latitude_deg"),
-    segmentEndLongitudeDeg: numberValue(row, "segment_end_longitude_deg"),
   };
 }
 
@@ -162,9 +135,6 @@ export function mapDay(row: Record<string, unknown>): DayRollup {
     activeDayFlag: booleanValue(row, "active_day_flag"),
     rolling7dDistanceKm: numberValue(row, "rolling_7d_distance_km"),
     rolling28dDistanceKm: numberValue(row, "rolling_28d_distance_km"),
-    restingHeartRate: numberValue(row, "resting_heart_rate"),
-    hrvValue: numberValue(row, "hrv_value"),
-    sleepScore: numberValue(row, "sleep_score"),
   };
 }
 
@@ -227,12 +197,8 @@ export function mapFitness(row: Record<string, unknown>): FitnessPoint {
     hrDriftPct: numberValue(row, "hr_drift_pct"),
     rolling4RunHrDriftPct: numberValue(row, "rolling_4_run_hr_drift_pct"),
     rolling4RunRecoveryHr: numberValue(row, "rolling_4_run_recovery_hr"),
+    rolling4WeekRecoveryHr: numberValue(row, "rolling_4_week_recovery_hr"),
     hrBand: stringValue(row, "hr_band"),
     garminRecoveryHr: numberValue(row, "garmin_recovery_hr"),
-    restingHeartRate: numberValue(row, "resting_heart_rate"),
-    hrvValue: numberValue(row, "hrv_value"),
-    hrvStatus: stringValue(row, "hrv_status"),
-    sleepScore: numberValue(row, "sleep_score"),
-    sleepDurationSeconds: numberValue(row, "sleep_duration_seconds"),
   };
 }

@@ -21,6 +21,8 @@ export type RunFilterBounds = {
   maxAvgHeartRate: number | null;
   minGpsCoverage: number | null;
   maxGpsCoverage: number | null;
+  minAltitudeRangeM: number | null;
+  maxAltitudeRangeM: number | null;
 };
 
 export type DashboardSummary = {
@@ -31,19 +33,12 @@ export type DashboardSummary = {
   recent28dDistanceKm: number;
   activeWeeks: number;
   activeMonths: number;
-  healthCoverage: {
-    hrvDays: number;
-    rhrDays: number;
-    sleepDays: number;
-    heartRateDays: number;
-  };
   latestRun: RunSession | null;
 };
 
 export type LandingStatus = {
   latestCompletedDate: string | null;
   statusLabel: string;
-  goldSchema: string | null;
 };
 
 export type RunSession = {
@@ -66,34 +61,19 @@ export type RunSession = {
   segmentCount: number | null;
   avgSegmentGrade: number | null;
   routeAltitudeRangeM: number | null;
-  restingHeartRate: number | null;
-  hrvValue: number | null;
-  hrvStatus: string | null;
-  sleepScore: number | null;
-  sleepDurationSeconds: number | null;
   prior7dDistanceKm: number | null;
   prior28dDistanceKm: number | null;
 };
 
 export type RouteSummary = {
   routeId: string;
-  firstObservedActivityDate: string | null;
   latestObservedActivityDate: string | null;
   runCount: number;
   avgDistanceKm: number | null;
-  minDistanceKm: number | null;
-  maxDistanceKm: number | null;
-  avgDurationSeconds: number | null;
   avgPaceMinPerKm: number | null;
   avgHeartRate: number | null;
-  avgTotalAscent: number | null;
-  avgTotalDescent: number | null;
-  avgSegmentGrade: number | null;
-  avgRouteAltitudeRangeM: number | null;
-  routeDistanceBucketKm: number | null;
   representativeRouteCentroidLatitudeDeg: number | null;
   representativeRouteCentroidLongitudeDeg: number | null;
-  cityGridBucket: string | null;
 };
 
 export type MapProfileRecord = {
@@ -108,33 +88,19 @@ export type UnitSystem = "metric" | "imperial";
 
 export type RunSegment = {
   runId: string;
-  routeId: string | null;
-  activityDate: string;
   unitSystem: UnitSystem;
   segmentLengthValue: number;
-  segmentLengthM: number;
-  segmentLengthLabel: string;
-  isCanonical: boolean;
   segmentIndex: number;
   segmentDistanceKm: number | null;
   segmentDurationSeconds: number | null;
   segmentPaceMinPerKm: number | null;
-  avgSpeedKmh: number | null;
   avgHeartRate: number | null;
   maxHeartRate: number | null;
   avgRunningCadence: number | null;
-  minAltitudeM: number | null;
-  maxAltitudeM: number | null;
   elevationChangeM: number | null;
   segmentGrade: number | null;
   segmentStartDistanceKm: number | null;
   segmentEndDistanceKm: number | null;
-  segmentStartBoundaryM: number | null;
-  segmentEndBoundaryM: number | null;
-  segmentStartLatitudeDeg: number | null;
-  segmentStartLongitudeDeg: number | null;
-  segmentEndLatitudeDeg: number | null;
-  segmentEndLongitudeDeg: number | null;
 };
 
 export type DayRollup = {
@@ -146,9 +112,6 @@ export type DayRollup = {
   activeDayFlag: boolean;
   rolling7dDistanceKm: number | null;
   rolling28dDistanceKm: number | null;
-  restingHeartRate: number | null;
-  hrvValue: number | null;
-  sleepScore: number | null;
 };
 
 export type WeekRollup = {
@@ -199,6 +162,10 @@ export type VolumeData = {
   weeks: WeekRollup[];
   months: MonthRollup[];
   years: YearRollup[];
+  totalRuns: number;
+  totalDistanceKm: number;
+  activeDays: number;
+  latestDate: string | null;
 };
 
 export type FitnessPoint = {
@@ -213,11 +180,7 @@ export type FitnessPoint = {
   hrDriftPct: number | null;
   rolling4RunHrDriftPct: number | null;
   rolling4RunRecoveryHr: number | null;
+  rolling4WeekRecoveryHr: number | null;
   hrBand: string | null;
   garminRecoveryHr: number | null;
-  restingHeartRate: number | null;
-  hrvValue: number | null;
-  hrvStatus: string | null;
-  sleepScore: number | null;
-  sleepDurationSeconds: number | null;
 };

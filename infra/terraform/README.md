@@ -449,7 +449,7 @@ Verify Databricks bundle configuration still targets the external volume path:
 
 ```bash
 cd ../../databricks
-databricks bundle validate --target production
+databricks bundle validate --target dev
 ```
 
 After these checks pass, run the Garmin FIT S3 landing smoke test documented in

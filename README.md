@@ -35,14 +35,9 @@ coaching, or medical signals.
 
 ```txt
 Garmin Connect
-  → Python FIT and health JSON downloaders
-  → S3 raw FIT and health JSON landing zones
-  → Databricks external Unity Catalog volume
-  → Databricks bronze Delta tables
-  → dbt silver building blocks
-  → dbt gold signal and mart models
-  → Supabase site read models
-  → portfolio website
+  -> FIT downloader -> FIT S3 -> FIT bronze -> fit_refresh -> FIT core tables
+  -> health downloader -> health S3 -> health bronze -> health_refresh
+  -> Supabase FIT core tables -> portfolio website
 ```
 
 ## Current State
@@ -88,11 +83,10 @@ Use [docs/layer-runbook.md](docs/layer-runbook.md) for the complete
 setup and refresh sequence across all layers:
 
 1. Terraform infrastructure
-2. raw S3 FIT and health landing
-3. Databricks bronze ingestion
-4. dbt silver and gold builds
-5. dbt tests
-6. Supabase site read-model sync
+2. independent raw S3 FIT or health landing
+3. source-specific Databricks bronze ingestion
+4. source-specific dbt selector builds and tests
+5. source-specific Supabase read-model publication
 
-The order matters. A full dbt run requires both FIT bronze tables and
-`bronze.garmin_health_daily_payloads`.
+The scheduled FIT lane is end-to-end independent of health. Health is refreshed manually and
+is an offline analytical pipeline without a Supabase or frontend surface.

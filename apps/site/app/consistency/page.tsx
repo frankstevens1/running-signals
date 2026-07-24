@@ -11,6 +11,8 @@ import { formatDate, formatDecimal2, formatDistance, formatInteger } from "@/app
 import { explorerPages } from "@/app/lib/page-metadata";
 import { getServerDistanceUnit } from "@/app/lib/server-distance-unit";
 import type { DayRollup, WeekRollup } from "@/app/lib/types";
+import { getServerAnalyticsWindow } from "@/app/lib/analytics-window-server";
+import { amsterdamToday } from "@/app/lib/analytics-window";
 
 type DailyConsistencyContext = {
   longestDailyRunStreak: number;
@@ -89,10 +91,17 @@ function streakStartDate(week: WeekRollup | undefined): string | null {
   return start.toISOString().slice(0, 10);
 }
 
-export default async function ConsistencyPage() {
-  const [days, weeks, currentWeekAligned, weekStreakRecord, unit] = await Promise.all([
-    getDays(371),
-    getWeeks(52),
+export default async function ConsistencyPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const resolved = await searchParams;
+  const analyticsWindow = await getServerAnalyticsWindow(resolved);
+  const [days, weeks, comparisonWeeks, currentWeekAligned, weekStreakRecord, unit] = await Promise.all([
+    getDays(analyticsWindow.primary),
+    getWeeks(analyticsWindow.primary),
+    analyticsWindow.comparison ? getWeeks(analyticsWindow.comparison) : null,
     getCurrentWeekAligned(),
     getWeekStreakRecord(),
     getServerDistanceUnit(),
@@ -107,10 +116,21 @@ export default async function ConsistencyPage() {
     priorDailyContext = getDailyConsistencyContext(days.data.slice(0, midpoint));
     recentDailyContext = getDailyConsistencyContext(days.data.slice(midpoint));
   }
+  const windowSummary = days.status === "ok"
+    ? {
+        totalRuns: days.data.reduce((sum, day) => sum + day.runCount, 0),
+        totalDistanceKm: days.data.reduce((sum, day) => sum + day.distanceKm, 0),
+        activeDays: days.data.filter((day) => day.activeDayFlag).length,
+        latestDate: days.data.at(-1)?.calendarDate ?? null,
+      }
+    : null;
   const currentWeek =
     currentWeekAligned.status === "ok" ? currentWeekAligned.data : null;
   const longestActiveWeekStreak =
     weekStreakRecord.status === "ok" ? weekStreakRecord.data.longestActiveWeekStreak : 0;
+  const today = amsterdamToday();
+  const showCurrentWeek = !analyticsWindow.primary.from || !analyticsWindow.primary.to
+    || (today >= analyticsWindow.primary.from && today <= analyticsWindow.primary.to);
 
   return (
     <AppShell>
@@ -130,8 +150,8 @@ export default async function ConsistencyPage() {
         </DataState>
         <DataState result={weeks}>
           {(data) => {
+            const comparison = comparisonWeeks?.status === "ok" ? comparisonWeeks.data : null;
             const latest = data.at(-1);
-            const penultimate = data.at(-2);
             const activeWeeks = data.filter((week) => week.activeWeekFlag).length;
             const activeWeekPct =
               data.length > 0 ? Math.round((activeWeeks / data.length) * 100) : null;
@@ -147,10 +167,12 @@ export default async function ConsistencyPage() {
                   )
                 : null;
 
-            const weeklyDistanceTrend = trendDelta(
-              latest?.weeklyDistanceKm,
-              penultimate?.weeklyDistanceKm,
-            );
+            const weeklyDistanceTrend = comparison
+              ? trendDelta(
+                  data.reduce((sum, week) => sum + week.weeklyDistanceKm, 0),
+                  comparison.reduce((sum, week) => sum + week.weeklyDistanceKm, 0),
+                )
+              : null;
 
             return (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -169,12 +191,13 @@ export default async function ConsistencyPage() {
                       : undefined
                   }
                 />
+                {showCurrentWeek ? (
                 <MetricCard
                   label="Current week to date"
                   value={formatDistance(currentWeek?.distanceKm, unit)}
                   detail={
                     currentWeek
-                      ? `${formatInteger(currentWeek.runCount)} runs across ${formatInteger(currentWeek.daysSoFar)} calendar days so far${currentWeek.latestCompletedDate ? `, through ${formatDate(currentWeek.latestCompletedDate)}` : ""}`
+                      ? `${formatInteger(currentWeek.runCount)} runs across ${formatInteger(currentWeek.daysSoFar)} calendar days so far${currentWeek.includesLiveToday ? `, plus live data for today (${formatDate(currentWeek.latestCompletedDate ?? today)} model date)` : currentWeek.latestCompletedDate ? `, through ${formatDate(currentWeek.latestCompletedDate)}` : ""}`
                       : "No current-week data has been modeled yet."
                   }
                   icon={Activity}
@@ -188,6 +211,7 @@ export default async function ConsistencyPage() {
                       : undefined
                   }
                 />
+                ) : null}
                 <MetricCard
                   label="Completed-week streak"
                   value={formatInteger(latest?.activeWeekStreak)}
@@ -214,16 +238,20 @@ export default async function ConsistencyPage() {
                   }
                 />
                 <MetricCard
-                  label="Latest completed week"
-                  value={formatDistance(latest?.weeklyDistanceKm, unit)}
-                  detail={`${formatInteger(latest?.runsPerWeek)} runs in week ending ${formatDate(latest?.weekEndDate)}`}
+                  label="Distance in window"
+                  value={formatDistance(windowSummary?.totalDistanceKm, unit)}
+                  detail={
+                    windowSummary
+                      ? `${formatInteger(windowSummary.totalRuns)} runs · ${formatInteger(windowSummary.activeDays)} active days through ${formatDate(windowSummary.latestDate)}`
+                      : "No window data has been modeled yet."
+                  }
                   icon={Activity}
                   trend={
                     weeklyDistanceTrend
                       ? {
                           direction: weeklyDistanceTrend.direction,
                           value: `${weeklyDistanceTrend.diff > 0 ? "+" : ""}${formatDistance(Math.abs(weeklyDistanceTrend.diff), unit)}`,
-                          label: "vs prior week",
+                            label: "vs comparison window",
                         }
                       : undefined
                   }

@@ -67,7 +67,7 @@ export const sitePages = {
     label: "Fitness",
     description: "Inspect descriptive aerobic and recovery trends.",
     group: "Signals",
-    keywords: ["pace", "heart rate", "recovery", "hrv", "sleep"],
+    keywords: ["pace", "heart rate", "recovery", "efficiency"],
     icon: HeartPulse,
   },
   methodology: {
