@@ -88,6 +88,7 @@ select
     end as speed_kmh,
     sessions.avg_heart_rate,
     sessions.max_heart_rate,
+    last_record_heart_rates.last_record_heart_rate as ending_heart_rate,
     sessions.avg_cadence * 2.0 as avg_cadence,
     sessions.max_cadence * 2.0 as max_cadence,
     sessions.total_ascent,

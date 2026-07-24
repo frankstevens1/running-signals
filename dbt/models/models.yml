@@ -213,8 +213,16 @@ models:
         description: Rolling four-run average of heart-rate drift.
       - name: rolling_4_run_recovery_hr
         description: Rolling four-run average of Garmin recovery heart rate. Null recovery readings are excluded from the average.
-      - name: rolling_4_week_recovery_hr
-        description: Rolling four-week average of Garmin recovery heart rate, using a 28-day range window ending on the run date. Null recovery readings are excluded from the average.
+      - name: ending_heart_rate
+        description: Final recorded run heart rate used as the starting value for Garmin recovery heart-rate drop and comparable-run grouping.
+      - name: recovery_prior_90d_median
+        description: Median Garmin recovery heart-rate drop among qualifying runs in the same ending-heart-rate band over the preceding 90 calendar days. The current run is excluded.
+      - name: recovery_prior_90d_count
+        description: Count of qualifying prior 90-day recovery observations in the same ending-heart-rate band.
+      - name: recovery_prior_90d_min
+        description: Lowest qualifying recovery drop in the prior 90-day comparable sample.
+      - name: recovery_prior_90d_max
+        description: Highest qualifying recovery drop in the prior 90-day comparable sample.
 
   - name: mart_runs
     description: Compatibility presentation-ready FIT run-level metrics.

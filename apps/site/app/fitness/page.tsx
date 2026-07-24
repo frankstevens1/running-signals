@@ -23,6 +23,7 @@ import {
 import { explorerPages } from "@/app/lib/page-metadata";
 import { getServerDistanceUnit } from "@/app/lib/server-distance-unit";
 import { getServerAnalyticsWindow } from "@/app/lib/analytics-window-server";
+import { RECOVERY_BASELINE_MIN_OBSERVATIONS } from "@/app/lib/recovery-trend";
 
 function trendDelta(
   current: number | null | undefined,
@@ -103,7 +104,10 @@ export default async function FitnessPage({
 
             const recoveryTrend = trendDelta(
               latestRecovery?.garminRecoveryHr,
-              latestRecovery?.rolling4RunRecoveryHr,
+              latestRecovery?.recoveryPrior90dCount != null
+                && latestRecovery.recoveryPrior90dCount >= RECOVERY_BASELINE_MIN_OBSERVATIONS
+                ? latestRecovery.recoveryPrior90dMedian
+                : null,
             );
 
             const efficiencyBaseline = comparisonEfficiency ?? latest?.rolling4RunEfficiencyRatio;
@@ -125,7 +129,7 @@ export default async function FitnessPage({
                           ? {
                             direction: driftTrend.direction,
                             value: formatFixedSignedPercent(driftTrend.diff, false),
-                            label: "vs 4-run rolling",
+                            label: "vs prior 90-day baseline",
                           }
                         : undefined
                     }

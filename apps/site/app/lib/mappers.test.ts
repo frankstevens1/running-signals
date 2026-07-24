@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { mapMapProfileRecord, mapRoute } from "./mappers";
+import { mapFitness, mapMapProfileRecord, mapRoute } from "./mappers";
 
 describe("mapRoute", () => {
   it("maps nullable representative route centroids", () => {
@@ -30,6 +30,32 @@ describe("mapRoute", () => {
       altitudeM: 1_200,
       latitudeDeg: -15.4,
       longitudeDeg: 28.3,
+    });
+  });
+});
+
+describe("mapFitness", () => {
+  it("maps the comparable recovery baseline fields", () => {
+    expect(
+      mapFitness({
+        activity_id: "activity-1",
+        activity_date: "2026-06-24",
+        ending_heart_rate: "147",
+        recovery_prior_90d_count: "6",
+        recovery_prior_90d_median: "47",
+        recovery_prior_90d_q1: "44",
+        recovery_prior_90d_q3: "51",
+        recovery_prior_90d_min: "37",
+        recovery_prior_90d_max: "58",
+      }),
+    ).toMatchObject({
+      endingHeartRate: 147,
+      recoveryPrior90dCount: 6,
+      recoveryPrior90dMedian: 47,
+      recoveryPrior90dQ1: 44,
+      recoveryPrior90dQ3: 51,
+      recoveryPrior90dMin: 37,
+      recoveryPrior90dMax: 58,
     });
   });
 });

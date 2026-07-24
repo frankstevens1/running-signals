@@ -36,7 +36,9 @@ const FITNESS_SELECT = [
   "activity_id", "activity_date", "distance_km", "avg_pace_min_per_km", "speed_kmh",
   "avg_heart_rate", "efficiency_ratio", "rolling_4_run_efficiency_ratio",
   "hr_drift_pct", "rolling_4_run_hr_drift_pct", "rolling_4_run_recovery_hr",
-  "rolling_4_week_recovery_hr", "hr_band", "garmin_recovery_hr",
+  "ending_heart_rate", "recovery_prior_90d_count", "recovery_prior_90d_median",
+  "recovery_prior_90d_q1", "recovery_prior_90d_q3", "recovery_prior_90d_min",
+  "recovery_prior_90d_max", "hr_band", "garmin_recovery_hr",
 ].join(",");
 const ROUTE_SELECT = [
   "route_id", "latest_observed_activity_date", "run_count", "avg_distance_km",

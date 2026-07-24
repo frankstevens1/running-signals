@@ -3,11 +3,13 @@
 import { useMemo, useState, type ReactNode } from "react";
 import {
   Bar,
+  Cell,
   CartesianGrid,
   ComposedChart,
   Legend,
   Line,
   LineChart,
+  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   Scatter,
@@ -23,6 +25,15 @@ import {
   type DistanceUnit,
 } from "@/app/lib/distance-unit";
 import { formatPace, formatSignedPercent, shortDate } from "@/app/lib/format";
+import {
+  buildRecoveryTrendPoints,
+  getRecoveryPointsWithinDays,
+  getRecoveryTrendSummary,
+  recoveryDateTimestamp,
+  RECOVERY_BASELINE_MIN_OBSERVATIONS,
+  RECOVERY_HISTORY_DAYS,
+  type RecoveryTrendPoint,
+} from "@/app/lib/recovery-trend";
 import type { FitnessPoint, MonthRollup, WeekRollup } from "@/app/lib/types";
 import {
   MetricInfoDialog,
@@ -263,32 +274,32 @@ function FitnessLineLegend({
   );
 }
 
-function RecoveryLegend() {
+function RecoveryLegend({
+  latestClassification,
+}: {
+  latestClassification: RecoveryTrendPoint["recoveryClassification"] | undefined;
+}) {
+  const latestColor = latestClassification === undefined
+    ? MUTED_SERIES_COLOR
+    : recoveryClassificationColor(latestClassification);
+
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-1 font-mono text-[11px] leading-4 text-(--text-soft)">
       <span className="inline-flex items-center gap-1.5">
         <span
           className="size-2 shrink-0 rounded-full"
-          style={{ backgroundColor: SIGNAL_OK_COLOR }}
+          style={{ backgroundColor: MUTED_SERIES_COLOR }}
           aria-hidden="true"
         />
-        At or above 4-week trend
+        Comparable recovery readings in the last {RECOVERY_HISTORY_DAYS} days
       </span>
       <span className="inline-flex items-center gap-1.5">
         <span
-          className="size-2 shrink-0 rounded-full"
-          style={{ backgroundColor: SIGNAL_ERROR_COLOR }}
+          className="size-2 shrink-0 rounded-full border"
+          style={{ backgroundColor: latestColor, borderColor: "var(--surface)" }}
           aria-hidden="true"
         />
-        Below 4-week trend
-      </span>
-      <span className="inline-flex items-center gap-1.5">
-        <span
-          className="w-5 rounded-full"
-          style={{ backgroundColor: SECONDARY_SERIES_COLOR, height: 3 }}
-          aria-hidden="true"
-        />
-        Rolling 4-week recovery (line)
+        Latest reading
       </span>
     </div>
   );
@@ -296,6 +307,11 @@ function RecoveryLegend() {
 
 function getBandColor(index: number) {
   return BAND_SERIES_COLORS[index % BAND_SERIES_COLORS.length];
+}
+
+function getHeartRateBandId(heartRate: number): string {
+  const min = Math.floor(heartRate / HEART_RATE_BAND_SIZE_BPM) * HEART_RATE_BAND_SIZE_BPM;
+  return `${min}-${min + HEART_RATE_BAND_SIZE_BPM}`;
 }
 
 function getLinearPaceTrend(
@@ -403,7 +419,7 @@ function getShortRangeDateTicks(
   return ticks;
 }
 
-function getPaceHeartRateDateTicks(points: PaceHeartRateChartPoint[]): number[] {
+function getUniformDateTicks(points: Array<{ activityDateTimestamp: number }>): number[] {
   if (points.length === 0) return [];
 
   const timestamps = points.map((point) => point.activityDateTimestamp);
@@ -468,9 +484,14 @@ function getEfficiencyDomain(points: FitnessPoint[]): NumericDomain {
   return [Math.max(0, min - padding), max + padding];
 }
 
-function getRecoveryHeartRateDomain(points: FitnessPoint[]): NumericDomain {
+function getRecoveryHeartRateDomain(points: RecoveryTrendPoint[]): NumericDomain {
   const values = points
-    .flatMap((point) => [point.garminRecoveryHr, point.rolling4WeekRecoveryHr])
+    .flatMap((point) => [
+      point.garminRecoveryHr,
+      point.recoveryPrior90dMedian,
+      point.recoveryPrior90dQ1,
+      point.recoveryPrior90dQ3,
+    ])
     .filter((value): value is number => value !== null && Number.isFinite(value));
 
   if (values.length === 0) return [0, 30];
@@ -582,17 +603,16 @@ const CHART_INFO = {
   recoveryHeartRate: {
     title: "Post-run recovery response",
     definition:
-      "Recovery heart rate is the difference between the final heart rate at the end of a run and the heart rate measured after roughly 120 seconds of recovery. A larger drop means more acute heart-rate recovery. The line is a rolling four-week average of available recovery readings, ending on each run date.",
+      "Recovery heart rate is the drop from the final recorded run heart rate to Garmin's recovery reading, usually about two minutes later. The top comparison places the latest reading against the prior 90 days of runs that finished in the same 10-bpm heart-rate range; the latest run is excluded from that baseline.",
     source: "dbt signal_fitness, from Garmin recovery heart-rate events.",
     interpretation: [
-      "Higher values mean a larger early heart-rate drop after the run.",
-      "Each point is an individual recovery reading. Green points sit at or above the four-week trend; red points sit below it.",
-      "Use the pattern as context alongside workload, heat, and how hard the run was.",
+      "The shaded range is the middle half of prior comparable readings; the tick is their median. The coloured dot is the latest recovery drop relative to that reference.",
+      "The lower strip shows all comparable readings from the last 90 days in run order. The rightmost dot is the latest run; older dots are neutral evidence, not judgments.",
+      "A baseline needs at least four prior comparable readings. Without that sample, the chart shows the reading but does not classify it.",
     ],
     caveats: [
-      "Recovery readings are not available for every run and can vary with measurement timing and device behavior.",
-      "The magnitude of the drop is influenced by how the run ends. An easy run that finishes at a lower heart rate may drop less than a hard finish at a high heart rate, even when recovery is similar, because the starting point is lower.",
-      "A larger drop is generally favorable, but this chart is descriptive rather than a diagnosis of fitness or readiness.",
+      "The drop can change with how a run ends, heat, fatigue, hydration, sensor quality, and measurement timing.",
+      "A larger drop is generally favourable, but this is descriptive context, not a readiness or fitness diagnosis.",
     ],
   },
   paceHeartRate: {
@@ -1027,21 +1047,23 @@ function RecoveryTooltip({
 }: {
   active?: boolean;
   payload?: {
-    name?: string;
-    value?: number;
-    payload?: { activityDate: string; garminRecoveryHr: number; rolling4WeekRecoveryHr: number | null };
+    payload?: RecoveryTrendPoint;
   }[];
 }) {
   if (!active || !payload || payload.length === 0) return null;
 
-  const entry = payload[0]?.payload;
+  const entry = payload.map((item) => item.payload).find(Boolean);
   const date = entry?.activityDate
     ? recoveryTooltipLabelFormat.format(
         new Date(`${entry.activityDate}T00:00:00`),
       )
     : null;
   const recoveryValue = entry?.garminRecoveryHr;
-  const trendValue = entry?.rolling4WeekRecoveryHr;
+  const baseline = entry?.recoveryPrior90dMedian;
+  const windowStart = entry?.activityDate
+    ? new Date(`${entry.activityDate}T00:00:00Z`)
+    : null;
+  if (windowStart) windowStart.setUTCDate(windowStart.getUTCDate() - 90);
 
   return (
     <div
@@ -1064,257 +1086,282 @@ function RecoveryTooltip({
         </div>
       )}
       <div style={{ color: "var(--text-soft)", fontSize: 11, padding: 0 }}>
-        Recovery:{" "}
+        Recovery drop:{" "}
         {recoveryValue != null ? `${Math.round(recoveryValue)} bpm` : "\u2014"}
       </div>
       <div style={{ color: "var(--text-soft)", fontSize: 11, padding: 0 }}>
-        4-week trend:{" "}
-        {trendValue != null ? `${Math.round(trendValue)} bpm` : "\u2014"}
+        Baseline before this run:{" "}
+        {baseline != null ? `${Math.round(baseline)} bpm` : "\u2014"}
+      </div>
+      <div style={{ color: "var(--text-soft)", fontSize: 11, padding: 0 }}>
+        Difference:{" "}
+        {entry?.recoveryDelta != null
+          ? `${entry.recoveryDelta > 0 ? "+" : ""}${Math.round(entry.recoveryDelta)} bpm`
+          : "\u2014"}
+      </div>
+      <div style={{ color: "var(--text-soft)", fontSize: 11, padding: 0 }}>
+        Baseline observations: {entry?.recoveryPrior90dCount ?? "\u2014"} runs
+      </div>
+      <div style={{ color: "var(--text-soft)", fontSize: 11, padding: 0 }}>
+        Ending HR: {entry?.endingHeartRate != null ? `${Math.round(entry.endingHeartRate)} bpm` : "\u2014"}
+      </div>
+      {windowStart && date && (
+        <div style={{ color: "var(--text-soft)", fontSize: 11, padding: 0 }}>
+          Calculation interval: {recoveryTooltipLabelFormat.format(windowStart)} to {date}
+        </div>
+      )}
+      {entry?.recoveryBaselineProvisional && (
+        <div style={{ color: "var(--text-soft)", fontSize: 11, padding: 0 }}>
+          Baseline is provisional.
+        </div>
+      )}
+      {entry?.recoveryIqr && (
+        <div style={{ color: "var(--text-soft)", fontSize: 11, padding: 0 }}>
+          Middle 50%: {Math.round(entry.recoveryIqr[0])}-{Math.round(entry.recoveryIqr[1])} bpm
+        </div>
+      )}
+    </div>
+  );
+}
+
+function recoveryClassificationColor(classification: RecoveryTrendPoint["recoveryClassification"]): string {
+  switch (classification) {
+    case "better": return SIGNAL_OK_COLOR;
+    case "worse": return SIGNAL_ERROR_COLOR;
+    case "typical": return MUTED_SERIES_COLOR;
+    case "unavailable": return SECONDARY_SERIES_COLOR;
+  }
+}
+
+function RecoveryBaselineComparison({ point }: { point: RecoveryTrendPoint | undefined }) {
+  if (
+    !point
+    || point.recoveryPrior90dMedian === null
+    || point.recoveryIqr === null
+    || point.recoveryPrior90dMin === null
+    || point.recoveryPrior90dMax === null
+  ) {
+    const observedCount = point?.recoveryPrior90dCount ?? 0;
+    return (
+      <div className="rounded-sm border border-(--border) bg-(--surface-muted) px-4 py-3 font-mono text-xs leading-5 text-(--text-soft)">
+        <strong className="text-(--text)">Baseline unavailable.</strong>{" "}
+        {observedCount} of {RECOVERY_BASELINE_MIN_OBSERVATIONS} comparable recovery readings are
+        available in the prior 90 days.
+      </div>
+    );
+  }
+
+  const [q1, q3] = point.recoveryIqr;
+  const median = point.recoveryPrior90dMedian;
+  const minimum = point.recoveryPrior90dMin;
+  const maximum = point.recoveryPrior90dMax;
+  const span = Math.max(maximum - minimum, 1);
+  const position = (value: number) => `${4 + ((value - minimum) / span) * 92}%`;
+  const status = point.recoveryClassification === "typical"
+    ? "within the typical range"
+    : point.recoveryClassification === "better"
+      ? "above the prior baseline"
+      : "below the prior baseline";
+
+  return (
+    <div className="rounded-sm border border-(--border) bg-(--surface-muted) px-4 py-3">
+      <div className="grid grid-cols-3 items-baseline gap-x-3 font-mono text-xs leading-5">
+        <span className="text-(--text-soft)">Prior 90-day comparable response</span>
+        <span className="text-center text-(--text-soft)">
+          Latest: <strong className="text-(--text)">{Math.round(point.garminRecoveryHr)} bpm</strong>{" "}
+          ({status})
+        </span>
+        <span className="text-right text-(--text-soft)">{point.recoveryPrior90dCount} runs</span>
+      </div>
+      <div className="relative mt-5 h-14" aria-label="Latest recovery compared with the prior baseline">
+        <div className="absolute top-4 right-0 left-0 h-px bg-(--border)" />
+        <div
+          className="absolute top-4 h-3 -translate-y-1/2 rounded-full bg-(--accent-soft)"
+          style={{ left: position(q1), width: `calc(${position(q3)} - ${position(q1)})` }}
+        />
+        <div
+          className="absolute top-1 h-6 w-px -translate-x-1/2 bg-(--text-soft)"
+          style={{ left: position(q1) }}
+        />
+        <div
+          className="absolute top-0 h-8 w-px -translate-x-1/2 bg-(--text)"
+          style={{ left: position(median) }}
+        />
+        <div
+          className="absolute top-1 h-6 w-px -translate-x-1/2 bg-(--text-soft)"
+          style={{ left: position(q3) }}
+        />
+        <div
+          className="absolute top-4 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-(--surface)"
+          style={{ left: position(point.garminRecoveryHr), backgroundColor: recoveryClassificationColor(point.recoveryClassification) }}
+        />
+        <span className="absolute top-8 -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-(--text-soft)" style={{ left: position(q1) }}>
+          Q1 {Math.round(q1)}
+        </span>
+        <span className="absolute top-8 -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-(--text)" style={{ left: position(median) }}>
+          Median {Math.round(median)}
+        </span>
+        <span className="absolute top-8 -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-(--text-soft)" style={{ left: position(q3) }}>
+          Q3 {Math.round(q3)}
+        </span>
+        <span className="absolute top-8 left-0 whitespace-nowrap font-mono text-[10px] text-(--text-soft)">
+          Min {Math.round(minimum)}
+        </span>
+        <span className="absolute top-8 right-0 whitespace-nowrap font-mono text-[10px] text-(--text-soft)">
+          Max {Math.round(maximum)}
+        </span>
       </div>
     </div>
   );
 }
 
 export function RecoveryHeartRateChart({ points }: { points: FitnessPoint[] }) {
-  const [selectedHeartRateBandIds, setSelectedHeartRateBandIds] = useState<string[]>([]);
-
-  const heartRateBands = useMemo(() => {
-    const pointsWithHr = points.filter(
-      (p): p is FitnessPoint & { garminRecoveryHr: number; avgHeartRate: number } =>
-        p.garminRecoveryHr !== null && p.avgHeartRate !== null,
-    );
-    if (pointsWithHr.length === 0) return [];
-
-    const heartRates = pointsWithHr.map((p) => p.avgHeartRate);
-    const firstBand =
-      Math.floor(Math.min(...heartRates) / HEART_RATE_BAND_SIZE_BPM) *
-      HEART_RATE_BAND_SIZE_BPM;
-    const lastBand =
-      Math.floor(Math.max(...heartRates) / HEART_RATE_BAND_SIZE_BPM) *
-      HEART_RATE_BAND_SIZE_BPM;
-    const bands: HeartRateBand[] = [];
-
-    for (let min = firstBand; min <= lastBand; min += HEART_RATE_BAND_SIZE_BPM) {
-      const max = min + HEART_RATE_BAND_SIZE_BPM;
-      const count = pointsWithHr.filter(
-        (p) => p.avgHeartRate >= min && p.avgHeartRate < max,
-      ).length;
-      if (count > 0) {
-        bands.push({
-          id: `${min}-${max}`,
-          label: `${min}-${max - 1}`,
-          min,
-          max,
-          count,
-        });
-      }
-    }
-    return bands;
-  }, [points]);
-
-  const selectedBandSet = useMemo(
-    () => new Set(selectedHeartRateBandIds),
-    [selectedHeartRateBandIds],
-  );
-
-  const recoveryPoints = useMemo(() => {
-    const all = points
-      .filter(
-        (point): point is FitnessPoint & { garminRecoveryHr: number } =>
-          point.garminRecoveryHr !== null,
-      )
-      .map((point) => ({
-        ...point,
-        activityDateTimestamp: getActivityDateTimestamp(point.activityDate),
-      }));
-
-    const filtered =
-      selectedHeartRateBandIds.length === 0
-        ? all
-        : all.filter((p) => {
-            if (p.avgHeartRate === null) return false;
-            const bandMin =
-              Math.floor(p.avgHeartRate / HEART_RATE_BAND_SIZE_BPM) *
-              HEART_RATE_BAND_SIZE_BPM;
-            return selectedBandSet.has(
-              `${bandMin}-${bandMin + HEART_RATE_BAND_SIZE_BPM}`,
-            );
-          });
-
-    const sorted = [...filtered].sort(
-      (a, b) => a.activityDateTimestamp - b.activityDateTimestamp,
-    );
-    const withRolling = sorted.map((point) => {
-      const windowStart = point.activityDateTimestamp - 27 * DAY_MS;
-      let windowSum = 0;
-      let windowCount = 0;
-      for (let i = 0; i < sorted.length; i++) {
-        if (
-          sorted[i].activityDateTimestamp >= windowStart &&
-          sorted[i].activityDateTimestamp <= point.activityDateTimestamp
-        ) {
-          windowSum += sorted[i].garminRecoveryHr;
-          windowCount++;
-        }
-      }
-      const rolling4WeekRecoveryHr =
-        windowCount > 0 ? windowSum / windowCount : null;
-      return { ...point, rolling4WeekRecoveryHr };
-    });
-
-    return {
-      all: withRolling,
-      above: withRolling.filter(
-        (point) =>
-          point.rolling4WeekRecoveryHr !== null &&
-          point.garminRecoveryHr >= point.rolling4WeekRecoveryHr,
-      ),
-      below: withRolling.filter(
-        (point) =>
-          point.rolling4WeekRecoveryHr !== null &&
-          point.garminRecoveryHr < point.rolling4WeekRecoveryHr,
-      ),
-      noTrend: withRolling.filter(
-        (point) => point.rolling4WeekRecoveryHr === null,
-      ),
-    };
-  }, [points, selectedHeartRateBandIds, selectedBandSet]);
-
-  const recoveryDomain = getRecoveryHeartRateDomain(recoveryPoints.all);
-
-  const toggleHeartRateBand = (bandId: string) => {
-    setSelectedHeartRateBandIds((currentIds) => {
-      const nextIds = new Set(currentIds);
-      if (nextIds.has(bandId)) {
-        nextIds.delete(bandId);
-      } else {
-        nextIds.add(bandId);
-      }
-      return heartRateBands
-        .filter((band) => nextIds.has(band.id))
-        .map((band) => band.id);
-    });
-  };
-
-  const bandColorById = useMemo(
+  const recoveryObservations = useMemo(
     () =>
-      new Map(
-        heartRateBands.map((band, index) => [band.id, getBandColor(index)]),
-      ),
-    [heartRateBands],
+      points
+        .filter(
+          (point): point is FitnessPoint & { garminRecoveryHr: number; endingHeartRate: number } =>
+            point.garminRecoveryHr !== null && point.endingHeartRate !== null,
+        )
+        .map((point) => ({ ...point, activityDateTimestamp: recoveryDateTimestamp(point.activityDate) }))
+        .sort((left, right) => left.activityDateTimestamp - right.activityDateTimestamp),
+    [points],
   );
-
-  const controls =
-    heartRateBands.length > 1 ? (
-      <div className="overflow-x-auto">
-        <div
-          className="flex w-max min-w-full items-center justify-center gap-1.5"
-          role="group"
-          aria-label="Average heart rate range"
-        >
-          {heartRateBands.map((band) => (
-            <button
-              key={band.id}
-              type="button"
-              aria-pressed={selectedBandSet.has(band.id)}
-              className={heartRateBandButtonClass(
-                selectedBandSet.has(band.id),
-              )}
-              onClick={() => toggleHeartRateBand(band.id)}
-            >
-              <span
-                className="size-1.5 shrink-0 rounded-full"
-                style={{
-                  backgroundColor:
-                    bandColorById.get(band.id) ?? getBandColor(0),
-                }}
-                aria-hidden="true"
-              />
-              {band.label}
-            </button>
-          ))}
-        </div>
-      </div>
-    ) : null;
+  const latestObservation = recoveryObservations.at(-1);
+  const activeBandId = latestObservation
+    ? getHeartRateBandId(latestObservation.endingHeartRate)
+    : null;
+  const selectedObservations = useMemo(
+    () => recoveryObservations.filter(
+      (point) => getHeartRateBandId(point.endingHeartRate) === activeBandId,
+    ),
+    [activeBandId, recoveryObservations],
+  );
+  const recoveryPoints = useMemo(
+    () =>
+      buildRecoveryTrendPoints(selectedObservations.map((point) => ({
+        activityDate: point.activityDate,
+        activityDateTimestamp: point.activityDateTimestamp,
+        garminRecoveryHr: point.garminRecoveryHr,
+        endingHeartRate: point.endingHeartRate,
+        recoveryPrior90dCount: point.recoveryPrior90dCount,
+        recoveryPrior90dMedian: point.recoveryPrior90dMedian,
+        recoveryPrior90dQ1: point.recoveryPrior90dQ1,
+        recoveryPrior90dQ3: point.recoveryPrior90dQ3,
+        recoveryPrior90dMin: point.recoveryPrior90dMin,
+        recoveryPrior90dMax: point.recoveryPrior90dMax,
+      }))),
+    [selectedObservations],
+  );
+  const recoverySummary = useMemo(
+    () => getRecoveryTrendSummary(
+      recoveryPoints,
+      latestObservation?.activityDateTimestamp ?? null,
+    ),
+    [latestObservation?.activityDateTimestamp, recoveryPoints],
+  );
+  const recoveryDomain = getRecoveryHeartRateDomain(recoveryPoints);
+  const latestRecoveryPoint = recoveryPoints.at(-1);
+  const recentRecoveryPoints = useMemo(
+    () => getRecoveryPointsWithinDays(recoveryPoints).map((point, index) => ({
+      ...point,
+      runOrder: index + 1,
+      runLabel: shortDate(point.activityDate),
+    })),
+    [recoveryPoints],
+  );
+  const latestStripPoint = recentRecoveryPoints.at(-1);
+  const activeBandLabel = latestObservation
+    ? `${Math.floor(latestObservation.endingHeartRate / HEART_RATE_BAND_SIZE_BPM) * HEART_RATE_BAND_SIZE_BPM}-${Math.floor(latestObservation.endingHeartRate / HEART_RATE_BAND_SIZE_BPM) * HEART_RATE_BAND_SIZE_BPM + HEART_RATE_BAND_SIZE_BPM - 1}`
+    : null;
 
   return (
     <ChartFrame
       title="Post-run recovery response"
-      description="Recovery heart-rate drop after recorded runs."
+      description={activeBandLabel
+        ? `Recovery heart-rate drop for runs ending at ${activeBandLabel} bpm, matching the latest recorded run.`
+        : "Recovery heart-rate drop after runs with comparable ending heart rate."}
       info={CHART_INFO.recoveryHeartRate}
-      controls={controls}
     >
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={recoveryPoints.all} margin={{ top: 8, right: 8, left: 0 }}>
-          <CartesianGrid
-            stroke={CHART_GRID_COLOR}
-            strokeDasharray="2 5"
-            vertical={false}
-          />
-          <XAxis
-            dataKey="activityDateTimestamp"
-            name="Date"
-            type="number"
-            scale="time"
-            domain={
-              recoveryPoints.all.length > 0
-                ? ["dataMin", "dataMax"]
-                : [0, 1]
-            }
-            tickFormatter={formatTimestampTick}
-            minTickGap={28}
-            axisLine={false}
-            tickLine={false}
-            tick={axisTick}
-          />
-          <YAxis
-            domain={recoveryDomain}
-            name="Recovery HR"
-            axisLine={false}
-            tickLine={false}
-            tick={axisTick}
-            tickFormatter={(value) => `${Math.round(Number(value))} bpm`}
-          />
-          <Tooltip content={<RecoveryTooltip />} />
-          <Legend
-            content={<RecoveryLegend />}
-          />
-          <Scatter
-            data={recoveryPoints.above}
-            dataKey="garminRecoveryHr"
-            name="At or above trend"
-            fill={SIGNAL_OK_COLOR}
-            stroke="none"
-            r={4}
-          />
-          <Scatter
-            data={recoveryPoints.below}
-            dataKey="garminRecoveryHr"
-            name="Below trend"
-            fill={SIGNAL_ERROR_COLOR}
-            stroke="none"
-            r={4}
-          />
-          {recoveryPoints.noTrend.length > 0 ? (
-            <Scatter
-              data={recoveryPoints.noTrend}
-              dataKey="garminRecoveryHr"
-              name="No 4-week trend"
-              fill={MUTED_SERIES_COLOR}
-              stroke="none"
-              r={4}
-            />
-          ) : null}
-          <Line
-            type="monotone"
-            dataKey="rolling4WeekRecoveryHr"
-            name="Rolling 4-week recovery (line)"
-            stroke={SECONDARY_SERIES_COLOR}
-            strokeWidth={3}
-            dot={false}
-          />
-        </ComposedChart>
-      </ResponsiveContainer>
+      <div className="flex h-full min-h-0 flex-col">
+        <RecoveryBaselineComparison point={latestRecoveryPoint} />
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-1 pt-3 font-mono text-[11px] leading-4 text-(--text-soft)">
+          {recoverySummary.daysSinceLastComparableRun !== null
+            && recoverySummary.daysSinceLastComparableRun > 0 && (
+              <span>Last comparable run: {recoverySummary.daysSinceLastComparableRun} days ago</span>
+            )}
+        </div>
+        <div className="min-h-0 flex-1 pt-1">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={recentRecoveryPoints} margin={{ top: 8, right: 8, left: 0 }}>
+              <CartesianGrid
+                stroke={CHART_GRID_COLOR}
+                strokeDasharray="2 5"
+                vertical={false}
+              />
+              <XAxis
+                dataKey="runLabel"
+                name="Run date"
+                type="category"
+                interval="preserveStartEnd"
+                axisLine={false}
+                tickLine={false}
+                tick={axisTick}
+              />
+              <YAxis
+                domain={recoveryDomain}
+                name="Recovery HR"
+                axisLine={false}
+                tickLine={false}
+                tick={axisTick}
+                tickFormatter={(value) => `${Math.round(Number(value))} bpm`}
+              />
+              <Tooltip content={<RecoveryTooltip />} />
+              <Legend
+                content={<RecoveryLegend latestClassification={latestStripPoint?.recoveryClassification} />}
+              />
+              {latestRecoveryPoint?.recoveryIqr && (
+                <ReferenceArea
+                  y1={latestRecoveryPoint.recoveryIqr[0]}
+                  y2={latestRecoveryPoint.recoveryIqr[1]}
+                  fill={SECONDARY_SERIES_COLOR}
+                  fillOpacity={0.08}
+                />
+              )}
+              {latestRecoveryPoint?.recoveryPrior90dMedian != null && (
+                <ReferenceLine
+                  y={latestRecoveryPoint?.recoveryPrior90dMedian}
+                  stroke={SECONDARY_SERIES_COLOR}
+                  strokeDasharray="3 4"
+                  strokeOpacity={0.7}
+                />
+              )}
+              <Scatter
+                data={recentRecoveryPoints}
+                dataKey="garminRecoveryHr"
+                name="Comparable readings"
+                fill={MUTED_SERIES_COLOR}
+                stroke="none"
+                r={4}
+              >
+                {recentRecoveryPoints.map((point, index) => {
+                  const isLatest = index === recentRecoveryPoints.length - 1;
+                  return (
+                    <Cell
+                      key={`${point.activityDateTimestamp}-${index}`}
+                      fill={isLatest
+                        ? recoveryClassificationColor(point.recoveryClassification)
+                        : MUTED_SERIES_COLOR}
+                      stroke={isLatest ? "var(--surface)" : "none"}
+                      strokeWidth={isLatest ? 2 : 0}
+                    />
+                  );
+                })}
+              </Scatter>
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
     </ChartFrame>
   );
 }
@@ -1362,7 +1409,7 @@ export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
     [bandSeries],
   );
   const trendData = useMemo(() => getLinearPaceTrend(visibleData), [visibleData]);
-  const dateTicks = useMemo(() => getPaceHeartRateDateTicks(visibleData), [visibleData]);
+  const dateTicks = useMemo(() => getUniformDateTicks(visibleData), [visibleData]);
   const paceDomain = useMemo(() => getPaceDomain(visibleData), [visibleData]);
   const toggleHeartRateBand = (bandId: string) => {
     setSelectedHeartRateBandIds((currentIds) => {

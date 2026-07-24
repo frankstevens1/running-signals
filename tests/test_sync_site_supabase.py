@@ -176,6 +176,15 @@ def test_fit_exports_preserve_garmin_recovery_hr() -> None:
     fitness_export = exports["site_fitness_core"]
     assert "rolling_4_run_recovery_hr" in fitness_export.columns
     assert "rolling_4_run_recovery_hr" in fitness_export.statement(databricks_config())
+    assert {
+        "ending_heart_rate",
+        "recovery_prior_90d_count",
+        "recovery_prior_90d_median",
+        "recovery_prior_90d_q1",
+        "recovery_prior_90d_q3",
+        "recovery_prior_90d_min",
+        "recovery_prior_90d_max",
+    } <= set(fitness_export.columns)
 
 
 def test_dashboard_summary_derives_periods_from_days_not_months() -> None:

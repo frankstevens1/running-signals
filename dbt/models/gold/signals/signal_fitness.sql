@@ -66,6 +66,7 @@ run_fitness as (
         runs.avg_pace_min_per_km,
         runs.speed_kmh,
         runs.avg_heart_rate,
+        runs.ending_heart_rate,
         case
             when runs.avg_heart_rate is not null and runs.avg_heart_rate > 0
             then runs.speed_kmh / runs.avg_heart_rate
@@ -85,10 +86,11 @@ run_fitness as (
     from runs
     left join hr_drift
         on runs.run_id = hr_drift.run_id
-)
+),
 
-select
-    *,
+windowed as (
+    select
+        *,
     avg(efficiency_ratio) over (
         order by activity_date, activity_id
         rows between 3 preceding and current row
@@ -101,8 +103,56 @@ select
         order by activity_date, activity_id
         rows between 3 preceding and current row
     ) as rolling_4_run_recovery_hr,
-    avg(garmin_recovery_hr) over (
+    count(case
+        when garmin_recovery_hr > 0 and ending_heart_rate > 0 then garmin_recovery_hr
+    end) over recovery_prior_90d_window as recovery_prior_90d_count,
+    percentile_approx(
+        case when garmin_recovery_hr > 0 and ending_heart_rate > 0 then garmin_recovery_hr end,
+        0.5,
+        10000
+    ) over recovery_prior_90d_window as recovery_prior_90d_median,
+    percentile_approx(
+        case when garmin_recovery_hr > 0 and ending_heart_rate > 0 then garmin_recovery_hr end,
+        0.25,
+        10000
+    ) over recovery_prior_90d_window as recovery_prior_90d_q1,
+    percentile_approx(
+        case when garmin_recovery_hr > 0 and ending_heart_rate > 0 then garmin_recovery_hr end,
+        0.75,
+        10000
+    ) over recovery_prior_90d_window as recovery_prior_90d_q3,
+    min(case
+        when garmin_recovery_hr > 0 and ending_heart_rate > 0 then garmin_recovery_hr
+    end) over recovery_prior_90d_window as recovery_prior_90d_min,
+    max(case
+        when garmin_recovery_hr > 0 and ending_heart_rate > 0 then garmin_recovery_hr
+    end) over recovery_prior_90d_window as recovery_prior_90d_max
+    from run_fitness
+    window recovery_prior_90d_window as (
+        partition by case
+            when ending_heart_rate > 0 then floor(ending_heart_rate / 10) * 10
+        end
         order by activity_date
-        range between interval '27' day preceding and current row
-    ) as rolling_4_week_recovery_hr
-from run_fitness
+        range between interval '90' day preceding and interval '1' day preceding
+    )
+)
+
+select
+    * except (
+        recovery_prior_90d_median,
+        recovery_prior_90d_q1,
+        recovery_prior_90d_q3,
+        recovery_prior_90d_min,
+        recovery_prior_90d_max
+    ),
+    case when recovery_prior_90d_count >= 4 then recovery_prior_90d_median end
+        as recovery_prior_90d_median,
+    case when recovery_prior_90d_count >= 4 then recovery_prior_90d_q1 end
+        as recovery_prior_90d_q1,
+    case when recovery_prior_90d_count >= 4 then recovery_prior_90d_q3 end
+        as recovery_prior_90d_q3,
+    case when recovery_prior_90d_count >= 4 then recovery_prior_90d_min end
+        as recovery_prior_90d_min,
+    case when recovery_prior_90d_count >= 4 then recovery_prior_90d_max end
+        as recovery_prior_90d_max
+from windowed
