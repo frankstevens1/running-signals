@@ -140,6 +140,16 @@ export function shortDate(value: string | null | undefined): string {
   }).format(date);
 }
 
+export function formatSyncDate(value: string | null | undefined): string {
+  if (!value) return "n/a";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
 export function formatRouteId(value: string | null | undefined): string {
   if (!value) return "No route";
   return value.slice(0, 8);

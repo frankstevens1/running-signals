@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Script from "next/script";
 
+import { Analytics } from "@vercel/analytics/next"
+import { SpeedInsights } from "@vercel/speed-insights/next"
+
 import { DistanceUnitProvider } from "@/app/components/distance-unit-provider";
 import { DISTANCE_UNIT_STORAGE_KEY } from "@/app/lib/distance-unit";
 import { getServerDistanceUnit } from "@/app/lib/server-distance-unit";
@@ -116,6 +119,8 @@ export default async function RootLayout({
           {children}
         </DistanceUnitProvider>
       </body>
+      <Analytics />
+      <SpeedInsights />
     </html>
   );
 }

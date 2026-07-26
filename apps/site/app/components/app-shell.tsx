@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ExternalLink, Mail } from "lucide-react";
+import { Globe, Mail } from "lucide-react";
 import { siGithub, siStrava } from "simple-icons";
 import { Suspense } from "react";
 
@@ -81,7 +81,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-3 font-mono text-xs text-(--text-soft)">
+          <div className="flex flex-nowrap items-center gap-x-3 font-mono text-xs text-(--text-soft) sm:gap-x-5">
             <a
               href="https://github.com/frankstevens1/running-signals"
               target="_blank"
@@ -91,7 +91,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
                 <path d={siGithub.path} />
               </svg>
-              Repository
+              <span className="hidden sm:inline">Repository</span>
             </a>
             <a
               href="https://www.strava.com/athletes/142530754"
@@ -102,7 +102,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
                 <path d={siStrava.path} />
               </svg>
-              Strava
+              <span className="hidden sm:inline">Strava</span>
             </a>
             <a
               href="https://datafluent.one"
@@ -110,15 +110,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               rel="noreferrer"
               className="inline-flex items-center gap-2 transition-colors hover:text-(--accent)"
             >
-              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-              Portfolio
+              <Globe className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="hidden sm:inline">Portfolio</span>
             </a>
             <a
               href="mailto:frank@datafluent.one"
               className="inline-flex items-center gap-2 transition-colors hover:text-(--accent)"
             >
               <Mail className="h-3.5 w-3.5" aria-hidden="true" />
-              Contact
+              <span className="hidden sm:inline">Contact</span>
             </a>
           </div>
         </div>

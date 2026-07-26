@@ -4,7 +4,7 @@ import { AlertTriangle, CheckCircle2, LoaderCircle, Terminal } from "lucide-reac
 import { useEffect, useState } from "react";
 
 import { ConsoleStatusIndicator } from "@/app/components/console-primitives";
-import { formatDate } from "@/app/lib/format";
+import { formatSyncDate } from "@/app/lib/format";
 import type { LandingStatus } from "@/app/lib/types";
 
 type StatusState =
@@ -38,11 +38,14 @@ function landingStatusFromPayload(payload: unknown): LandingStatus | null {
     payload !== null &&
     "latestCompletedDate" in payload &&
     (typeof payload.latestCompletedDate === "string" || payload.latestCompletedDate === null) &&
+    "lastSyncDate" in payload &&
+    (typeof payload.lastSyncDate === "string" || payload.lastSyncDate === null) &&
     "statusLabel" in payload &&
     typeof payload.statusLabel === "string"
   ) {
     return {
       latestCompletedDate: payload.latestCompletedDate,
+      lastSyncDate: payload.lastSyncDate,
       statusLabel: payload.statusLabel,
     };
   }
@@ -142,7 +145,7 @@ export function LandingStatusPanel() {
                 <CheckCircle2 className="h-4 w-4 text-(--signal-ok)" aria-hidden="true" />
               ),
               title: state.data.statusLabel,
-              description: `Latest completed day: ${formatDate(state.data.latestCompletedDate)}.`,
+              description: `Last data sync: ${formatSyncDate(state.data.lastSyncDate)}.`,
             };
 
   return (

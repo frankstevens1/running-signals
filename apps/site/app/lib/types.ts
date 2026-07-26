@@ -38,6 +38,7 @@ export type DashboardSummary = {
 
 export type LandingStatus = {
   latestCompletedDate: string | null;
+  lastSyncDate: string | null;
   statusLabel: string;
 };
 

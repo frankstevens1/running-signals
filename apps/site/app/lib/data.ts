@@ -142,14 +142,26 @@ function runOrder(filters: RunFilters): SupabaseOrder[] {
 }
 
 async function queryLandingStatus(): Promise<LandingStatus> {
-  const result = await querySupabase("site_days", {
-    select: "calendar_date",
-    order: [{ column: "calendar_date", direction: "desc", nulls: "last" }],
-    limit: 1,
-  });
-  const latestCompletedDate = stringValue(result.rows[0] ?? {}, "calendar_date");
+  const [daysResult, syncResult] = await Promise.all([
+    querySupabase("site_days", {
+      select: "calendar_date",
+      order: [{ column: "calendar_date", direction: "desc", nulls: "last" }],
+      limit: 1,
+    }),
+    querySupabase("site_metadata", {
+      select: "metadata_value",
+      filters: [{ column: "metadata_key", operator: "eq", value: "generated_at" }],
+      limit: 1,
+    }),
+  ]);
+  const latestCompletedDate = stringValue(daysResult.rows[0] ?? {}, "calendar_date");
+  const syncRow = syncResult.rows[0] ?? {};
+  const lastSyncDate = syncRow.metadata_value !== null && syncRow.metadata_value !== undefined
+    ? String(syncRow.metadata_value)
+    : null;
   return {
     latestCompletedDate,
+    lastSyncDate,
     statusLabel: latestCompletedDate ? "Modeled data available" : "No modeled data available",
   };
 }
