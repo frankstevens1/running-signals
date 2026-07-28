@@ -136,8 +136,8 @@ yearly rollups are derived by the frontend from published daily rows. Weeks are 
 from `site_weeks` with governed rolling values and streaks.
 
 Databricks retains every ordered row in `mart_activity_records`, while Supabase serves the
-deterministic, maximum-500-point `mart_map_profile_records` projection needed by route maps.
-Analytical segments remain split-level aggregates.
+deterministic, maximum-500-point `mart_map_profile_records` projection needed by route maps and the
+elevation-profile tooltip. Analytical segments remain split-level aggregates.
 
 Supabase is a serving cache, not the analytical source of truth. If a metric changes, the definition
 belongs in dbt gold first; the Supabase sync should only project that result into the shape required

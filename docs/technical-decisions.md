@@ -55,8 +55,8 @@ bucket once; subsequent route signatures are deterministic.
 `mart_activity_records` retains every ordered FIT record in Databricks for route analysis, feature
 engineering, model development, and future questions that require the original analytical grain.
 Supabase is a presentation serving layer rather than a second big-data store, so it receives only
-`mart_map_profile_records`: the six fields used by the site and at most 500 deterministic points per
-run.
+`mart_map_profile_records`: the eight fields used by route maps and the elevation-profile tooltip,
+at no more than 500 deterministic points per run.
 
 This boundary preserves full-fidelity analytical data where distributed processing belongs while
 keeping the downstream web payload, synchronization time, database size, and serving indexes

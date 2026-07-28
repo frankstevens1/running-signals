@@ -402,6 +402,8 @@ EXPORTS: tuple[TableExport, ...] = (
             "record_index",
             "record_distance_km",
             "altitude_m",
+            "pace_min_per_km",
+            "heart_rate",
             "position_lat_deg",
             "position_long_deg",
         ),
@@ -411,6 +413,8 @@ EXPORTS: tuple[TableExport, ...] = (
               record_index,
               record_distance_km,
               altitude_m,
+              pace_min_per_km,
+              heart_rate,
               position_lat_deg,
               position_long_deg
             from {gold_table(config, "mart_map_profile_records")}

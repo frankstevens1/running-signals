@@ -8,6 +8,8 @@ where table_schema = 'public'
         'record_index',
         'record_distance_km',
         'altitude_m',
+        'pace_min_per_km',
+        'heart_rate',
         'position_lat_deg',
         'position_long_deg'
     )
@@ -18,6 +20,8 @@ select
     count(*) as map_profile_records,
     count(record_distance_km) as records_with_distance,
     count(altitude_m) as records_with_altitude,
+    count(pace_min_per_km) as records_with_pace,
+    count(heart_rate) as records_with_heart_rate,
     count(*) filter (
         where position_lat_deg between -90 and 90
             and position_long_deg between -180 and 180

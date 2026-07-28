@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Menu, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Menu } from "lucide-react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { commandPaletteItems, navigationGroups } from "@/app/lib/page-metadata";
 
@@ -21,30 +21,51 @@ function isCurrentPage(pathname: string, href: string) {
 
 export function AppNav() {
   const pathname = usePathname();
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const scrollLockRef = useRef<{
+    rootOverflow: string;
+    bodyOverflow: string;
+  } | null>(null);
   const currentPage = commandPaletteItems.find((item) => isCurrentPage(pathname, item.href));
 
-  useEffect(() => {
-    if (!isMobileOpen) {
-      return;
-    }
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") {
-        return;
-      }
-
-      setIsMobileOpen(false);
-      menuButtonRef.current?.focus();
+  const lockScroll = useCallback(() => {
+    if (scrollLockRef.current) return;
+    const root = document.documentElement;
+    const body = document.body;
+    scrollLockRef.current = {
+      rootOverflow: root.style.overflow,
+      bodyOverflow: body.style.overflow,
     };
+    root.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+  }, []);
 
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [isMobileOpen]);
+  const releaseScroll = useCallback(() => {
+    const prev = scrollLockRef.current;
+    if (!prev) return;
+    document.documentElement.style.overflow = prev.rootOverflow;
+    document.body.style.overflow = prev.bodyOverflow;
+    scrollLockRef.current = null;
+  }, []);
+
+  const open = useCallback(() => {
+    const dialog = dialogRef.current;
+    if (!dialog || dialog.open) return;
+    dialog.showModal();
+    lockScroll();
+  }, [lockScroll]);
+
+  const close = useCallback(() => {
+    dialogRef.current?.close();
+  }, []);
+
+  useEffect(() => {
+    return () => releaseScroll();
+  }, [releaseScroll]);
 
   const handleNavigation = () => {
-    setIsMobileOpen(false);
+    close();
   };
 
   return (
@@ -85,19 +106,13 @@ export function AppNav() {
 
       <div className="lg:hidden">
         <button
-          ref={menuButtonRef}
+          ref={triggerRef}
           type="button"
-          aria-expanded={isMobileOpen}
-          aria-controls="mobile-primary-navigation"
-          onClick={() => setIsMobileOpen((current) => !current)}
+          onClick={open}
           className="flex h-11 w-full items-center justify-between border-t border-(--border) bg-(--surface-muted) px-3 text-left"
         >
           <span className="flex min-w-0 items-center gap-2.5">
-            {isMobileOpen ? (
-              <X className="h-4 w-4 shrink-0 text-(--accent)" aria-hidden="true" />
-            ) : (
-              <Menu className="h-4 w-4 shrink-0 text-(--accent)" aria-hidden="true" />
-            )}
+            <Menu className="h-4 w-4 shrink-0 text-(--accent)" aria-hidden="true" />
             <span className="font-mono text-xs uppercase tracking-[0.12em] text-(--text-soft)">
               Navigate
             </span>
@@ -105,20 +120,21 @@ export function AppNav() {
               / {currentPage?.label ?? "Overview"}
             </span>
           </span>
-          <ChevronDown
-            className={`h-4 w-4 shrink-0 text-(--text-soft) transition-transform ${
-              isMobileOpen ? "rotate-180" : ""
-            }`}
-            aria-hidden="true"
-          />
         </button>
 
-        {isMobileOpen ? (
-          <div
-            id="mobile-primary-navigation"
-            className="absolute inset-x-0 top-[calc(100%+0.5rem)] z-50 max-h-[calc(100vh-10rem)] overflow-y-auto border border-(--border-strong) bg-(--surface) p-2 shadow-[var(--shadow-dialog)]"
-          >
-            <div className="grid gap-2 sm:grid-cols-2">
+        <dialog
+          ref={dialogRef}
+          onClose={() => {
+            releaseScroll();
+            triggerRef.current?.focus();
+          }}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) close();
+          }}
+          className="m-auto w-[min(42rem,calc(100%-2rem))] overscroll-contain border border-(--border-strong) bg-(--surface) p-0 text-(--text) shadow-[var(--shadow-dialog)] backdrop:bg-black/70 max-h-[calc(100vh-4rem)]"
+        >
+          <div className="max-h-[calc(100vh-4rem)] overflow-y-auto p-4">
+            <div className="grid gap-3 sm:grid-cols-2">
               {navigationGroups.map((group) => {
                 const GroupIcon = group.icon;
 
@@ -161,7 +177,7 @@ export function AppNav() {
               })}
             </div>
           </div>
-        ) : null}
+        </dialog>
       </div>
 
     </nav>

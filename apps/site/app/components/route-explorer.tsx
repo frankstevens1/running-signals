@@ -34,6 +34,13 @@ import type { RouteSummary } from "@/app/lib/types";
 
 type RouteFilter = "all" | "short" | "medium" | "long";
 type RouteSort = "recent" | "distance" | "pace" | "heartRate";
+type RouteSelectionSource = "list" | "map";
+type MobileScrollRequest = {
+  id: number;
+  routeId: string;
+  target: "list" | "map";
+  block: "center" | "nearest" | "start";
+};
 
 const controlClass =
   "h-10 w-full rounded-none border border-(--border) bg-(--background) px-3 font-mono text-xs text-(--text) outline-none transition placeholder:text-(--text-soft) focus:border-(--accent) focus:bg-(--surface) focus:ring-1 focus:ring-(--accent)";
@@ -137,9 +144,17 @@ export function RouteExplorer({
     "idle" | "locating" | "centered" | "error"
   >("idle");
   const [focus, setFocus] = useState<MapFocus | null>(null);
+  const [mobileScrollRequest, setMobileScrollRequest] = useState<MobileScrollRequest | null>(() =>
+    initialSelectedRouteId
+      ? { id: 0, routeId: initialSelectedRouteId, target: "list", block: "nearest" }
+      : null,
+  );
   const explorerRef = useRef<HTMLDivElement | null>(null);
   const mapPanelRef = useRef<HTMLElement | null>(null);
+  const mapViewportRef = useRef<HTMLDivElement | null>(null);
   const routeItemRefs = useRef(new Map<string, HTMLLIElement>());
+  const mobileScrollRequestIdRef = useRef(0);
+  const handledMobileScrollRequestRef = useRef(-1);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -240,12 +255,49 @@ export function RouteExplorer({
 
   useEffect(() => {
     if (!activeSelectedRouteId) return;
+    if (!window.matchMedia("(min-width: 1024px)").matches) return;
 
     routeItemRefs.current.get(activeSelectedRouteId)?.scrollIntoView({
-      behavior: "smooth",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
       block: "nearest",
     });
   }, [activeSelectedRouteId]);
+
+  useEffect(() => {
+    if (!mobileScrollRequest) return;
+    if (handledMobileScrollRequestRef.current === mobileScrollRequest.id) return;
+    if (!window.matchMedia("(max-width: 1023px)").matches) return;
+
+    const request = mobileScrollRequest;
+    let animationFrame: number | null = null;
+    let attempts = 0;
+
+    function scrollWhenReady() {
+      const target = request.target === "map"
+        ? mapViewportRef.current
+        : routeItemRefs.current.get(request.routeId);
+
+      if (!target && attempts < 3) {
+        attempts += 1;
+        animationFrame = window.requestAnimationFrame(scrollWhenReady);
+        return;
+      }
+
+      if (!target) return;
+
+      handledMobileScrollRequestRef.current = request.id;
+      target.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+        block: request.block,
+        inline: "nearest",
+      });
+    }
+
+    animationFrame = window.requestAnimationFrame(scrollWhenReady);
+    return () => {
+      if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
+    };
+  }, [mobileScrollRequest]);
 
   function resetPagination() {
     setRouteOffset(0);
@@ -254,11 +306,13 @@ export function RouteExplorer({
 
   const clearRouteSelection = useCallback(() => {
     setSelectedRouteId(null);
+    setMobileScrollRequest(null);
     replaceRouteParam(null);
   }, []);
 
   const clearExplorerContext = useCallback(() => {
     setSelectedRouteId(null);
+    setMobileScrollRequest(null);
     setSelectedCountryId(null);
     setSelectedCityId(null);
     setLocationStatus("idle");
@@ -270,7 +324,7 @@ export function RouteExplorer({
     replaceRouteParam(null);
   }, []);
 
-  const selectRoute = useCallback((routeId: string) => {
+  const selectRoute = useCallback((routeId: string, source: RouteSelectionSource) => {
     setSelectedRouteId(routeId);
     const index = visibleRoutes.findIndex((route) => route.routeId === routeId);
     if (index >= 0) {
@@ -279,7 +333,19 @@ export function RouteExplorer({
       replaceRoutePagination(nextOffset, routeLimit);
     }
     replaceRouteParam(routeId);
+    mobileScrollRequestIdRef.current += 1;
+    setMobileScrollRequest({
+      id: mobileScrollRequestIdRef.current,
+      routeId,
+      target: source === "list" ? "map" : "list",
+      block: source === "list" ? "start" : "center",
+    });
   }, [routeLimit, visibleRoutes]);
+
+  const selectRouteFromMap = useCallback(
+    (routeId: string) => selectRoute(routeId, "map"),
+    [selectRoute],
+  );
 
   const selectCountry = useCallback(
     (countryId: string | null) => {
@@ -431,18 +497,20 @@ export function RouteExplorer({
           </div>
         </div>
 
-        <RouteMap
-          routes={visibleRoutes}
-          records={routeRecordState.records ?? []}
-          selectedRouteId={activeSelectedRouteId}
-          isGeometryLoading={routeRecordState.isLoading}
-          geometryError={routeRecordState.error}
-          selectedCountryId={selectedCountryId}
-          countryFeatures={countryFeatures}
-          focus={focus}
-          onSelectRoute={selectRoute}
-          onSelectCountry={selectCountry}
-        />
+        <div ref={mapViewportRef} className="scroll-mt-28 lg:scroll-mt-0">
+          <RouteMap
+            routes={visibleRoutes}
+            records={routeRecordState.records ?? []}
+            selectedRouteId={activeSelectedRouteId}
+            isGeometryLoading={routeRecordState.isLoading}
+            geometryError={routeRecordState.error}
+            selectedCountryId={selectedCountryId}
+            countryFeatures={countryFeatures}
+            focus={focus}
+            onSelectRoute={selectRouteFromMap}
+            onSelectCountry={selectCountry}
+          />
+        </div>
       </section>
 
       <section
@@ -601,7 +669,7 @@ export function RouteExplorer({
                     >
                       <button
                         type="button"
-                        onClick={() => selectRoute(route.routeId)}
+                        onClick={() => selectRoute(route.routeId, "list")}
                         className="block w-full px-4 pb-3 pt-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-(--accent)"
                         aria-pressed={selected}
                       >

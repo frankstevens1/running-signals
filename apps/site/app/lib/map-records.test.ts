@@ -8,6 +8,8 @@ describe("sampleMapProfileRecords", () => {
       recordIndex: index + 1,
       distanceKm: index / 100,
       altitudeM: index,
+      paceMinPerKm: 5 + index / 10_000,
+      heartRate: 140 + index / 100,
       latitudeDeg: -15 + index / 100_000,
       longitudeDeg: 28 + index / 100_000,
     }));

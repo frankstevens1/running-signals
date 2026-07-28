@@ -147,10 +147,10 @@ export default async function FitnessPage({
                       hrTrend
                         ? {
                           direction: hrTrend.direction,
-                          invert: true,
+                          lowerIsBetter: true,
                           value: `${hrTrend.diff > 0 ? "+" : ""}${formatInteger(Math.round(hrTrend.diff))} bpm`,
-                            label: "vs prior run",
-                          }
+                          label: "vs prior run",
+                        }
                         : undefined
                     }
                   />
@@ -193,17 +193,17 @@ export default async function FitnessPage({
                     }
                   />
                 </div>
-                <div className="grid gap-6 xl:grid-cols-2">
-                  <ScrollReveal className="xl:col-span-2">
+                <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2">
+                  <ScrollReveal className="min-w-0 xl:col-span-2">
                     <HrDriftChart points={data} />
                   </ScrollReveal>
-                  <ScrollReveal className="h-full" delayMs={80}>
+                  <ScrollReveal className="h-full min-w-0" delayMs={80}>
                     <PaceHeartRateTrend points={data} />
                   </ScrollReveal>
-                  <ScrollReveal className="h-full" delayMs={120}>
+                  <ScrollReveal className="h-full min-w-0" delayMs={120}>
                     <FitnessEfficiencyChart points={data} />
                   </ScrollReveal>
-                  <ScrollReveal className="h-full xl:col-span-2" delayMs={160}>
+                  <ScrollReveal className="h-full min-w-0 xl:col-span-2" delayMs={160}>
                     <RecoveryHeartRateChart points={data} />
                   </ScrollReveal>
                 </div>

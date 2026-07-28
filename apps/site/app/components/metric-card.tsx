@@ -21,16 +21,16 @@ export function MetricCard({
     direction: "up" | "down" | "neutral";
     value: string;
     label: string;
-    invert?: boolean;
+    lowerIsBetter?: boolean;
   };
 }) {
   let TrendIcon = Minus;
   let trendColor = "text-(--text-soft)";
   if (trend && trend.direction !== "neutral") {
     const rawUp = trend.direction === "up";
-    const up = trend.invert ? !rawUp : rawUp;
-    TrendIcon = up ? TrendingUp : TrendingDown;
-    trendColor = up ? "text-(--signal-ok)" : "text-(--signal-error)";
+    const favorable = trend.lowerIsBetter ? !rawUp : rawUp;
+    TrendIcon = rawUp ? TrendingUp : TrendingDown;
+    trendColor = favorable ? "text-(--signal-ok)" : "text-(--signal-error)";
   }
 
   return (

@@ -48,11 +48,13 @@ export function RunFilters({
   routes,
   unit,
   bounds,
+  embedded = false,
 }: {
   paramsString: string;
   routes: RouteSummary[];
   unit: DistanceUnit;
   bounds: RunFilterBounds | null;
+  embedded?: boolean;
 }) {
   const router = useRouter();
   const filterBounds = bounds ?? EMPTY_RUN_FILTER_BOUNDS;
@@ -195,24 +197,33 @@ export function RunFilters({
   }
 
   return (
-    <form onSubmit={applyFilters} className="border border-(--border) bg-(--surface)">
-      <div className="flex items-center justify-between gap-4 border-b border-(--border) px-3 py-2.5">
-        <div className="flex min-w-0 items-center gap-3">
-          <SlidersHorizontal className="h-4 w-4 shrink-0 text-(--accent)" aria-hidden="true" />
-          <div>
-            <p className="font-mono text-xs uppercase tracking-[0.12em] text-(--text)">
-              Query parameters
-            </p>
-            <p className="mt-0.5 text-xs text-(--text-soft)">
-              Filter sessions by date, distance, pace, heart rate, and route to narrow the visible list.
-            </p>
+    <form
+      onSubmit={applyFilters}
+      className={embedded ? "" : "border border-(--border) bg-(--surface)"}
+    >
+      {embedded ? null : (
+        <div className="flex items-center justify-between gap-4 border-b border-(--border) px-3 py-2.5">
+          <div className="flex min-w-0 items-center gap-3">
+            <SlidersHorizontal className="h-4 w-4 shrink-0 text-(--accent)" aria-hidden="true" />
+            <div>
+              <p className="font-mono text-xs uppercase tracking-[0.12em] text-(--text)">
+                Query parameters
+              </p>
+              <p className="mt-0.5 text-xs text-(--text-soft)">
+                Filter sessions by date, distance, pace, heart rate, and route to narrow the visible list.
+              </p>
+            </div>
           </div>
+          <span className="hidden font-mono text-[10px] uppercase tracking-[0.12em] text-(--signal-ok) sm:block">
+            ready
+          </span>
         </div>
-        <span className="hidden font-mono text-[10px] uppercase tracking-[0.12em] text-(--signal-ok) sm:block">
-          ready
-        </span>
-      </div>
-      <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-6 xl:grid-cols-12 xl:items-end">
+      )}
+      <div
+        className={`grid gap-3 sm:grid-cols-2 lg:grid-cols-6 xl:grid-cols-12 xl:items-end ${
+          embedded ? "p-4" : "p-3"
+        }`}
+      >
         <label className={`${fieldClass} lg:col-span-1 xl:col-span-2`}>
           <span className={fieldLabelClass}>Date from</span>
           <input
@@ -400,7 +411,11 @@ export function RunFilters({
           </div>
         </fieldset>
 
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:col-span-2 lg:col-span-6 xl:col-span-3">
+        <div
+          className={`grid gap-2 sm:col-span-2 lg:col-span-6 xl:col-span-3 ${
+            embedded ? "mt-1 grid-cols-2" : "grid-cols-[minmax(0,1fr)_auto]"
+          }`}
+        >
           <button
             type="submit"
             className="inline-flex h-8 min-w-0 items-center justify-center gap-2 bg-(--accent) px-3 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-(--accent-foreground) transition-colors hover:bg-(--accent-strong)"
@@ -410,10 +425,12 @@ export function RunFilters({
           </button>
           <button
             type="button"
+            aria-label="Reset filters"
             onClick={clearFilters}
             className="inline-flex h-8 items-center justify-center gap-2 border border-(--border) px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-(--text-soft) transition-colors hover:border-(--text-soft) hover:bg-(--surface-muted) hover:text-(--text)"
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+            {embedded ? "Reset" : null}
           </button>
         </div>
       </div>

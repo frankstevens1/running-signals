@@ -246,8 +246,9 @@ Grain: at most 500 rows per `run_id`, uniquely ordered by `record_index`.
 
 Purpose: provide the narrow presentation projection published to Supabase. Runs with at most 500
 records retain every row; longer runs retain 500 deterministic, evenly distributed record positions,
-including the first and last. Complete telemetry remains in `mart_activity_records` for Databricks
-analysis.
+including the first and last. Distance, altitude, pace, heart rate, and route coordinates support the
+map and within-run profile tooltip. Complete telemetry remains in `mart_activity_records` for
+Databricks analysis.
 
 ### mart_run_segments
 

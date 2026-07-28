@@ -13,6 +13,7 @@ import {
   ReferenceLine,
   ResponsiveContainer,
   Scatter,
+  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
@@ -31,7 +32,6 @@ import {
   getRecoveryTrendSummary,
   recoveryDateTimestamp,
   RECOVERY_BASELINE_MIN_OBSERVATIONS,
-  RECOVERY_HISTORY_DAYS,
   type RecoveryTrendPoint,
 } from "@/app/lib/recovery-trend";
 import type { FitnessPoint, MonthRollup, WeekRollup } from "@/app/lib/types";
@@ -184,6 +184,46 @@ function formatTimestampLabel(value: unknown) {
   return parsed === null ? "n/a" : timestampLabelFormat.format(new Date(parsed));
 }
 
+function PaceHeartRateTooltip({
+  active,
+  payload,
+  unit,
+}: {
+  active?: boolean;
+  payload?: ReadonlyArray<{
+    payload?: PaceHeartRateChartPoint | PaceHeartRateTrendPoint;
+  }>;
+  unit: DistanceUnit;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+
+  const point = payload
+    .map((item) => item.payload)
+    .find(
+      (entry): entry is PaceHeartRateChartPoint =>
+        entry !== undefined
+        && "avgHeartRate" in entry
+        && Number.isFinite(entry.avgHeartRate)
+        && "avgPaceMinPerKm" in entry
+        && Number.isFinite(entry.avgPaceMinPerKm),
+    );
+  if (!point) return null;
+
+  return (
+    <div style={tooltipStyle.contentStyle}>
+      <div style={tooltipStyle.labelStyle}>
+        {formatTimestampLabel(point.activityDateTimestamp)}
+      </div>
+      <div style={tooltipStyle.itemStyle}>
+        Pace: {formatPaceValue(point.avgPaceMinPerKm, unit)}
+      </div>
+      <div style={tooltipStyle.itemStyle}>
+        Avg HR: {Math.round(point.avgHeartRate)} bpm
+      </div>
+    </div>
+  );
+}
+
 function hasPaceHeartRate(point: FitnessPoint): point is PaceHeartRatePoint {
   return (
     Number.isFinite(getActivityDateTimestamp(point.activityDate)) &&
@@ -253,22 +293,22 @@ function FitnessLineLegend({
   rollingLabel: string;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-1 font-mono text-[11px] leading-4 text-(--text-soft)">
-      <span className="inline-flex items-center gap-1.5">
+    <div className="flex min-w-0 max-w-full flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-1 font-mono text-[11px] leading-4 text-(--text-soft)">
+      <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
         <span
-          className="w-5 rounded-full"
+          className="w-5 shrink-0 rounded-full"
           style={{ backgroundColor: PRIMARY_SERIES_COLOR, height: 1.5 }}
           aria-hidden="true"
         />
-        {sessionLabel}
+        <span className="min-w-0">{sessionLabel}</span>
       </span>
-      <span className="inline-flex items-center gap-1.5">
+      <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
         <span
-          className="w-5 rounded-full"
+          className="w-5 shrink-0 rounded-full"
           style={{ backgroundColor: SECONDARY_SERIES_COLOR, height: 3 }}
           aria-hidden="true"
         />
-        {rollingLabel}
+        <span className="min-w-0">{rollingLabel}</span>
       </span>
     </div>
   );
@@ -284,22 +324,22 @@ function RecoveryLegend({
     : recoveryClassificationColor(latestClassification);
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-1 font-mono text-[11px] leading-4 text-(--text-soft)">
-      <span className="inline-flex items-center gap-1.5">
+    <div className="flex min-w-0 max-w-full flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-1 font-mono text-[11px] leading-4 text-(--text-soft)">
+      <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
         <span
           className="size-2 shrink-0 rounded-full"
           style={{ backgroundColor: MUTED_SERIES_COLOR }}
           aria-hidden="true"
         />
-        Comparable recovery readings in the last {RECOVERY_HISTORY_DAYS} days
+        <span className="min-w-0">Comparable readings</span>
       </span>
-      <span className="inline-flex items-center gap-1.5">
+      <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
         <span
           className="size-2 shrink-0 rounded-full border"
           style={{ backgroundColor: latestColor, borderColor: "var(--surface)" }}
           aria-hidden="true"
         />
-        Latest reading
+        <span className="min-w-0">Latest reading</span>
       </span>
     </div>
   );
@@ -646,7 +686,7 @@ function ChartFrame({
   children: ReactNode;
 }) {
   return (
-    <section className="flex h-full flex-col overflow-hidden rounded-sm border border-(--border) bg-(--surface)">
+    <section className="flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden rounded-sm border border-(--border) bg-(--surface)">
       <div className="flex items-start justify-between gap-3 border-b border-(--border) px-4 py-3">
         <div className="min-w-0">
           <p className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-(--accent)">
@@ -657,8 +697,8 @@ function ChartFrame({
         </div>
         <MetricInfoDialog content={info} />
       </div>
-      {controls ? <div className="border-b border-(--border) px-4 py-3">{controls}</div> : null}
-      <div className="h-80 min-h-80 flex-1 px-2 pt-4 pb-3 sm:px-4">{children}</div>
+      {controls ? <div className="min-w-0 max-w-full border-b border-(--border) px-4 py-3">{controls}</div> : null}
+      <div className="h-80 min-h-80 w-full min-w-0 max-w-full flex-1 overflow-hidden px-2 pt-4 pb-3 sm:px-4">{children}</div>
     </section>
   );
 }
@@ -1143,7 +1183,7 @@ function RecoveryBaselineComparison({ point }: { point: RecoveryTrendPoint | und
   ) {
     const observedCount = point?.recoveryPrior90dCount ?? 0;
     return (
-      <div className="rounded-sm border border-(--border) bg-(--surface-muted) px-4 py-3 font-mono text-xs leading-5 text-(--text-soft)">
+      <div className="min-w-0 rounded-sm border border-(--border) bg-(--surface-muted) px-4 py-3 font-mono text-xs leading-5 text-(--text-soft)">
         <strong className="text-(--text)">Baseline unavailable.</strong>{" "}
         {observedCount} of {RECOVERY_BASELINE_MIN_OBSERVATIONS} comparable recovery readings are
         available in the prior 90 days.
@@ -1155,8 +1195,11 @@ function RecoveryBaselineComparison({ point }: { point: RecoveryTrendPoint | und
   const median = point.recoveryPrior90dMedian;
   const minimum = point.recoveryPrior90dMin;
   const maximum = point.recoveryPrior90dMax;
-  const span = Math.max(maximum - minimum, 1);
-  const position = (value: number) => `${4 + ((value - minimum) / span) * 92}%`;
+  const scaleMinimum = Math.min(minimum, point.garminRecoveryHr);
+  const scaleMaximum = Math.max(maximum, point.garminRecoveryHr);
+  const scaleSpan = scaleMaximum - scaleMinimum;
+  const position = (value: number) =>
+    scaleSpan === 0 ? "50%" : `${8 + ((value - scaleMinimum) / scaleSpan) * 84}%`;
   const status = point.recoveryClassification === "typical"
     ? "within the typical range"
     : point.recoveryClassification === "better"
@@ -1164,20 +1207,32 @@ function RecoveryBaselineComparison({ point }: { point: RecoveryTrendPoint | und
       : "below the prior baseline";
 
   return (
-    <div className="rounded-sm border border-(--border) bg-(--surface-muted) px-4 py-3">
-      <div className="grid grid-cols-3 items-baseline gap-x-3 font-mono text-xs leading-5">
+    <div className="min-w-0 overflow-hidden rounded-sm border border-(--border) bg-(--surface-muted) px-4 py-3">
+      <div className="grid min-w-0 grid-cols-1 items-baseline gap-x-3 gap-y-1 font-mono text-xs leading-5 sm:grid-cols-3">
         <span className="text-(--text-soft)">Prior 90-day comparable response</span>
-        <span className="text-center text-(--text-soft)">
+        <span className="text-(--text-soft) sm:text-center">
           Latest: <strong className="text-(--text)">{Math.round(point.garminRecoveryHr)} bpm</strong>{" "}
           ({status})
         </span>
-        <span className="text-right text-(--text-soft)">{point.recoveryPrior90dCount} runs</span>
+        <span className="text-(--text-soft) sm:text-right">{point.recoveryPrior90dCount} runs</span>
       </div>
-      <div className="relative mt-5 h-14" aria-label="Latest recovery compared with the prior baseline">
-        <div className="absolute top-4 right-0 left-0 h-px bg-(--border)" />
+      <div
+        className="relative mt-5 h-14"
+        role="img"
+        aria-label={`Latest recovery ${Math.round(point.garminRecoveryHr)} bpm; prior range ${Math.round(minimum)}-${Math.round(maximum)} bpm; first quartile ${Math.round(q1)} bpm; median ${Math.round(median)} bpm; third quartile ${Math.round(q3)} bpm`}
+      >
+        <div className="absolute top-4 h-px bg-(--border)" style={{ left: "8%", right: "8%" }} />
+        <div
+          className="absolute top-4 h-px bg-(--text-faint)"
+          style={{ left: position(minimum), width: `calc(${position(maximum)} - ${position(minimum)})` }}
+        />
         <div
           className="absolute top-4 h-3 -translate-y-1/2 rounded-full bg-(--accent-soft)"
           style={{ left: position(q1), width: `calc(${position(q3)} - ${position(q1)})` }}
+        />
+        <div
+          className="absolute top-2 h-4 w-px -translate-x-1/2 bg-(--text-soft)"
+          style={{ left: position(minimum) }}
         />
         <div
           className="absolute top-1 h-6 w-px -translate-x-1/2 bg-(--text-soft)"
@@ -1192,22 +1247,26 @@ function RecoveryBaselineComparison({ point }: { point: RecoveryTrendPoint | und
           style={{ left: position(q3) }}
         />
         <div
+          className="absolute top-2 h-4 w-px -translate-x-1/2 bg-(--text-soft)"
+          style={{ left: position(maximum) }}
+        />
+        <div
           className="absolute top-4 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-(--surface)"
           style={{ left: position(point.garminRecoveryHr), backgroundColor: recoveryClassificationColor(point.recoveryClassification) }}
         />
-        <span className="absolute top-8 -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-(--text-soft)" style={{ left: position(q1) }}>
+        <span className="absolute top-8 hidden -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-(--text-soft) sm:block" style={{ left: position(q1) }}>
           Q1 {Math.round(q1)}
         </span>
         <span className="absolute top-8 -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-(--text)" style={{ left: position(median) }}>
           Median {Math.round(median)}
         </span>
-        <span className="absolute top-8 -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-(--text-soft)" style={{ left: position(q3) }}>
+        <span className="absolute top-8 hidden -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-(--text-soft) sm:block" style={{ left: position(q3) }}>
           Q3 {Math.round(q3)}
         </span>
-        <span className="absolute top-8 left-0 whitespace-nowrap font-mono text-[10px] text-(--text-soft)">
+        <span className="absolute top-8 -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-(--text-soft)" style={{ left: position(minimum) }}>
           Min {Math.round(minimum)}
         </span>
-        <span className="absolute top-8 right-0 whitespace-nowrap font-mono text-[10px] text-(--text-soft)">
+        <span className="absolute top-8 -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-(--text-soft)" style={{ left: position(maximum) }}>
           Max {Math.round(maximum)}
         </span>
       </div>
@@ -1283,7 +1342,7 @@ export function RecoveryHeartRateChart({ points }: { points: FitnessPoint[] }) {
         : "Recovery heart-rate drop after runs with comparable ending heart rate."}
       info={CHART_INFO.recoveryHeartRate}
     >
-      <div className="flex h-full min-h-0 flex-col">
+      <div className="flex h-full min-h-0 min-w-0 flex-col">
         <RecoveryBaselineComparison point={latestRecoveryPoint} />
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-1 pt-3 font-mono text-[11px] leading-4 text-(--text-soft)">
           {recoverySummary.daysSinceLastComparableRun !== null
@@ -1291,7 +1350,7 @@ export function RecoveryHeartRateChart({ points }: { points: FitnessPoint[] }) {
               <span>Last comparable run: {recoverySummary.daysSinceLastComparableRun} days ago</span>
             )}
         </div>
-        <div className="min-h-0 flex-1 pt-1">
+        <div className="min-h-0 min-w-0 flex-1 pt-1">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={recentRecoveryPoints} margin={{ top: 8, right: 8, left: 0 }}>
               <CartesianGrid
@@ -1425,9 +1484,9 @@ export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
     });
   };
   const controls = heartRateBands.length > 1 && (
-    <div className="overflow-x-auto">
+    <div className="w-full min-w-0 max-w-full">
       <div
-        className="flex w-max min-w-full items-center justify-center gap-1.5"
+        className="flex w-full min-w-0 flex-wrap items-center justify-center gap-1.5"
         role="group"
         aria-label="Average heart rate range"
       >
@@ -1461,10 +1520,10 @@ export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
       }}
       controls={controls}
     >
-      <div className="flex h-full flex-col">
-        <div className="min-h-0 flex-1">
+      <div className="flex h-full min-w-0 flex-col">
+        <div className="min-h-0 min-w-0 flex-1">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={visibleData} margin={{ top: 8, right: 8, left: 0 }}>
+            <ScatterChart data={visibleData} margin={{ top: 8, right: 8, left: 0 }}>
               <CartesianGrid
                 stroke={CHART_GRID_COLOR}
                 strokeDasharray="2 5"
@@ -1495,12 +1554,9 @@ export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
                 tickFormatter={(value) => formatPaceValue(value, unit)}
               />
               <Tooltip
-                {...tooltipStyle}
-                labelFormatter={formatTimestampLabel}
-                formatter={(value, name) => [
-                  name === "Date" ? formatTimestampLabel(value) : formatPaceValue(value, unit),
-                  name,
-                ]}
+                content={<PaceHeartRateTooltip unit={unit} />}
+                cursor={false}
+                shared={false}
               />
               {bandSeries.map((series) => (
                 <Scatter
@@ -1521,9 +1577,10 @@ export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
                   strokeWidth={2}
                   dot={false}
                   activeDot={false}
+                  tooltipType="none"
                 />
               ) : null}
-            </ComposedChart>
+            </ScatterChart>
           </ResponsiveContainer>
         </div>
         {trendData.length > 0 ? (

@@ -64,7 +64,7 @@ def test_query_databricks_retries_whole_query(monkeypatch: MonkeyPatch) -> None:
     assert calls == 2
 
 
-def test_map_profile_export_contains_only_sampled_presentation_columns() -> None:
+def test_map_profile_export_contains_sampled_profile_and_tooltip_columns() -> None:
     export = next(
         table_export
         for table_export in sync_site_supabase.EXPORTS
@@ -76,6 +76,8 @@ def test_map_profile_export_contains_only_sampled_presentation_columns() -> None
         "record_index",
         "record_distance_km",
         "altitude_m",
+        "pace_min_per_km",
+        "heart_rate",
         "position_lat_deg",
         "position_long_deg",
     )
@@ -84,7 +86,8 @@ def test_map_profile_export_contains_only_sampled_presentation_columns() -> None
 
     assert "`running_signals`.`gold`.`mart_map_profile_records`" in statement
     assert "activity_id" not in statement
-    assert "heart_rate" not in statement
+    assert "pace_min_per_km" in statement
+    assert "heart_rate" in statement
 
 
 def test_site_routes_export_excludes_matching_internals() -> None:
@@ -285,6 +288,18 @@ def test_sampled_map_profile_serving_migration_replaces_full_telemetry_table() -
     assert "from public.site_map_profile_records as records" in migration
     assert "drop table public.site_activity_records" in migration
     assert "heart_rate" not in migration
+
+
+def test_map_profile_telemetry_migration_extends_sampled_serving_contract() -> None:
+    migration = (
+        Path(__file__).parents[1]
+        / "supabase/migrations/202607280001_map_profile_telemetry.sql"
+    ).read_text()
+
+    assert "alter table public.site_map_profile_records" in migration
+    assert "add column pace_min_per_km double precision" in migration
+    assert "add column heart_rate double precision" in migration
+    assert "from public.site_map_profile_records as records" in migration
 
 
 def test_route_city_grid_bucket_migration_adds_nullable_text_column() -> None:

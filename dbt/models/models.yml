@@ -329,6 +329,10 @@ models:
         description: Cumulative activity distance used by the presentation profile.
       - name: altitude_m
         description: Recorded altitude used by the presentation profile.
+      - name: pace_min_per_km
+        description: Per-record pace retained for profile tooltip context when available.
+      - name: heart_rate
+        description: Per-record heart rate retained for profile tooltip context when available.
       - name: position_lat_deg
         description: Latitude in decimal degrees; nullable for records without valid GPS telemetry.
       - name: position_long_deg

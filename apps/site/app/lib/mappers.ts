@@ -101,6 +101,8 @@ export function mapMapProfileRecord(
     recordIndex: numberValue(row, "record_index") ?? 0,
     distanceKm: numberValue(row, "record_distance_km"),
     altitudeM: numberValue(row, "altitude_m"),
+    paceMinPerKm: numberValue(row, "pace_min_per_km"),
+    heartRate: numberValue(row, "heart_rate"),
     latitudeDeg: numberValue(row, "position_lat_deg"),
     longitudeDeg: numberValue(row, "position_long_deg"),
   };

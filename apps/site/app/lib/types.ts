@@ -81,6 +81,8 @@ export type MapProfileRecord = {
   recordIndex: number;
   distanceKm: number | null;
   altitudeM: number | null;
+  paceMinPerKm: number | null;
+  heartRate: number | null;
   latitudeDeg: number | null;
   longitudeDeg: number | null;
 };

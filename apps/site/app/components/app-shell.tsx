@@ -19,7 +19,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         Skip to content
       </a>
 
-      <header className="sticky top-0 z-40 border-b border-(--border) bg-(--background)/94 shadow-[var(--shadow-header)] backdrop-blur-md">
+      <header
+        data-app-header
+        className="sticky top-0 z-40 border-b border-(--border) bg-(--background)/94 shadow-[var(--shadow-header)] backdrop-blur-md"
+      >
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex min-h-16 items-center justify-between gap-4 py-2.5">
             <div className="flex min-w-0 items-center gap-4">
@@ -67,7 +70,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
-      <footer className="mt-16 border-t border-(--border) bg-(--surface)/78">
+      <footer className="mt-8 border-t border-(--border) bg-(--surface)/78 lg:mt-16">
         <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-6 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
           <div>
             <p className="font-mono text-xs uppercase tracking-[0.12em] text-(--text-soft)">

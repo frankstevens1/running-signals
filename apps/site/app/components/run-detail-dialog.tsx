@@ -14,12 +14,12 @@ import {
 
 import {
   distanceFromKm,
+  paceFromMinPerKm,
   SEGMENT_RESOLUTIONS,
   type DistanceUnit,
   type SegmentResolution,
 } from "@/app/lib/distance-unit";
 import {
-  formatCadence,
   formatDate,
   formatDistance,
   formatDuration,
@@ -49,25 +49,92 @@ function statItems(run: RunSession, unit: DistanceUnit) {
     ["Descent", formatElevation(run.totalDescent)],
     ["Recovery HR", formatHeartRate(run.garminRecoveryHr)],
     ["Route", formatRouteId(run.routeId)],
-    ["GPS coverage", run.recordDistanceCoverageRatio === null ? "n/a" : `${Math.round(run.recordDistanceCoverageRatio * 100)}%`],
     ["Prior 7d", formatDistance(run.prior7dDistanceKm, unit)],
     ["Prior 28d", formatDistance(run.prior28dDistanceKm, unit)],
   ] as const;
 }
 
-function profilePoints(records: MapProfileRecord[], unit: DistanceUnit) {
-  return records.flatMap((record) => {
+type ElevationProfilePoint = {
+  distance: number;
+  altitudeM: number;
+  grade: number | null;
+  paceMinPerKm: number | null;
+  heartRate: number | null;
+};
+
+function profilePoints(records: MapProfileRecord[], unit: DistanceUnit): ElevationProfilePoint[] {
+  const points = records.flatMap((record) => {
     if (record.distanceKm === null || record.altitudeM === null) return [];
-    return [{ distance: distanceFromKm(record.distanceKm, unit), altitudeM: record.altitudeM }];
+    return [{
+      distanceKm: record.distanceKm,
+      altitudeM: record.altitudeM,
+      paceMinPerKm: record.paceMinPerKm,
+      heartRate: record.heartRate,
+    }];
+  });
+
+  return points.map((point, index) => {
+    const previous = points[Math.max(index - 1, 0)];
+    const next = points[Math.min(index + 1, points.length - 1)];
+    const distanceDeltaM = (next.distanceKm - previous.distanceKm) * 1000;
+    const grade = distanceDeltaM > 0
+      ? (next.altitudeM - previous.altitudeM) / distanceDeltaM
+      : null;
+
+    return {
+      distance: distanceFromKm(point.distanceKm, unit),
+      altitudeM: point.altitudeM,
+      grade,
+      paceMinPerKm: point.paceMinPerKm,
+      heartRate: point.heartRate,
+    };
   });
 }
 
-function splitDistance(segment: RunSegment, unit: DistanceUnit): string {
-  if (segment.segmentStartDistanceKm !== null && segment.segmentEndDistanceKm !== null) {
-    return `${distanceFromKm(segment.segmentStartDistanceKm, unit).toFixed(2)}-${distanceFromKm(segment.segmentEndDistanceKm, unit).toFixed(2)} ${unit}`;
-  }
+const ELEVATION_UPPER_MARGIN_PCT = 0.05;
+const ELEVATION_Y_AXIS_WIDTH = 48;
+const ELEVATION_X_AXIS_HEIGHT = 24;
+const ELEVATION_VERTICAL_PADDING = 6;
+const ELEVATION_HORIZONTAL_SHIFT = 12;
+const decimal2Format = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
-  return formatDistance(segment.segmentDistanceKm, unit);
+function formatSegmentTime(seconds: number | null): string {
+  if (seconds === null || !Number.isFinite(seconds)) return "n/a";
+  const totalHundredths = Math.round(seconds * 100);
+  const minutes = Math.floor(totalHundredths / 6000);
+  const remainingSeconds = ((totalHundredths - minutes * 6000) / 100)
+    .toFixed(2)
+    .padStart(5, "0");
+
+  return `${minutes}:${remainingSeconds}`;
+}
+
+function formatSegmentPace(value: number | null, unit: DistanceUnit): string {
+  if (value === null || !Number.isFinite(value)) return "n/a";
+  return `${formatSegmentTime(paceFromMinPerKm(value, unit) * 60)} /${unit}`;
+}
+
+function formatSegmentValue(value: number | null, unit: string): string {
+  return value === null || !Number.isFinite(value)
+    ? "n/a"
+    : `${decimal2Format.format(value)} ${unit}`;
+}
+
+function formatSegmentGrade(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return "n/a";
+  const percentage = value * 100;
+  return `${percentage > 0 ? "+" : ""}${decimal2Format.format(percentage)}%`;
+}
+
+function splitDistance(segment: RunSegment, unit: DistanceUnit): string {
+  const marker = segment.segmentEndDistanceKm === null
+    ? segment.segmentIndex * segment.segmentLengthValue
+    : distanceFromKm(segment.segmentEndDistanceKm, unit);
+
+  return marker > 0 ? `${decimal2Format.format(marker)} ${unit}` : "n/a";
 }
 
 function resolutionLabel(resolution: SegmentResolution, unit: DistanceUnit) {
@@ -75,6 +142,54 @@ function resolutionLabel(resolution: SegmentResolution, unit: DistanceUnit) {
   if (resolution === 0.25) return "250 m";
   if (resolution === 0.5) return "500 m";
   return "1 km";
+}
+
+function ElevationTooltip({
+  active,
+  payload,
+  unit,
+}: {
+  active?: boolean;
+  payload?: { payload?: ElevationProfilePoint }[];
+  unit: DistanceUnit;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+
+  const point = payload.map((item) => item.payload).find(Boolean);
+  if (!point) return null;
+
+  return (
+    <div className="pointer-events-none w-52 border border-(--border-strong) bg-(--surface) text-(--text) shadow-[var(--shadow-header)]">
+      <p className="px-3 pt-2 font-mono text-[9px] uppercase tracking-[0.12em] text-(--accent)">
+        Altitude - grade
+      </p>
+      <div className="grid grid-cols-2 gap-3 px-3 pb-2 pt-1 font-mono text-sm">
+        <span>{formatElevation(point.altitudeM)}</span>
+        <span className="text-right">{formatGrade(point.grade)}</span>
+      </div>
+      <div className="grid grid-cols-2 divide-x divide-(--border) border-y border-(--border)">
+        <div className="px-3 py-2">
+          <p className="font-mono text-[8px] uppercase tracking-[0.1em] text-(--text-faint)">
+            Pace
+          </p>
+          <p className="mt-0.5 whitespace-nowrap font-mono text-[11px] text-(--text)">
+            {formatPace(point.paceMinPerKm, unit)}
+          </p>
+        </div>
+        <div className="px-3 py-2">
+          <p className="font-mono text-[8px] uppercase tracking-[0.1em] text-(--text-faint)">
+            Heart rate
+          </p>
+          <p className="mt-0.5 whitespace-nowrap font-mono text-[11px] text-(--text)">
+            {formatHeartRate(point.heartRate)}
+          </p>
+        </div>
+      </div>
+      <p className="px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.08em] text-(--text-faint)">
+        Distance {point.distance.toFixed(2)} {unit}
+      </p>
+    </div>
+  );
 }
 
 export function RunDetailDialog({
@@ -89,8 +204,12 @@ export function RunDetailDialog({
   const titleId = useId();
   const descriptionId = useId();
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  const splitSelectorRef = useRef<HTMLDivElement | null>(null);
   const { unit } = useDistanceUnit();
   const [resolution, setResolution] = useState<SegmentResolution>(1);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const [isSplitSelectorStuck, setIsSplitSelectorStuck] = useState(false);
   const recordState = useRunRecords(run?.runId ?? "", open && run !== null);
   const segmentState = useRunSegments(
     run?.runId ?? "",
@@ -99,6 +218,78 @@ export function RunDetailDialog({
     open && run !== null,
   );
   const elevationPoints = recordState.records ? profilePoints(recordState.records, unit) : [];
+  const elevationAltitudes = elevationPoints.map((p) => p.altitudeM);
+  const elevationMin = elevationAltitudes.length > 0 ? Math.min(...elevationAltitudes) : 0;
+  const elevationMax = elevationAltitudes.length > 0 ? Math.max(...elevationAltitudes) : 100;
+  const elevationDomainMax =
+    elevationMax + (elevationMax - elevationMin) * ELEVATION_UPPER_MARGIN_PCT;
+
+  useEffect(() => {
+    if (!open) return;
+
+    const header = headerRef.current;
+    if (!header) return;
+
+    const headerElement = header;
+
+    function updateHeaderHeight() {
+      setHeaderHeight(headerElement.getBoundingClientRect().height);
+    }
+
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateHeaderHeight);
+    resizeObserver?.observe(headerElement);
+    window.addEventListener("resize", updateHeaderHeight);
+    updateHeaderHeight();
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", updateHeaderHeight);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const dialog = dialogRef.current;
+    const header = headerRef.current;
+    const selector = splitSelectorRef.current;
+    if (!dialog || !header || !selector) return;
+
+    const dialogElement = dialog;
+    const headerElement = header;
+    const selectorElement = selector;
+    let animationFrame: number | null = null;
+
+    function updateStickyState() {
+      animationFrame = null;
+      const distanceFromHeader =
+        selectorElement.getBoundingClientRect().top - headerElement.getBoundingClientRect().bottom;
+      const isStuck = Math.abs(distanceFromHeader) <= 1.5;
+      setIsSplitSelectorStuck((current) => (current === isStuck ? current : isStuck));
+    }
+
+    function scheduleUpdate() {
+      if (animationFrame === null) {
+        animationFrame = window.requestAnimationFrame(updateStickyState);
+      }
+    }
+
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(scheduleUpdate);
+    resizeObserver?.observe(headerElement);
+    resizeObserver?.observe(selectorElement);
+    dialogElement.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+    scheduleUpdate();
+
+    return () => {
+      if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
+      resizeObserver?.disconnect();
+      dialogElement.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+    };
+  }, [headerHeight, open]);
 
   useEffect(() => {
     if (!open) {
@@ -170,7 +361,10 @@ export function RunDetailDialog({
         className="max-h-[calc(100vh-2rem)] w-full max-w-6xl overflow-y-auto border border-(--border) bg-(--surface) shadow-2xl sm:max-h-[calc(100vh-3rem)]"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-(--border) bg-(--surface) px-5 py-4">
+        <div
+          ref={headerRef}
+          className="sticky top-0 z-20 flex items-start justify-between gap-4 border-b border-(--border) bg-(--surface) px-5 py-4"
+        >
           <div className="min-w-0">
             <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-(--accent)">
               inspect::run_session
@@ -214,7 +408,7 @@ export function RunDetailDialog({
               <h3 className="font-mono text-xs uppercase tracking-[0.12em] text-(--text)">
                 session_summary
               </h3>
-              <dl className="grid border-l border-t border-(--border) sm:grid-cols-3 lg:grid-cols-6">
+              <dl className="grid border-l border-t border-(--border) grid-cols-3 lg:grid-cols-4">
                 {statItems(run, unit).map(([label, value]) => (
                   <div
                     key={label}
@@ -231,11 +425,11 @@ export function RunDetailDialog({
           </section>
 
           <section className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
+            <div>
               <h3 className="font-mono text-xs uppercase tracking-[0.12em] text-(--text)">
                 elevation_profile
               </h3>
-              <p className="text-xs text-(--text-soft)">
+              <p className="mt-1 text-xs text-(--text-soft)">
                 Built from ordered activity-record distance and altitude fields.
               </p>
             </div>
@@ -244,33 +438,41 @@ export function RunDetailDialog({
                 No elevation profile is available for this run.
               </div>
             ) : (
-              <div className="h-64 border border-(--border) bg-(--surface-muted) p-3">
+              <div className="h-64 border border-(--border) bg-(--surface-muted)">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={elevationPoints}>
+                  <LineChart
+                    data={elevationPoints}
+                    margin={{
+                      top: ELEVATION_X_AXIS_HEIGHT,
+                      right: ELEVATION_Y_AXIS_WIDTH - ELEVATION_HORIZONTAL_SHIFT,
+                      bottom: ELEVATION_VERTICAL_PADDING,
+                      left: ELEVATION_HORIZONTAL_SHIFT,
+                    }}
+                  >
                     <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
                     <XAxis
                       dataKey="distance"
-                      tick={{ fill: "var(--text-soft)", fontSize: 12 }}
+                      height={ELEVATION_X_AXIS_HEIGHT}
+                      tick={{ fill: "var(--text-soft)", fontSize: 11 }}
+                      tickMargin={4}
                       stroke="var(--border)"
                       tickFormatter={(value: number) => `${value.toFixed(1)} ${unit}`}
                     />
                     <YAxis
-                      tick={{ fill: "var(--text-soft)", fontSize: 12 }}
+                      domain={[elevationMin, elevationDomainMax]}
+                      tick={{ fill: "var(--text-soft)", fontSize: 11 }}
+                      tickMargin={4}
                       stroke="var(--border)"
                       tickFormatter={(value: number) => `${Math.round(value)} m`}
-                      width={64}
+                      width={ELEVATION_Y_AXIS_WIDTH}
                     />
                     <Tooltip
-                      contentStyle={{
-                        background: "var(--surface)",
-                        border: "1px solid var(--border)",
-                        color: "var(--text)",
+                      content={<ElevationTooltip unit={unit} />}
+                      cursor={{
+                        stroke: "var(--accent)",
+                        strokeDasharray: "3 3",
+                        strokeWidth: 1,
                       }}
-                      formatter={(value) => {
-                        const numericValue = Number(value);
-                        return [`${Math.round(numericValue)} m`, "Altitude"];
-                      }}
-                      labelFormatter={(value) => `${Number(value).toFixed(2)} ${unit}`}
                     />
                     <Line
                       type="monotone"
@@ -294,22 +496,30 @@ export function RunDetailDialog({
                 Ordered analytical rows from <code className="font-mono text-(--text)">mart_run_segments</code>.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Split resolution">
-              {SEGMENT_RESOLUTIONS.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  aria-pressed={resolution === option}
-                  onClick={() => setResolution(option)}
-                  className={`h-8 border px-3 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors ${
-                    resolution === option
-                      ? "border-(--accent) bg-(--accent-soft) text-(--accent)"
-                      : "border-(--border) text-(--text-soft) hover:border-(--text-soft) hover:text-(--text)"
-                  }`}
-                >
-                  {resolutionLabel(option, unit)}
-                </button>
-              ))}
+            <div
+              ref={splitSelectorRef}
+              className={`sticky z-10 -mx-5 flex justify-center border-b bg-(--surface) px-4 py-2 transition-colors duration-150 ${
+                isSplitSelectorStuck ? "border-(--border)" : "border-transparent"
+              }`}
+              style={{ top: headerHeight }}
+            >
+              <div className="flex items-center justify-center gap-1.5" role="group" aria-label="Split resolution">
+                {SEGMENT_RESOLUTIONS.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    aria-pressed={resolution === option}
+                    onClick={() => setResolution(option)}
+                    className={`h-7 border px-2.5 font-mono text-[9px] uppercase tracking-[0.06em] transition-colors ${
+                      resolution === option
+                        ? "border-(--accent) bg-(--accent-soft) text-(--accent)"
+                        : "border-(--border) text-(--text-soft) hover:border-(--text-soft) hover:text-(--text)"
+                    }`}
+                  >
+                    {resolutionLabel(option, unit)}
+                  </button>
+                ))}
+              </div>
             </div>
             {segmentState.isLoading ? (
               <div className="border border-(--border) bg-(--surface-muted) p-6 font-mono text-xs text-(--text-soft)">
@@ -349,25 +559,25 @@ export function RunDetailDialog({
                             {splitDistance(segment, unit)}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3">
-                            {formatDuration(segment.segmentDurationSeconds)}
+                            {formatSegmentTime(segment.segmentDurationSeconds)}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3">
-                            {formatPace(segment.segmentPaceMinPerKm, unit)}
+                            {formatSegmentPace(segment.segmentPaceMinPerKm, unit)}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3">
-                            {formatHeartRate(segment.avgHeartRate)}
+                            {formatSegmentValue(segment.avgHeartRate, "bpm")}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3">
-                            {formatHeartRate(segment.maxHeartRate)}
+                            {formatSegmentValue(segment.maxHeartRate, "bpm")}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3">
-                            {formatElevation(segment.elevationChangeM)}
+                            {formatSegmentValue(segment.elevationChangeM, "m")}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3">
-                            {formatGrade(segment.segmentGrade)}
+                            {formatSegmentGrade(segment.segmentGrade)}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3">
-                            {formatCadence(segment.avgRunningCadence)}
+                            {formatSegmentValue(segment.avgRunningCadence, "spm")}
                           </td>
                         </tr>
                       ))}

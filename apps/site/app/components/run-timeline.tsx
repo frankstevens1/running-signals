@@ -112,6 +112,89 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
   const { unit } = useDistanceUnit();
   const [selectedRun, setSelectedRun] = useState<RunSession | null>(null);
 
+  useEffect(() => {
+    if (runs.length === 0) return;
+
+    const root = document.documentElement;
+    const appHeader = document.querySelector<HTMLElement>("[data-app-header]");
+    const pagination = document.querySelector<HTMLElement>("[data-runs-pagination]");
+
+    if (!appHeader || !pagination) return;
+
+    const appHeaderElement = appHeader;
+    const paginationElement = pagination;
+
+    const previousSnapAttribute = root.getAttribute("data-runs-timeline-snap");
+    const previousSnapTop = root.style.getPropertyValue("--runs-timeline-snap-top");
+    const previousSnapBottom = root.style.getPropertyValue("--runs-timeline-snap-bottom");
+    let animationFrame: number | null = null;
+
+    function updateSnapViewport() {
+      animationFrame = null;
+      const headerRect = appHeaderElement.getBoundingClientRect();
+      const paginationRect = paginationElement.getBoundingClientRect();
+      const controls = document.querySelector<HTMLElement>("[data-runs-mobile-controls]");
+      const isMobile = window.innerWidth < 1024;
+      const isPaginationPinned = paginationRect.top <= headerRect.bottom + 1;
+
+      if (!isMobile || !isPaginationPinned) {
+        root.removeAttribute("data-runs-timeline-snap");
+        return;
+      }
+
+      root.setAttribute("data-runs-timeline-snap", "");
+      root.style.setProperty("--runs-timeline-snap-top", `${paginationRect.bottom}px`);
+      root.style.setProperty(
+        "--runs-timeline-snap-bottom",
+        controls ? `${controls.getBoundingClientRect().height}px` : "0px",
+      );
+    }
+
+    function scheduleUpdate() {
+      if (animationFrame === null) {
+        animationFrame = window.requestAnimationFrame(updateSnapViewport);
+      }
+    }
+
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(scheduleUpdate);
+    resizeObserver?.observe(appHeaderElement);
+    resizeObserver?.observe(paginationElement);
+
+    const mutationObserver = new MutationObserver(scheduleUpdate);
+    mutationObserver.observe(document.body, { childList: true });
+
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+    scheduleUpdate();
+
+    return () => {
+      if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
+      resizeObserver?.disconnect();
+      mutationObserver.disconnect();
+      window.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+
+      if (previousSnapAttribute === null) {
+        root.removeAttribute("data-runs-timeline-snap");
+      } else {
+        root.setAttribute("data-runs-timeline-snap", previousSnapAttribute);
+      }
+
+      if (previousSnapTop) {
+        root.style.setProperty("--runs-timeline-snap-top", previousSnapTop);
+      } else {
+        root.style.removeProperty("--runs-timeline-snap-top");
+      }
+
+      if (previousSnapBottom) {
+        root.style.setProperty("--runs-timeline-snap-bottom", previousSnapBottom);
+      } else {
+        root.style.removeProperty("--runs-timeline-snap-bottom");
+      }
+    };
+  }, [runs.length]);
+
   if (runs.length === 0) {
     return (
       <div className="border border-dashed border-(--border) bg-(--surface) p-8 font-mono text-xs text-(--text-soft)">
@@ -126,6 +209,7 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
         {runs.map((run, index) => (
           <article
             key={run.runId}
+            data-run-timeline-item
             className="group relative -mt-px overflow-hidden border border-(--border) bg-(--surface) transition-colors first:mt-0 hover:z-10 hover:border-(--text-soft)"
           >
             <div className="grid lg:grid-cols-[20rem_1fr]">
@@ -134,7 +218,8 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
               </div>
 
               <div className="min-w-0 lg:grid lg:grid-rows-[auto_minmax(0,1fr)]">
-                <div className="grid gap-4 border-b border-(--border) p-4 md:grid-cols-[12rem_minmax(0,1fr)_auto] md:items-start xl:grid-cols-[14rem_minmax(0,1fr)_auto]">
+                {/* Desktop: 3-column grid with Detail button as third column */}
+                <div className="hidden gap-4 border-b border-(--border) p-4 lg:grid md:grid-cols-[12rem_minmax(0,1fr)_auto] md:items-start xl:grid-cols-[14rem_minmax(0,1fr)_auto]">
                   <div className="min-w-0">
                     <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-(--text-soft)">
                       row::{String(index + 1).padStart(2, "0")} · {formatDate(run.activityDate)}
@@ -177,8 +262,53 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
                   </button>
                 </div>
 
+                {/* Mobile: stacked layout with Detail button inline next to date */}
+                <div className="border-b border-(--border) p-4 lg:hidden">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-(--text-soft)">
+                        row::{String(index + 1).padStart(2, "0")} · {formatDate(run.activityDate)}
+                      </p>
+                      <h3 className="mt-1 font-mono text-2xl leading-tight text-(--text)">
+                        {formatDistance(run.distanceKm, unit)}
+                      </h3>
+                      <div className="mt-2 text-sm text-(--text-soft)">
+                        {run.routeId ? (
+                          <Link
+                            href={`/routes?routeId=${encodeURIComponent(run.routeId)}`}
+                            className="font-mono text-(--accent) hover:underline"
+                          >
+                            route {formatRouteId(run.routeId)}
+                          </Link>
+                        ) : (
+                          "No route cluster"
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRun(run)}
+                      className="inline-flex h-9 shrink-0 items-center gap-2 border border-(--border) px-3 font-mono text-[10px] uppercase tracking-[0.08em] text-(--text) transition-colors hover:border-(--accent) hover:bg-(--accent-soft)"
+                    >
+                      Detail
+                      <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </div>
+
+                  <dl className="mt-4 grid grid-cols-4 gap-x-2 gap-y-3 sm:gap-x-6">
+                    <MetricItem
+                      label="Duration"
+                      value={formatDuration(run.durationSeconds)}
+                      emphasis
+                    />
+                    <MetricItem label="Pace" value={formatPace(run.avgPaceMinPerKm, unit)} emphasis />
+                    <MetricItem label="Avg HR" value={formatHeartRate(run.avgHeartRate)} emphasis />
+                    <MetricItem label="Max HR" value={formatHeartRate(run.maxHeartRate)} emphasis />
+                  </dl>
+                </div>
+
                 <div className="p-4 lg:flex lg:items-center">
-                  <dl className="grid w-full grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-4 lg:grid-cols-[repeat(7,minmax(max-content,1fr))]">
+                  <dl className="grid w-full grid-cols-4 gap-x-2 gap-y-3 sm:gap-x-5 lg:grid-cols-[repeat(7,minmax(max-content,1fr))]">
                     <MetricItem label="Ascent" value={formatElevation(run.totalAscent)} />
                     <MetricItem label="Descent" value={formatElevation(run.totalDescent)} />
                     <MetricItem label="Segments" value={run.segmentCount?.toLocaleString() ?? "n/a"} />

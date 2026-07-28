@@ -14,12 +14,13 @@ describe("mapRoute", () => {
     expect(route.representativeRouteCentroidLongitudeDeg).toBe(28.2833);
   });
 
-  it("keeps map/profile responses to the five fields used by map and elevation UI", () => {
+  it("maps sampled profile geography and telemetry", () => {
     expect(
       mapMapProfileRecord({
         record_index: 42,
         record_distance_km: 10.2,
         altitude_m: 1_200,
+        pace_min_per_km: 5.25,
         position_lat_deg: -15.4,
         position_long_deg: 28.3,
         heart_rate: 160,
@@ -28,6 +29,8 @@ describe("mapRoute", () => {
       recordIndex: 42,
       distanceKm: 10.2,
       altitudeM: 1_200,
+      paceMinPerKm: 5.25,
+      heartRate: 160,
       latitudeDeg: -15.4,
       longitudeDeg: 28.3,
     });

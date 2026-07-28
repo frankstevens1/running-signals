@@ -323,11 +323,11 @@ export default async function ConsistencyPage({
                     trend={
                       breakTrend
                         ? {
-                            direction: breakTrend.direction,
-                            invert: true,
-                            value: `${breakTrend.diff > 0 ? "+" : ""}${formatInteger(Math.abs(breakTrend.diff))}`,
-                            label: "vs prior window",
-                          }
+                          direction: breakTrend.direction,
+                          lowerIsBetter: true,
+                          value: `${breakTrend.diff > 0 ? "+" : ""}${formatInteger(Math.abs(breakTrend.diff))}`,
+                          label: "vs prior window",
+                        }
                         : undefined
                     }
                   />
@@ -339,11 +339,11 @@ export default async function ConsistencyPage({
                     trend={
                       avgBreakTrend
                         ? {
-                            direction: avgBreakTrend.direction,
-                            invert: true,
-                            value: `${avgBreakTrend.diff > 0 ? "+" : ""}${formatDecimal2(Math.abs(avgBreakTrend.diff))}`,
-                            label: "vs prior window",
-                          }
+                          direction: avgBreakTrend.direction,
+                          lowerIsBetter: true,
+                          value: `${avgBreakTrend.diff > 0 ? "+" : ""}${formatDecimal2(Math.abs(avgBreakTrend.diff))}`,
+                          label: "vs prior window",
+                        }
                         : undefined
                     }
                   />

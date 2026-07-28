@@ -47,8 +47,8 @@ const ROUTE_SELECT = [
   "representative_route_centroid_longitude_deg", "total_count",
 ].join(",");
 const MAP_RECORD_SELECT = [
-  "record_index", "record_distance_km", "altitude_m", "position_lat_deg",
-  "position_long_deg",
+  "record_index", "record_distance_km", "altitude_m", "pace_min_per_km",
+  "heart_rate", "position_lat_deg", "position_long_deg",
 ].join(",");
 const SEGMENT_SELECT = [
   "run_id", "unit_system", "segment_length_value", "segment_index",

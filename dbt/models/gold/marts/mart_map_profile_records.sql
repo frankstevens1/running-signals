@@ -6,6 +6,8 @@ with ordered_records as (
         record_index,
         record_distance_km,
         altitude_m,
+        pace_min_per_km,
+        heart_rate,
         position_lat_deg,
         position_long_deg,
         row_number() over (
@@ -26,6 +28,8 @@ sampled_records as (
         record_index,
         record_distance_km,
         altitude_m,
+        pace_min_per_km,
+        heart_rate,
         position_lat_deg,
         position_long_deg
     from ordered_records
@@ -38,6 +42,8 @@ sampled_records as (
         records.record_index,
         records.record_distance_km,
         records.altitude_m,
+        records.pace_min_per_km,
+        records.heart_rate,
         records.position_lat_deg,
         records.position_long_deg
     from ordered_records as records
