@@ -25,7 +25,7 @@ date_spine as (
 
 select
     cast(calendar_date as date) as calendar_date,
-    calendar_date < {{ analytics_current_date() }} as is_completed_day,
+    calendar_date <= {{ analytics_current_date() }} as is_completed_day,
     dayofweek(calendar_date) as day_of_week_number,
     date_format(calendar_date, 'E') as day_of_week_name,
     dayofmonth(calendar_date) as day_of_month,

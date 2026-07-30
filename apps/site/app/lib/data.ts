@@ -169,30 +169,19 @@ async function queryLandingStatus(): Promise<LandingStatus> {
 async function queryCurrentWeekAligned(): Promise<CurrentWeekToDate> {
   const today = amsterdamToday();
   const weekStart = weekStartDate(today);
-  const [daysResult, todayRunsResult] = await Promise.all([
-    querySupabase("site_days", {
-      select: DAY_SELECT,
-      filters: dateFilters("calendar_date", { from: weekStart, to: today }),
-      order: [{ column: "calendar_date", direction: "asc", nulls: "last" }],
-    }),
-    querySupabase("site_runs", {
-      select: "run_id,distance_km",
-      filters: dateFilters("activity_date", { from: today, to: today }),
-    }),
-  ]);
+  const daysResult = await querySupabase("site_days", {
+    select: DAY_SELECT,
+    filters: dateFilters("calendar_date", { from: weekStart, to: today }),
+    order: [{ column: "calendar_date", direction: "asc", nulls: "last" }],
+  });
   const days = daysResult.rows.map(mapDay);
-  const includeLiveToday = days.at(-1)?.calendarDate !== today;
-  const todayRunCount = includeLiveToday ? todayRunsResult.rows.length : 0;
   return {
     weekStartDate: weekStart,
     latestCompletedDate: days.at(-1)?.calendarDate ?? null,
-    includesLiveToday: includeLiveToday,
-    runCount: days.reduce((total, day) => total + day.runCount, 0) + todayRunCount,
-    distanceKm: days.reduce((total, day) => total + day.distanceKm, 0)
-      + (includeLiveToday
-        ? todayRunsResult.rows.reduce((total, row) => total + (numberValue(row, "distance_km") ?? 0), 0)
-        : 0),
-    activeDays: days.filter((day) => day.activeDayFlag).length + (todayRunCount > 0 ? 1 : 0),
+    includesLiveToday: false,
+    runCount: days.reduce((total, day) => total + day.runCount, 0),
+    distanceKm: days.reduce((total, day) => total + day.distanceKm, 0),
+    activeDays: days.filter((day) => day.activeDayFlag).length,
     daysSoFar: daysInWeekToDate(today),
   };
 }

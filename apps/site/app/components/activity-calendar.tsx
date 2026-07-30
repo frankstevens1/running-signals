@@ -9,7 +9,7 @@ import {
 const ACTIVITY_CALENDAR_INFO = {
   title: "Daily activity calendar",
   definition:
-    "Each square is a completed calendar day in the loaded window. Color intensity is based on total run distance for that day. Days with no run use the muted color. Columns represent ISO weeks (Monday–Sunday).",
+    "Each square is a completed calendar day in the selected period. Color intensity is based on total run distance for that day. Days with no run use the muted color. Columns represent ISO weeks (Monday–Sunday).",
   source: "dbt mart_days, from daily run_count and distance_km.",
   interpretation: [
     "Each column is one ISO week; empty squares at the start or end of the grid pad partial weeks.",
@@ -74,7 +74,7 @@ export function ActivityCalendar({
             Daily activity calendar
           </h2>
           <p className="mt-1 text-sm text-(--text-soft)">
-            Daily running distance intensity across the loaded window.
+            Daily running distance intensity across the selected period.
           </p>
         </div>
         <MetricInfoDialog content={ACTIVITY_CALENDAR_INFO} />

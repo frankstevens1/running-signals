@@ -5,7 +5,6 @@ with ordered_days as (
         calendar_date,
         active_day_flag
     from {{ ref('mart_days') }}
-    where is_completed_day
 ),
 
 streak_groups as (

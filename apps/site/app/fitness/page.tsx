@@ -23,6 +23,7 @@ import {
 import { explorerPages } from "@/app/lib/page-metadata";
 import { getServerDistanceUnit } from "@/app/lib/server-distance-unit";
 import { getServerAnalyticsWindow } from "@/app/lib/analytics-window-server";
+import { comparisonTrendLabel } from "@/app/lib/analytics-window";
 import { RECOVERY_BASELINE_MIN_OBSERVATIONS } from "@/app/lib/recovery-trend";
 
 function trendDelta(
@@ -61,6 +62,7 @@ export default async function FitnessPage({
 }) {
   const resolved = await searchParams;
   const analyticsWindow = await getServerAnalyticsWindow(resolved);
+  const { effectiveComparison } = analyticsWindow;
   const [fitness, comparisonFitness, unit] = await Promise.all([
     getFitness(analyticsWindow.primary),
     analyticsWindow.comparison ? getFitness(analyticsWindow.comparison) : null,
@@ -140,7 +142,7 @@ export default async function FitnessPage({
                     detail={
                       latest
                         ? `Measured during the run on ${formatDate(latest.activityDate)}`
-                        : "No runs in the loaded window"
+                        : "No runs in the selected period"
                     }
                     icon={HeartPulse}
                     trend={
@@ -160,7 +162,7 @@ export default async function FitnessPage({
                     detail={
                       latestRecovery
                         ? `Measured after the run on ${formatDate(latestRecovery.activityDate)}`
-                        : "No recovery HR recorded in the loaded window"
+                        : "No recovery HR recorded in the selected period"
                     }
                     icon={HeartPulse}
                     trend={
@@ -187,7 +189,7 @@ export default async function FitnessPage({
                           ? {
                             direction: efficiencyTrend.direction,
                             value: formatFixedSignedPercent(efficiencyTrend.change, false),
-                            label: comparisonEfficiency !== null ? "vs comparison window" : "vs 4-run rolling",
+                            label: comparisonEfficiency !== null ? (comparisonTrendLabel(effectiveComparison) ?? "vs comparison") : "vs 4-run rolling",
                           }
                         : undefined
                     }

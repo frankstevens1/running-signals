@@ -333,12 +333,6 @@ html[data-theme="light"] .theme-toggle .theme-icon-moon {
   html[data-runs-timeline-snap] {
     scroll-padding-top: var(--runs-timeline-snap-top, 0px);
     scroll-padding-bottom: var(--runs-timeline-snap-bottom, 0px);
-    scroll-snap-type: y proximity;
-  }
-
-  html[data-runs-timeline-snap] [data-run-timeline-item] {
-    scroll-snap-align: start;
-    scroll-snap-stop: always;
   }
 }
 

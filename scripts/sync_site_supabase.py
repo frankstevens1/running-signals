@@ -259,7 +259,6 @@ def dashboard_summary_select(config: DatabricksConfig) -> str:
         with latest as (
           select max(calendar_date) as latest_completed_date
           from {gold_table(config, "mart_days")}
-          where is_completed_day = true
         ),
 
         day_summary as (
@@ -278,7 +277,6 @@ def dashboard_summary_select(config: DatabricksConfig) -> str:
             end) as recent_28d_distance_km
           from {gold_table(config, "mart_days")} as days
           cross join latest
-          where days.is_completed_day = true
           group by latest.latest_completed_date
         ),
 
@@ -289,7 +287,6 @@ def dashboard_summary_select(config: DatabricksConfig) -> str:
             count(distinct date_trunc('month', calendar_date))
               filter (where run_count > 0) as active_months
           from {gold_table(config, "mart_days")}
-          where is_completed_day = true
         )
 
         select
@@ -485,7 +482,6 @@ EXPORTS: tuple[TableExport, ...] = (
               rolling_7d_distance_km,
               rolling_28d_distance_km
             from {gold_table(config, "mart_days")}
-            where is_completed_day = true
         """,
     ),
     TableExport(

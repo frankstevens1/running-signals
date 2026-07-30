@@ -128,6 +128,8 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
     const previousSnapTop = root.style.getPropertyValue("--runs-timeline-snap-top");
     const previousSnapBottom = root.style.getPropertyValue("--runs-timeline-snap-bottom");
     let animationFrame: number | null = null;
+    let lastSnapScrollTime = 0;
+    const SNAP_SCROLL_COOLDOWN = 400;
 
     function updateSnapViewport() {
       animationFrame = null;
@@ -156,6 +158,53 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
       }
     }
 
+    function handleWheel(event: WheelEvent) {
+      if (!root.hasAttribute("data-runs-timeline-snap")) return;
+
+      const now = performance.now();
+      if (now - lastSnapScrollTime < SNAP_SCROLL_COOLDOWN) {
+        event.preventDefault();
+        return;
+      }
+
+      const direction = event.deltaY > 0 ? 1 : -1;
+      const items = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-run-timeline-item]"),
+      );
+      if (items.length === 0) return;
+
+      const snapTop =
+        parseFloat(root.style.getPropertyValue("--runs-timeline-snap-top")) || 0;
+
+      let anchorIndex = 0;
+      let minDistance = Infinity;
+      for (let i = 0; i < items.length; i++) {
+        const rect = items[i].getBoundingClientRect();
+        const distance = Math.abs(rect.top - snapTop);
+        if (distance < minDistance) {
+          minDistance = distance;
+          anchorIndex = i;
+        }
+      }
+
+      const targetIndex = Math.max(
+        0,
+        Math.min(items.length - 1, anchorIndex + direction),
+      );
+
+      if (targetIndex === anchorIndex) return;
+
+      const targetRect = items[targetIndex].getBoundingClientRect();
+      const targetScrollTop =
+        (window.scrollY || document.documentElement.scrollTop) +
+        targetRect.top -
+        snapTop;
+
+      lastSnapScrollTime = now;
+      event.preventDefault();
+      window.scrollTo({ top: targetScrollTop, behavior: "smooth" });
+    }
+
     const resizeObserver =
       typeof ResizeObserver === "undefined" ? null : new ResizeObserver(scheduleUpdate);
     resizeObserver?.observe(appHeaderElement);
@@ -166,6 +215,7 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
 
     window.addEventListener("scroll", scheduleUpdate, { passive: true });
     window.addEventListener("resize", scheduleUpdate);
+    window.addEventListener("wheel", handleWheel, { passive: false });
     scheduleUpdate();
 
     return () => {
@@ -174,6 +224,7 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
       mutationObserver.disconnect();
       window.removeEventListener("scroll", scheduleUpdate);
       window.removeEventListener("resize", scheduleUpdate);
+      window.removeEventListener("wheel", handleWheel);
 
       if (previousSnapAttribute === null) {
         root.removeAttribute("data-runs-timeline-snap");

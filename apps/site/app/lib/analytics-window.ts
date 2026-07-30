@@ -180,6 +180,14 @@ function comparisonWindow(primary: DateWindow, mode: Exclude<AnalyticsComparison
   return { from: addDays(primary.from, -durationDays), to: addDays(primary.from, -1) };
 }
 
+export function comparisonTrendLabel(mode: "previous-year" | "previous-period" | "none"): string | null {
+  switch (mode) {
+    case "previous-year": return "vs same period last year";
+    case "previous-period": return "vs previous period";
+    case "none": return null;
+  }
+}
+
 export function resolveAnalyticsWindow(
   params: URLSearchParams,
   cookieValue: string | null,

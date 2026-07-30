@@ -3,10 +3,6 @@
 with days as (
     select *
     from {{ ref('mart_days') }}
-    where week_start_date <= date_add(
-        cast(date_trunc('week', {{ analytics_current_date() }}) as date),
-        -7
-    )
 ),
 
 week_bounds as (
@@ -18,15 +14,15 @@ weekly_all as (
     select
         week_start_date,
         week_end_date,
-        true as is_completed_week,
+        count(*) = 7 as is_completed_week,
         sum(run_count) as runs_per_week,
         sum(distance_km) as weekly_distance_km,
         sum(duration_seconds) as weekly_duration_seconds,
         max(long_run_distance_km) as long_run_distance_km,
         sum(case when active_day_flag then 1 else 0 end) as active_days,
         sum(case when missed_day_flag then 1 else 0 end) as missed_days,
-        sum(run_count) > 0 as active_week_flag,
-        sum(run_count) = 0 as missed_week_flag,
+        sum(run_count) > 0 and count(*) = 7 as active_week_flag,
+        sum(run_count) = 0 and count(*) = 7 as missed_week_flag,
         count(*) as completed_day_count
     from days
     group by week_start_date, week_end_date
@@ -38,6 +34,7 @@ weekly as (
     cross join week_bounds
     where completed_day_count = 7
        or week_start_date = first_week_start_date
+       or week_start_date = cast(date_trunc('week', {{ analytics_current_date() }}) as date)
 ),
 
 streak_groups as (
@@ -107,7 +104,10 @@ select
     missed_week_flag,
     completed_day_count,
     rolling_4w_run_count,
-    active_week_streak,
+    case
+        when is_completed_week then active_week_streak
+        else lag(active_week_streak) over (order by week_start_date)
+    end as active_week_streak,
     missed_weeks_12w,
     rolling_4w_distance_km,
     rolling_12w_distance_km

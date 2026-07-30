@@ -103,12 +103,9 @@ const decimal2Format = new Intl.NumberFormat("en-US", {
 
 function formatSegmentTime(seconds: number | null): string {
   if (seconds === null || !Number.isFinite(seconds)) return "n/a";
-  const totalHundredths = Math.round(seconds * 100);
-  const minutes = Math.floor(totalHundredths / 6000);
-  const remainingSeconds = ((totalHundredths - minutes * 6000) / 100)
-    .toFixed(2)
-    .padStart(5, "0");
-
+  const totalSeconds = Math.round(seconds);
+  const minutes = Math.floor(totalSeconds / 60);
+  const remainingSeconds = (totalSeconds % 60).toString().padStart(2, "0");
   return `${minutes}:${remainingSeconds}`;
 }
 
@@ -120,7 +117,7 @@ function formatSegmentPace(value: number | null, unit: DistanceUnit): string {
 function formatSegmentValue(value: number | null, unit: string): string {
   return value === null || !Number.isFinite(value)
     ? "n/a"
-    : `${decimal2Format.format(value)} ${unit}`;
+    : `${Math.round(value)} ${unit}`;
 }
 
 function formatSegmentGrade(value: number | null): string {
