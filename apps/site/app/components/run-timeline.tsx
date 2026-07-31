@@ -18,7 +18,7 @@ import type { RunSession } from "@/app/lib/types";
 import { ActivityRouteMap } from "./activity-route-map";
 import { useDistanceUnit } from "./distance-unit-provider";
 import { RunDetailDialog } from "./run-detail-dialog";
-import { useRunRecords } from "./run-records-client";
+import { useRunRecords } from "@/app/lib/run-records-client";
 
 function TimelineRouteMap({ runId }: { runId: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null);

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu } from "lucide-react";
+import { Menu, House } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
 
 import { commandPaletteItems, navigationGroups } from "@/app/lib/page-metadata";
@@ -134,6 +134,32 @@ export function AppNav() {
           className="m-auto w-[min(42rem,calc(100%-2rem))] overscroll-contain border border-(--border-strong) bg-(--surface) p-0 text-(--text) shadow-[var(--shadow-dialog)] backdrop:bg-black/70 max-h-[calc(100vh-4rem)]"
         >
           <div className="max-h-[calc(100vh-4rem)] overflow-y-auto p-4">
+            <div className="mb-3 border border-(--border) bg-(--background)">
+              <div className="flex items-center gap-2 border-b border-(--border) px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-(--text-faint)">
+                <House className="h-3.5 w-3.5" aria-hidden="true" />
+                Overview
+              </div>
+              <div className="p-1">
+                <Link
+                  href="/"
+                  aria-current={pathname === "/" ? "page" : undefined}
+                  onClick={handleNavigation}
+                  className={`flex items-center gap-3 px-2 py-2.5 text-sm transition-colors ${
+                    pathname === "/"
+                      ? "bg-(--accent-soft) text-(--accent)"
+                      : "text-(--text-soft) hover:bg-(--surface-muted) hover:text-(--text)"
+                  }`}
+                >
+                  <House className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span className="min-w-0">
+                    <span className="block font-medium">Overview</span>
+                    <span className="mt-0.5 hidden truncate text-xs text-(--text-faint) sm:block">
+                      Project context, current signals, and pipeline architecture.
+                    </span>
+                  </span>
+                </Link>
+              </div>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               {navigationGroups.map((group) => {
                 const GroupIcon = group.icon;

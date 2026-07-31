@@ -14,7 +14,7 @@ import {
 
 import { RouteMap, type MapFocus } from "@/app/components/route-map";
 import { useDistanceUnit } from "@/app/components/distance-unit-provider";
-import { useRouteRecords } from "@/app/components/route-records-client";
+import { useRouteRecords } from "@/app/lib/route-records-client";
 import {
   COUNTRY_BOUNDARIES_URL,
   countryBoundariesFromGeoJson,

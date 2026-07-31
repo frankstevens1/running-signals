@@ -34,8 +34,8 @@ import type { MapProfileRecord, RunSegment, RunSession } from "@/app/lib/types";
 
 import { ActivityRouteMap } from "./activity-route-map";
 import { useDistanceUnit } from "./distance-unit-provider";
-import { useRunRecords } from "./run-records-client";
-import { useRunSegments } from "./run-segments-client";
+import { useRunRecords } from "../lib/run-records-client";
+import { useRunSegments } from "../lib/run-segments-client";
 
 function statItems(run: RunSession, unit: DistanceUnit) {
   return [

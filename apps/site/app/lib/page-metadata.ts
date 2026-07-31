@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  Activity,
   BarChart3,
+  BookOpen,
   BrainCircuit,
   CalendarCheck,
   DatabaseZap,
@@ -16,7 +16,7 @@ export type PageMetadata = {
   href: string;
   label: string;
   description: string;
-  group: "Overview" | "Explore" | "Signals" | "Extensions";
+  group: "Overview" | "Explore" | "Signals" | "Learn" | "Extensions";
   keywords: readonly string[];
   icon: LucideIcon;
 };
@@ -94,6 +94,14 @@ export const sitePages = {
     keywords: ["agent", "mcp", "tools", "resources", "contract", "visualization"],
     icon: Network,
   },
+  learn: {
+    href: "/learn",
+    label: "Model Walkthrough",
+    description: "Step through every dbt model with annotated SQL and technique explanations.",
+    group: "Learn",
+    keywords: ["sql", "dbt", "models", "learning", "walkthrough", "curriculum"],
+    icon: BookOpen,
+  },
 } satisfies Record<string, PageMetadata>;
 
 // Preserve the focused explorer API used by the existing route pages.
@@ -103,6 +111,7 @@ export const explorerPages = {
   consistency: sitePages.consistency,
   volume: sitePages.volume,
   fitness: sitePages.fitness,
+  learn: sitePages.learn,
   mlReadiness: sitePages.mlReadiness,
   agentInterface: sitePages.agentInterface,
 };
@@ -113,16 +122,12 @@ export const explorerNavItems = [
   explorerPages.consistency,
   explorerPages.volume,
   explorerPages.fitness,
+  explorerPages.learn,
   explorerPages.mlReadiness,
   explorerPages.agentInterface,
 ] as const;
 
 export const navigationGroups = [
-  {
-    label: "Overview",
-    icon: Activity,
-    items: [sitePages.home],
-  },
   {
     label: "Explore",
     icon: TableProperties,
@@ -132,6 +137,11 @@ export const navigationGroups = [
     label: "Signals",
     icon: BarChart3,
     items: [sitePages.consistency, sitePages.volume, sitePages.fitness],
+  },
+  {
+    label: "Learn",
+    icon: BookOpen,
+    items: [sitePages.learn],
   },
   {
     label: "Extensions",
