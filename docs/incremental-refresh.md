@@ -1,17 +1,17 @@
-## Independent Incremental Refreshes
+## Unified Incremental Refreshes
 
-FIT is the scheduled pipeline. Health is an independent manual analytics pipeline.
+FIT is the scheduled pipeline. Health is an independent manual analytics pipeline that feeds into the same dbt DAG.
 
 ```text
 Daily GitHub Actions schedule
             |
             v
-FIT raw -> FIT bronze -> dbt fit_refresh -> Supabase FIT tables -> Next.js site
+FIT raw -> FIT bronze -> dbt build -> Supabase FIT tables -> Next.js site
 
 Manual command
             |
             v
-Health raw -> health bronze -> dbt health_refresh
+Health raw -> health bronze -> dbt build
 ```
 
 ## FIT Refresh
@@ -44,8 +44,8 @@ Configure repository variables `AWS_REFRESH_ROLE_ARN`, `AWS_REGION`, `GARMIN_FIT
 secrets `GARMIN_EMAIL`, `GARMIN_PASSWORD`, `DATABRICKS_HOST`, `DATABRICKS_TOKEN`,
 `DATABRICKS_HTTP_PATH`, `SUPABASE_DB_URL`, and `DBT_PROFILES_YML`.
 
-The FIT dbt selector contains no health source or health model. FIT publishing updates only FIT
-serving tables.
+FIT publishing updates only FIT serving tables. The unified `mart_days` model joins silver `health_days`
+into the daily training foundation; missing health observations remain null.
 
 ## Health Refresh
 
@@ -77,18 +77,17 @@ fitness tables. It does not export months or years; the frontend derives those p
 from published days. Existing public names such as `site_runs`, `site_days`, `site_fitness`, and
 `site_dashboard_summary` remain compatibility views over their core tables.
 
-## dbt Selectors
+## dbt Build
 
-The source-isolated commands are:
+The unified DAG builds from both FIT and health bronze sources:
 
 ```bash
-uv run dbt build --project-dir dbt --selector fit_refresh --target-path target/fit
-uv run dbt build --project-dir dbt --selector health_refresh --target-path target/health
+uv run dbt build --project-dir dbt
 ```
 
-`fit_refresh` starts from the three FIT bronze sources and builds the complete presented running
-graph. `health_refresh` starts from `garmin_health_daily_payloads` and builds `health_days` plus
-`mart_health_days`.
+`mart_days` joins silver `health_days` into the daily training foundation. Days with no health
+observations will have null health columns and false availability flags. On the free-edition
+serverless warehouse, use `--threads 4` if you hit connection resets.
 
 ## FIT Publisher
 
@@ -118,7 +117,7 @@ Health fails
     -> FIT pipeline is unaffected
     -> no Supabase operation is attempted
 
-Either dbt selector fails
+dbt build fails
     -> downstream stages stop; only FIT has a publish stage
 ```
 

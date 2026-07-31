@@ -5,8 +5,8 @@ Garmin Connect health context into documented training signal tables.
 
 ```text
 Garmin Connect
-    -> FIT downloader -> FIT S3 -> FIT bronze -> fit_refresh -> FIT core serving tables
-    -> health downloader -> health S3 -> health bronze -> health_refresh
+    -> FIT downloader -> FIT S3 -> FIT bronze -> dbt build -> FIT core serving tables
+    -> health downloader -> health S3 -> health bronze ┘
     -> Supabase FIT core tables -> Next.js presentation layer
 ```
 
@@ -103,11 +103,11 @@ dbt treats FIT and health as independent source lanes. The current modeled paths
 
 ```text
 bronze FIT sources -> runs, run_records
-bronze health JSON source -> health_days -> mart_health_days
+bronze health JSON source -> health_days
 runs -> dates
-dates + runs -> mart_days
+dates + runs + health_days -> mart_days
 mart_days -> mart_weeks, mart_months, mart_years
-mart_weeks -> signal_consistency, signal_volume, mart_weekly_training_features
+mart_weeks -> mart_weekly_training_features
 run_records -> mart_activity_records
 mart_activity_records -> mart_map_profile_records
 run_records + mart_segment_resolutions -> mart_run_segments
@@ -118,12 +118,12 @@ runs + mart_days + mart_run_segments + mart_route_clusters -> mart_run_sessions
 mart_run_sessions -> mart_routes
 mart_run_sessions + mart_routes -> mart_route_prediction_features
 runs + mart_run_segments -> signal_fitness
-runs -> mart_runs
 signal_fitness + mart_weeks -> mart_running_signals
 ```
 
-The `fit_refresh` selector builds the complete running and presentation graph without a health
-source. The `health_refresh` selector builds only `health_days` and `mart_health_days`.
+The FIT and health bronze sources feed a single dbt DAG. The unified `mart_days` model joins
+silver `health_days` into the daily training foundation; missing health observations remain null
+and are flagged with per-endpoint availability booleans.
 
 ## Presentation Serving
 
@@ -143,16 +143,16 @@ Supabase is a serving cache, not the analytical source of truth. If a metric cha
 belongs in dbt gold first; the Supabase sync should only project that result into the shape required
 by the website.
 
-Health is an independent manual analytics pipeline that stops after dbt. It does not publish to
-Supabase and has no frontend surface.
+Health data is available in Databricks `mart_days` for offline analysis. The Supabase surface
+is FIT-only; health context is not served to the presentation layer.
 
 Silver models standardize date, run-level, per-record, and daily health context fields. The primary
 analytical foundation is `mart_days`; weekly, monthly, and yearly outputs roll up from that daily
-mart. Weekly signal models remain as compatibility outputs. Route clustering builds its legacy 250m
-H3 path directly from silver records, so accurate analytical split allocation and additional metric
-or imperial resolutions do not change route identity. Activity records provide full route geometry,
-while route, segment, and run-session marts support route and performance analysis. Health fields are
-independent, optionally stale descriptive context, not readiness or medical scoring.
+mart. Route clustering builds its legacy 250m H3 path directly from silver records, so accurate
+analytical split allocation and additional metric or imperial resolutions do not change route
+identity. Activity records provide full route geometry, while route, segment, and run-session marts
+support route and performance analysis. Health fields are descriptive context in `mart_days`, not
+readiness or medical scoring.
 
 ## Analytics Readiness
 
@@ -161,7 +161,7 @@ product:
 
 - Monitoring: `mart_days`, `mart_weeks`, `mart_months`, and `mart_years` expose daily training
   behavior and calendar rollups.
-- Visual analytics: `mart_runs`, `mart_run_sessions`, `mart_routes`, `mart_route_clusters`,
+- Visual analytics: `mart_run_sessions`, `mart_routes`, `mart_route_clusters`,
   `mart_activity_records`, `mart_map_profile_records`, `mart_run_segments`, and
   `mart_running_signals` expose run, route, record, presentation profile, segment, and signal views
   for portfolio communication.

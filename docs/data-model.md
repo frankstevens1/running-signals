@@ -10,26 +10,46 @@ This document describes the implemented analytical model contract for Running Si
 - Gold models own signal definitions, rollups, and presentation-ready marts.
 - The primary analytical grain is the completed calendar day. Weekly, monthly, and yearly
   outputs are rollups from `mart_days`, not the base modeling grain.
+- The unified daily mart (`mart_days`) brings together FIT training outcomes and Garmin Connect
+  health context on the same calendar-date spine. Health data is LEFT JOINed; missing health
+  observations remain null and are flagged with per-endpoint availability booleans.
 - Session, record, segment, and route grains remain explicit so route and performance analysis does
   not leak raw second-level telemetry into every presentation output.
+- Silver-level intermediary models (`dates`, `runs`, `run_records`, `health_days`) are internal
+  building blocks, not directly queryable analytical grains.
 
 ## Canonical Grains
 
 | Grain | Model | Key |
 |---|---|---|
-| Day | `dates`, `mart_days` | `calendar_date` |
-| Run session | `runs`, `mart_run_sessions` | `run_id` / `activity_id` |
-| Record telemetry | `run_records` | `run_id`, `record_timestamp` |
-| Activity record | `mart_activity_records` | `run_id`, `record_index` |
-| Map profile point | `mart_map_profile_records` | `run_id`, `record_index` |
-| Segment resolution | `mart_segment_resolutions` | `unit_system`, `segment_length_value` |
-| Analytical segment | `mart_run_segments` | `run_id`, `unit_system`, `segment_length_value`, `segment_index` |
-| Route observation | `mart_route_clusters` | `run_id` |
-| Route profile | `mart_routes` | `route_id` |
-| Health day | `mart_health_days` | `calendar_date` |
+| Day | `mart_days` | `calendar_date` |
 | Week | `mart_weeks` | `week_start_date` |
 | Month | `mart_months` | `month_start_date` |
 | Year | `mart_years` | `year_start_date` |
+| Run session | `mart_run_sessions` | `run_id` |
+| Record telemetry | `mart_activity_records` | `run_id`, `record_index` |
+| Map profile point | `mart_map_profile_records` | `run_id`, `record_index` |
+| Analytical segment | `mart_run_segments` | `run_id`, `unit_system`, `segment_length_value`, `segment_index` |
+| Route profile | `mart_routes` | `route_id` |
+
+## Intermediate Models
+
+These models support the canonical grain models above. They are not intended for direct analytical
+querying and do not carry their own grain.
+
+| Model | Purpose |
+|---|---|
+| `dates` | Calendar-day spine from the first observed Garmin date through yesterday |
+| `runs` | Canonical session-level building block with standardized FIT metrics |
+| `health_days` | Pivoted daily health context from Garmin Connect JSON payloads |
+| `run_records` | Cleaned per-record telemetry with H3 cells and WKT geometry |
+| `route_observations` | One row per GPS-backed run with 250m H3 path signature |
+| `route_similarity_edges` | Bidirectional graph of similar route pairs above 90% Jaccard threshold |
+| `int_route_component_roots` | Connected-component partial roots after 6 rounds of chronological pointer-jumping |
+| `mart_route_clusters` | Route identity assignment via similarity-based clustering with 6 additional pointer-jumping rounds |
+| `mart_segment_resolutions` | Static 6-row lookup defining metric and imperial segment lengths |
+| `int_daily_streaks` | Single-row aggregate of daily run streaks and training breaks |
+| `int_current_week_aligned` | Current ISO week-to-date aggregation |
 
 ## Lineage
 
@@ -42,18 +62,15 @@ bronze.garmin_fit_records
     -> run_records
 bronze.garmin_health_daily_payloads
     -> health_days
-    -> mart_health_days
 runs
     -> dates
-dates + runs
+dates + runs + health_days
     -> mart_days
 mart_days
     -> mart_weeks
     -> mart_months
     -> mart_years
 mart_weeks
-    -> signal_consistency
-    -> signal_volume
     -> mart_weekly_training_features
 run_records
     -> mart_activity_records
@@ -76,17 +93,14 @@ mart_run_sessions + mart_routes
     -> mart_route_prediction_features
 runs + mart_run_segments
     -> signal_fitness
-runs
-    -> mart_runs
 signal_fitness + mart_weeks
     -> mart_running_signals
+mart_days
+    -> int_daily_streaks
+    -> int_current_week_aligned
 FIT gold presentation outputs
     -> Supabase site_*_core tables
 ```
-
-`weeks`, `signal_consistency`, `signal_volume`, `mart_weeks`, `mart_running_signals`, and
-`mart_weekly_training_features` remain as compatibility outputs, but their weekly logic is downstream
-of the daily foundation.
 
 ## Presentation Read Models
 
@@ -95,8 +109,8 @@ Public views over the core tables provide the `site_*` API surface. Ordered acti
 provide map geometry; analytical segment endpoints are not a route reconstruction format. The
 serving relations are not a replacement for the Databricks/dbt model contracts.
 
-Health outputs (`mart_health_days`) remain in Databricks for offline analysis and do not have a
-Supabase surface.
+Health fields are available in Databricks `mart_days` for offline analysis. The Supabase surface
+is FIT-only; health context is not served to the presentation layer.
 
 ## Bronze Tables
 
@@ -183,14 +197,8 @@ cadence is normalized from Garmin's per-leg cadence to total steps per minute.
 Grain: one row per calendar date.
 
 Purpose: provide canonical daily fitness-context fields from Garmin Connect JSON while preserving
-endpoint availability flags.
-
-### weeks
-
-Grain: one row per completed calendar week.
-
-Purpose: compatibility week spine derived from `dates` and `runs`. New analytical work
-should prefer `mart_days` and its downstream rollups.
+endpoint availability flags. This model is an internal silver building block; it joins into
+`mart_days` at the gold layer rather than serving as a standalone presentation mart.
 
 ## Gold Models
 
@@ -199,21 +207,16 @@ should prefer `mart_days` and its downstream rollups.
 Grain: one row per completed calendar day.
 
 Purpose: primary daily training mart with run count, distance, duration, active/missed day flags,
-same-day health context, and rolling 7-day and 28-day training windows.
+same-day Garmin Connect health context (resting heart rate, HRV, sleep score, and per-endpoint
+availability flags), rolling 7-day and 28-day training windows, and rolling 7-day and 30-day
+resting-heart-rate windows.
 
 ### mart_weeks, mart_months, mart_years
 
 Grain: one row per completed week, observed month, or observed year.
 
-Purpose: roll up `mart_days` into coarser calendar outputs. Weekly consistency and volume metrics
-are retained here for compatibility and portfolio charts.
-
-### signal_consistency and signal_volume
-
-Grain: one row per completed calendar week.
-
-Purpose: compatibility signal models sourced from `mart_weeks`. These models preserve the existing
-weekly interface while making `mart_days` the foundation.
+Purpose: roll up `mart_days` into coarser calendar outputs. Weekly metrics include active-week
+streaks, missed-week flags, and rolling 4-week and 12-week distance and run-count windows.
 
 ### signal_fitness
 
@@ -222,6 +225,21 @@ Grain: one row per run.
 Purpose: define descriptive aerobic fitness indicators from session pace, speed, heart rate,
 heart-rate bands, first-half versus second-half heart-rate drift, Garmin Recovery HR when available,
 and same-day health context.
+
+### mart_weekly_training_features
+
+Grain: one row per completed week.
+
+Purpose: provide prediction-ready weekly feature and label columns with lag and lead windows for
+prior and next week values. Intended for offline ML experimentation.
+
+### mart_running_signals
+
+Grain: one row per run.
+
+Purpose: combine run-level `signal_fitness` metrics with week-level context from `mart_weeks`,
+providing a single-table view of per-run fitness indicators alongside the containing week's
+volume, consistency, and streak information.
 
 ### mart_segment_resolutions
 

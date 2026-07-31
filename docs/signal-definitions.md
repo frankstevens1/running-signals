@@ -59,9 +59,9 @@ Recovery HR when Garmin provides it. Daily health remains an independently refre
 | `garmin_recovery_hr` | Run | Final recorded run heart rate minus the latest FIT `recovery_hr` event value, reported as bpm recovered. | `runs` | Implemented when present |
 | `ending_heart_rate` | Run | Final recorded run heart rate used as the recovery-drop starting value and to group comparable recovery observations. | `runs`, `signal_fitness` | Implemented when present |
 | `recovery_prior_90d_median` | Run | Median recovery drop for qualifying runs in the same 10-bpm ending-heart-rate band over the preceding 90 calendar days; the current run is excluded. | `signal_fitness` | Implemented with at least four observations in the presentation layer |
-| `resting_heart_rate` | Day | Garmin daily resting heart rate. | `health_days`, `mart_health_days` | Implemented when present |
-| `hrv_value` | Day | Garmin daily HRV value when present. | `health_days`, `mart_health_days` | Implemented when present |
-| `sleep_score` | Day | Garmin sleep score when present. | `health_days`, `mart_health_days` | Implemented when present |
+| `resting_heart_rate` | Day | Garmin daily resting heart rate. | `health_days`, `mart_days` | Implemented when present |
+| `hrv_value` | Day | Garmin daily HRV value when present. | `health_days`, `mart_days` | Implemented when present |
+| `sleep_score` | Day | Garmin sleep score when present. | `health_days`, `mart_days` | Implemented when present |
 
 Daily resting heart rate, HRV, and sleep score are context fields only.
 

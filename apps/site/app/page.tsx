@@ -17,7 +17,7 @@ const pillars = [
     href: "/consistency",
     icon: explorerPages.consistency.icon,
     copy: "See whether training is happening regularly through active days, completed weeks, streaks, and breaks.",
-    source: "signal_consistency + mart_days + mart_weeks",
+    source: "mart_weeks + mart_days",
   },
   {
     index: "02",
@@ -26,7 +26,7 @@ const pillars = [
     href: "/volume",
     icon: explorerPages.volume.icon,
     copy: "Inspect accumulated load through weekly and monthly distance, rolling totals, and long-run contribution.",
-    source: "signal_volume + mart_weeks + mart_months + mart_years",
+    source: "mart_weeks + mart_months + mart_years",
   },
   {
     index: "03",

@@ -80,31 +80,6 @@ models:
           - not_null
           - unique
 
-  - name: mart_health_days
-    description: Health-only daily presentation mart with Garmin health metrics, payload coverage, ingestion metadata, and rolling resting-heart-rate windows.
-    columns:
-      - name: calendar_date
-        description: Garmin health calendar date.
-        tests:
-          - not_null
-          - unique
-          - relationships:
-              arguments:
-                to: ref('health_days')
-                field: calendar_date
-
-  - name: weeks
-    description: Compatibility completed-week spine derived from the day-first silver foundation and session-level runs.
-    columns:
-      - name: week_start_date
-        description: First date of the completed calendar week.
-      - name: week_end_date
-      - name: is_completed_week
-      - name: runs_per_week
-      - name: weekly_distance_km
-      - name: active_week_flag
-      - name: missed_week_flag
-
   - name: route_observations
     description: One row per GPS-backed run with its 250m H3 path signature, start/end cells, distance bucket, and segment count for route similarity comparison.
     columns:
@@ -124,7 +99,7 @@ models:
           - not_null
 
   - name: mart_days
-    description: Primary FIT-only daily training mart with run outcomes, active-day flags, and rolling daily windows.
+    description: Primary daily training mart with FIT run outcomes, same-day Garmin Connect health context, and rolling training and health windows.
     columns:
       - name: calendar_date
         tests:
@@ -146,6 +121,16 @@ models:
       - name: active_day_flag
         tests:
           - not_null
+      - name: resting_heart_rate
+        description: Garmin daily resting heart rate. Nullable when the Garmin Connect health endpoint has not reported a value for the calendar date.
+      - name: hrv_value
+        description: Garmin daily HRV value. Nullable when the HRV payload is absent or does not contain a numeric value.
+      - name: sleep_score
+        description: Garmin sleep score. Nullable when the sleep payload is absent.
+      - name: rolling_7d_resting_heart_rate
+        description: Seven-day trailing average of daily resting heart rate computed over available calendar dates using a range window.
+      - name: rolling_30d_resting_heart_rate
+        description: Thirty-day trailing average of daily resting heart rate computed over available calendar dates using a range window.
 
   - name: mart_weeks
     description: Weekly rollup derived from mart_days. It excludes the current in-progress week while retaining the initial partial calendar week when observed history starts midweek.
@@ -185,16 +170,6 @@ models:
       - name: year_start_date
       - name: yearly_distance_km
 
-  - name: signal_consistency
-    description: Weekly consistency compatibility signal sourced from the day-derived mart_weeks model.
-    columns:
-      - name: week_start_date
-
-  - name: signal_volume
-    description: Weekly volume compatibility signal sourced from the day-derived mart_weeks model.
-    columns:
-      - name: week_start_date
-
   - name: signal_fitness
     description: FIT-only run-level fitness indicators based on pace, heart rate, recovery heart rate, and derived efficiency.
     columns:
@@ -224,18 +199,13 @@ models:
       - name: recovery_prior_90d_max
         description: Highest qualifying recovery drop in the prior 90-day comparable sample.
 
-  - name: mart_runs
-    description: Compatibility presentation-ready FIT run-level metrics.
-    columns:
-      - name: activity_id
-
   - name: mart_running_signals
-    description: Compatibility run-level signal mart with day-derived weekly training context.
+    description: Run-level signal mart combining signal_fitness metrics with mart_weeks weekly training context.
     columns:
       - name: activity_id
 
   - name: mart_weekly_training_features
-    description: Compatibility prediction-ready weekly feature and label table derived from mart_weeks.
+    description: Prediction-ready weekly feature and label table derived from mart_weeks with lag and lead windows for prior and next week values.
     columns:
       - name: week_start_date
 

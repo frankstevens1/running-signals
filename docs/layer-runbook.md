@@ -116,7 +116,7 @@ uv run running-signals preflight --source fit --no-input --databricks-target dev
 uv run running-signals refresh incremental --no-input --databricks-target dev
 ```
 
-The default incremental command runs FIT raw landing, FIT bronze, the `fit_refresh` dbt selector,
+The default incremental command runs FIT raw landing, FIT bronze, a full dbt build,
 and the FIT Supabase publisher. It does not invoke health. A failed stage prevents
 following FIT stages. `--json` produces a machine-readable run manifest;
 `--no-publish` stops after dbt; and `--dry-run` validates configuration and prints a
@@ -136,7 +136,7 @@ uv run running-signals preflight --source health --no-input --databricks-target 
 uv run running-signals refresh incremental --source health --no-input --databricks-target dev
 ```
 
-The health lane builds only `health_days` and `mart_health_days` and then stops. It does not require
+The health lane builds `health_days` and then feeds into `mart_days` via the unified dbt DAG. It does not require
 `SUPABASE_DB_URL` and does not publish to Supabase. A health failure does not block FIT.
 
 ### Rebuild derived data from existing raw landing
@@ -146,30 +146,27 @@ Garmin history. The confirmation is required because bronze tables are rebuilt.
 
 ```bash
 uv run running-signals bronze --source fit --full-refresh --confirm --databricks-target dev
-uv run dbt build --project-dir dbt --selector fit_refresh --target-path target/fit
+uv run dbt build --project-dir dbt
 uv run running-signals publish --full --confirm
 ```
 
-Health has the equivalent independent bronze and dbt rebuild, with no publish step:
+Health has the equivalent independent bronze rebuild, followed by the unified dbt build:
 
 ```bash
 uv run running-signals bronze --source health --full-refresh --confirm --databricks-target dev
-uv run dbt build --project-dir dbt --selector health_refresh --target-path target/health
+uv run dbt build --project-dir dbt
 ```
 
 ### Build silver and gold manually
 
 ```bash
-uv run dbt build --project-dir dbt --selector fit_refresh --target-path target/fit
+uv run dbt build --project-dir dbt
 ```
 
-This materializes the FIT graph and runs its tests in one pass. Build the independent health graph
-with `--selector health_refresh --target-path target/health`. On the free-edition serverless
+This materializes the complete DAG and runs its tests in one pass. On the free-edition serverless
 warehouse, use `--threads 4` if you hit connection resets.
 
-The FIT selector contains `dates`, `runs`, `run_records`, `weeks`, route models, FIT marts, signals,
-and intermediates. The health selector contains `health_days` and `mart_health_days`. All are
-dbt-managed and source-isolated.
+All models are dbt-managed and source-isolated.
 
 Useful partial runs:
 
