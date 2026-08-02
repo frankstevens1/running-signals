@@ -1,0 +1,22 @@
+version: 2
+
+selectors:
+  - name: fit_refresh
+    description: >
+      Builds and tests all models downstream of Garmin FIT bronze
+      sources. Excludes health_days (which depends solely on health
+      payloads). Used by the FIT incremental refresh pipeline.
+    definition:
+      method: source
+      value: garmin_raw.garmin_fit_sessions
+      children: true
+
+  - name: health_refresh
+    description: >
+      Builds and tests health_days and all downstream models from
+      Garmin Health daily payloads. Used by the Health incremental
+      refresh pipeline.
+    definition:
+      method: source
+      value: garmin_raw.garmin_health_daily_payloads
+      children: true

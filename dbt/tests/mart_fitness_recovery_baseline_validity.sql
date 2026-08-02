@@ -1,5 +1,5 @@
 select *
-from {{ ref('signal_fitness') }}
+from {{ ref('mart_fitness') }}
 where recovery_prior_90d_count < 4
     and (
         recovery_prior_90d_median is not null

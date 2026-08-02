@@ -100,6 +100,11 @@ export function formatElevation(value: number | null | undefined): string {
   return `${Math.round(value)} m`;
 }
 
+export function formatEconomy(value: number | null | undefined, decimals: number, unit: string): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "\u2014";
+  return `${value.toFixed(decimals)} ${unit}`;
+}
+
 export function formatPercent(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "n/a";
   return `${Math.round(value * 100)}%`;

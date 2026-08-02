@@ -1,5 +1,8 @@
 {{ config(materialized='table') }}
 
+{% set gold_catalog = env_var('DATABRICKS_CATALOG') %}
+{% set gold_schema = env_var('DATABRICKS_GOLD_SCHEMA') %}
+
 with sessions as (
     select *
     from {{ ref('mart_run_sessions') }}
@@ -45,17 +48,44 @@ representative_route_centroids as (
     where records.position_lat_deg between -90 and 90
       and records.position_long_deg between -180 and 180
     group by routes.route_id
+),
+
+run_start_records as (
+    select
+        run_id,
+        min(record_index) as start_record_index
+    from {{ ref('mart_map_profile_records') }}
+    group by run_id
+),
+
+representative_route_start_points as (
+    select
+        routes.route_id,
+        records.position_lat_deg as route_start_latitude_deg,
+        records.position_long_deg as route_start_longitude_deg
+    from route_summaries as routes
+    inner join run_start_records as starts
+        on starts.run_id = routes.route_representative_run_id
+    inner join {{ ref('mart_map_profile_records') }} as records
+        on records.run_id = starts.run_id
+        and records.record_index = starts.start_record_index
+    where records.position_lat_deg between -90 and 90
+      and records.position_long_deg between -180 and 180
 )
 
 select
     routes.*,
     centroids.representative_route_centroid_latitude_deg,
     centroids.representative_route_centroid_longitude_deg,
-    concat(
-        cast(round(centroids.representative_route_centroid_latitude_deg * 4) / 4.0 as string),
-        ', ',
-        cast(round(centroids.representative_route_centroid_longitude_deg * 4) / 4.0 as string)
-    ) as city_grid_bucket
+    starts.route_start_latitude_deg,
+    starts.route_start_longitude_deg,
+    cities.city_name,
+    cities.country_name,
+    cities.country_code
 from route_summaries as routes
 left join representative_route_centroids as centroids
     on routes.route_id = centroids.route_id
+left join representative_route_start_points as starts
+    on routes.route_id = starts.route_id
+left join `{{ gold_catalog }}`.`{{ gold_schema }}`.`route_city_names` as cities
+    on routes.route_id = cities.route_id

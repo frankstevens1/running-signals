@@ -97,10 +97,14 @@ def test_site_routes_export_excludes_matching_internals() -> None:
         if table_export.table_name == "site_routes"
     )
 
-    assert export.columns[-3:] == (
+    assert export.columns[-7:] == (
         "representative_route_centroid_latitude_deg",
         "representative_route_centroid_longitude_deg",
-        "city_grid_bucket",
+        "route_start_latitude_deg",
+        "route_start_longitude_deg",
+        "city_name",
+        "country_name",
+        "country_code",
     )
 
     statement = export.statement(databricks_config())
@@ -109,9 +113,12 @@ def test_site_routes_export_excludes_matching_internals() -> None:
     assert "min_route_match_similarity" not in export.columns
     assert "avg_route_match_similarity" not in export.columns
     assert "route_h3_signature" not in export.columns
+    assert "city_grid_bucket" not in export.columns
     assert "representative_route_centroid_latitude_deg" in statement
     assert "representative_route_centroid_longitude_deg" in statement
-    assert "city_grid_bucket" in statement
+    assert "route_start_latitude_deg" in statement
+    assert "route_start_longitude_deg" in statement
+    assert "city_name" in statement
 
 
 def test_site_weeks_export_includes_avg_run_distance_km() -> None:

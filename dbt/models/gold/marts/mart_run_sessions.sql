@@ -97,7 +97,10 @@ select
     prior_training_context.prior_7d_run_count,
     prior_training_context.prior_7d_distance_km,
     prior_training_context.prior_28d_run_count,
-    prior_training_context.prior_28d_distance_km
+    prior_training_context.prior_28d_distance_km,
+    fitness.distance_economy_m_per_beat,
+    fitness.elevation_economy_m_per_beat,
+    fitness.personal_efficiency_score
 from runs
 left join route_clusters
     on runs.run_id = route_clusters.run_id
@@ -105,3 +108,5 @@ left join segment_summary
     on runs.run_id = segment_summary.run_id
 left join prior_training_context
     on runs.run_id = prior_training_context.run_id
+left join {{ ref('mart_fitness') }} as fitness
+    on runs.activity_id = fitness.activity_id

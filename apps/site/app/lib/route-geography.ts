@@ -153,54 +153,13 @@ function ringCenter(ring: MapPosition[]): MapPosition {
   return [longitude / (6 * signedArea), latitude / (6 * signedArea)];
 }
 
-function labelPosition(geometry: CountryGeometry): MapPosition {
+export function labelPosition(geometry: CountryGeometry): MapPosition {
   const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
   const largestPolygon = polygons.reduce((largest, polygon) =>
     Math.abs(ringArea(polygon[0])) > Math.abs(ringArea(largest[0])) ? polygon : largest,
   );
 
   return ringCenter(largestPolygon[0]);
-}
-
-function pointInRing([longitude, latitude]: MapPosition, ring: MapPosition[]) {
-  let inside = false;
-
-  for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index++) {
-    const [currentLongitude, currentLatitude] = ring[index];
-    const [previousLongitude, previousLatitude] = ring[previous];
-    const intersects =
-      currentLatitude > latitude !== previousLatitude > latitude &&
-      longitude <
-        ((previousLongitude - currentLongitude) * (latitude - currentLatitude)) /
-          (previousLatitude - currentLatitude) +
-          currentLongitude;
-
-    if (intersects) inside = !inside;
-  }
-
-  return inside;
-}
-
-function pointInPolygon(position: MapPosition, polygon: MapPosition[][]) {
-  return pointInRing(position, polygon[0]) && !polygon.slice(1).some((ring) => pointInRing(position, ring));
-}
-
-function countryContainsPosition(country: CountryBoundary, position: MapPosition) {
-  const [minLongitude, minLatitude, maxLongitude, maxLatitude] = country.bounds;
-  if (
-    position[0] < minLongitude ||
-    position[0] > maxLongitude ||
-    position[1] < minLatitude ||
-    position[1] > maxLatitude
-  ) {
-    return false;
-  }
-
-  if (country.geometry.type === "Polygon") {
-    return pointInPolygon(position, country.geometry.coordinates);
-  }
-
-  return country.geometry.coordinates.some((polygon) => pointInPolygon(position, polygon));
 }
 
 function featureProperty(properties: Record<string, unknown>, names: string[]) {
@@ -238,25 +197,12 @@ export function countryBoundariesFromGeoJson(value: unknown): CountryBoundary[] 
   });
 }
 
-function routeCentroids(routes: RouteSummary[]) {
-  return new Map(
-    routes.flatMap((route) => {
-      const longitude = route.representativeRouteCentroidLongitudeDeg;
-      const latitude = route.representativeRouteCentroidLatitudeDeg;
-      if (
-        longitude === null ||
-        latitude === null ||
-        longitude < -180 ||
-        longitude > 180 ||
-        latitude < -90 ||
-        latitude > 90
-      ) {
-        return [];
-      }
-
-      return [[route.routeId, [longitude, latitude] as MapPosition]];
-    }),
-  );
+function routePosition(route: RouteSummary): MapPosition | null {
+  const lon = route.representativeRouteCentroidLongitudeDeg;
+  const lat = route.representativeRouteCentroidLatitudeDeg;
+  if (lon === null || lat === null) return null;
+  if (lon < -180 || lon > 180 || lat < -90 || lat > 90) return null;
+  return [lon, lat];
 }
 
 function boundsForArea(positions: MapPosition[]): MapBounds {
@@ -280,68 +226,94 @@ function areaCenter(positions: MapPosition[]): MapPosition {
   return [(minLongitude + maxLongitude) / 2, (minLatitude + maxLatitude) / 2];
 }
 
-function coordinateLabel(value: number, positive: string, negative: string) {
-  return `${Math.abs(value).toFixed(2)}°${value >= 0 ? positive : negative}`;
+function buildCountryNameIndex(
+  boundaries: CountryBoundary[],
+): Map<string, CountryBoundary> {
+  const index = new Map<string, CountryBoundary>();
+  for (const boundary of boundaries) {
+    index.set(boundary.name.toLowerCase(), boundary);
+  }
+  return index;
 }
 
-function cityName(center: MapPosition) {
-  return `Area near ${coordinateLabel(center[1], "N", "S")}, ${coordinateLabel(center[0], "E", "W")}`;
-}
+type CountryRouteEntry = { routeId: string; position: MapPosition };
 
 export function deriveRouteGeography(
   routes: RouteSummary[],
   countryBoundaries: CountryBoundary[],
 ): RouteGeography {
+  const countryIndex = buildCountryNameIndex(countryBoundaries);
   const routeCountryIds = new Map<string, string>();
-  const countryRoutes = new Map<string, Array<{ routeId: string; position: MapPosition }>>();
+  const countryRouteMap = new Map<string, CountryRouteEntry[]>();
+  const unknownRoutes: CountryRouteEntry[] = [];
+  const UNKNOWN_ID = "__unknown__";
 
-  for (const [routeId, position] of routeCentroids(routes)) {
-    const country = countryBoundaries.find((boundary) => countryContainsPosition(boundary, position));
-    if (!country) continue;
+  for (const route of routes) {
+    const position = routePosition(route);
+    if (!position) continue;
 
-    routeCountryIds.set(routeId, country.id);
-    const routes = countryRoutes.get(country.id) ?? [];
-    routes.push({ routeId, position });
-    countryRoutes.set(country.id, routes);
+    if (!route.countryName) {
+      unknownRoutes.push({ routeId: route.routeId, position });
+      continue;
+    }
+
+    const boundary = countryIndex.get(route.countryName.toLowerCase());
+    if (!boundary) {
+      unknownRoutes.push({ routeId: route.routeId, position });
+      continue;
+    }
+
+    routeCountryIds.set(route.routeId, boundary.id);
+    const entries = countryRouteMap.get(boundary.id) ?? [];
+    entries.push({ routeId: route.routeId, position });
+    countryRouteMap.set(boundary.id, entries);
   }
 
-  const countries = countryBoundaries.flatMap((country) => {
-    const routes = countryRoutes.get(country.id);
-    if (!routes?.length) return [];
-
-    return [
-      {
-        id: country.id,
-        name: country.name,
-        routeIds: routes.map((route) => route.routeId),
-        center: areaCenter(routes.map((route) => route.position)),
-        bounds: country.bounds,
-      },
-    ];
+  const countries: GeographicArea[] = countryBoundaries.flatMap((country) => {
+    const entries = countryRouteMap.get(country.id);
+    if (!entries?.length) return [];
+    return [{
+      id: country.id,
+      name: country.name,
+      routeIds: entries.map((e) => e.routeId),
+      center: areaCenter(entries.map((e) => e.position)),
+      bounds: country.bounds,
+    }];
   });
+
+  if (unknownRoutes.length > 0) {
+    for (const entry of unknownRoutes) {
+      routeCountryIds.set(entry.routeId, UNKNOWN_ID);
+    }
+    countries.push({
+      id: UNKNOWN_ID,
+      name: "Unknown",
+      routeIds: unknownRoutes.map((e) => e.routeId),
+      center: areaCenter(unknownRoutes.map((e) => e.position)),
+      bounds: boundsForArea(unknownRoutes.map((e) => e.position)),
+    });
+  }
 
   const citiesByCountryId = new Map<string, GeographicArea[]>();
   for (const country of countries) {
-    const cityGroups = new Map<string, Array<{ routeId: string; position: MapPosition }>>();
-    const routes = countryRoutes.get(country.id) ?? [];
+    const entries = countryRouteMap.get(country.id) ?? unknownRoutes;
+    const cityGroups = new Map<string, CountryRouteEntry[]>();
 
-    for (const route of routes) {
-      const longitudeBucket = Math.floor(route.position[0] / 0.25);
-      const latitudeBucket = Math.floor(route.position[1] / 0.25);
-      const key = `${longitudeBucket}:${latitudeBucket}`;
-      const group = cityGroups.get(key) ?? [];
-      group.push(route);
-      cityGroups.set(key, group);
+    for (const entry of entries) {
+      const route = routes.find((r) => r.routeId === entry.routeId);
+      const cityKey = route?.cityName ?? "__unknown_city__";
+      const group = cityGroups.get(cityKey) ?? [];
+      group.push(entry);
+      cityGroups.set(cityKey, group);
     }
 
-    const cities = Array.from(cityGroups, ([key, group]) => {
-      const positions = group.map((route) => route.position);
-      const center = areaCenter(positions);
+    const cities: GeographicArea[] = Array.from(cityGroups, ([key, group]) => {
+      const positions = group.map((e) => e.position);
       return {
         id: `${country.id}:${key}`,
-        name: cityName(center),
-        routeIds: group.map((route) => route.routeId),
-        center,
+        name: key === "__unknown_city__" ? "Unknown area" : key,
+        routeIds: group.map((e) => e.routeId),
+        center: areaCenter(positions),
         bounds: boundsForArea(positions),
       };
     }).sort((left, right) => left.name.localeCompare(right.name));

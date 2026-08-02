@@ -12,6 +12,8 @@ function routeSummary(
   routeId: string,
   latitude: number | null,
   longitude: number | null,
+  countryName: string | null = null,
+  cityName: string | null = null,
 ): RouteSummary {
   return {
     routeId,
@@ -22,6 +24,9 @@ function routeSummary(
     avgHeartRate: null,
     representativeRouteCentroidLatitudeDeg: latitude,
     representativeRouteCentroidLongitudeDeg: longitude,
+    countryName,
+    countryCode: null,
+    cityName,
   };
 }
 
@@ -66,12 +71,12 @@ const countryBoundaries = countryBoundariesFromGeoJson({
 });
 
 describe("route geography", () => {
-  it("assigns route centroids to countries and groups nearby routes into city choices", () => {
+  it("assigns routes to countries by name and groups by city_name", () => {
     const geography = deriveRouteGeography(
       [
-        routeSummary("route-north-1", 1, 1),
-        routeSummary("route-north-2", 1.1, 1.1),
-        routeSummary("route-south", 11, 11),
+        routeSummary("route-north-1", 1, 1, "Northland", "Northville"),
+        routeSummary("route-north-2", 1.1, 1.1, "Northland", "Northville"),
+        routeSummary("route-south", 11, 11, "Southland", "Southburg"),
       ],
       countryBoundaries,
     );
@@ -88,8 +93,8 @@ describe("route geography", () => {
   it("adds counts for only the routes currently visible on the map", () => {
     const geography = deriveRouteGeography(
       [
-        routeSummary("route-north", 1, 1),
-        routeSummary("route-south", 11, 11),
+        routeSummary("route-north", 1, 1, "Northland", "Northville"),
+        routeSummary("route-south", 11, 11, "Southland", "Southburg"),
       ],
       countryBoundaries,
     );

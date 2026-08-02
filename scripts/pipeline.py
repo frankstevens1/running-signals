@@ -34,6 +34,7 @@ DBT_FAILURE_EXIT_CODE = 5
 PUBLISH_FAILURE_EXIT_CODE = 6
 LOCK_FAILURE_EXIT_CODE = 7
 MANIFEST_FAILURE_EXIT_CODE = 8
+GEOCODE_FAILURE_EXIT_CODE = 9
 USAGE_FAILURE_EXIT_CODE = 2
 
 CommandRunner = Callable[[list[str], Path, str, bool], subprocess.CompletedProcess[str]]
@@ -629,7 +630,10 @@ def execute_incremental(
         manifest = RunManifest.create(f"refresh incremental {options.source}", asdict(options))
         write_manifest(resolved_state_dir, manifest)
 
-        stage_names = [f"{options.source}_raw", f"bronze_{options.source}", f"dbt_{options.source}"]
+        stage_names = [f"{options.source}_raw", f"bronze_{options.source}"]
+        if options.source == "fit" and not options.no_publish:
+            stage_names.append("geocode_cities")
+        stage_names.append(f"dbt_{options.source}")
         if options.source == "fit" and not options.no_publish:
             stage_names.append("publish_fit")
 
@@ -657,6 +661,24 @@ def execute_incremental(
             command_runner,
             json_output=options.json_output,
         )
+
+        if options.source == "fit" and not options.no_publish:
+            run_command_stage(
+                manifest,
+                resolved_state_dir,
+                "geocode_cities",
+                [
+                    "uv",
+                    "run",
+                    "python",
+                    "scripts/geocode_cities.py",
+                ],
+                project_root,
+                GEOCODE_FAILURE_EXIT_CODE,
+                command_runner,
+                json_output=options.json_output,
+            )
+
         run_command_stage(
             manifest,
             resolved_state_dir,

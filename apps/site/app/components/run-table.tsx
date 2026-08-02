@@ -9,6 +9,8 @@ import type { DistanceUnit } from "@/app/lib/distance-unit";
 import {
   formatDate,
   formatDistance,
+  formatEconomy,
+  formatElevation,
   formatHeartRate,
   formatPace,
   formatRouteId,
@@ -17,7 +19,7 @@ import type { RunSort, SortDirection } from "@/app/lib/query";
 import type { RunSession } from "@/app/lib/types";
 
 const sortableColumns: Array<{
-  sort: RunSort;
+  sort?: RunSort;
   label: string;
   defaultDirection: SortDirection;
 }> = [
@@ -25,8 +27,10 @@ const sortableColumns: Array<{
   { sort: "distance_km", label: "Distance", defaultDirection: "desc" },
   { sort: "avg_pace_min_per_km", label: "Pace", defaultDirection: "asc" },
   { sort: "avg_heart_rate", label: "Avg HR", defaultDirection: "desc" },
-  { sort: "total_ascent", label: "Ascent", defaultDirection: "desc" },
-  { sort: "prior_28d_distance_km", label: "Prior 28d", defaultDirection: "desc" },
+  { sort: "total_ascent", label: "Ascent/Descent", defaultDirection: "desc" },
+  { sort: "prior_7d_distance_km", label: "Prior 7d", defaultDirection: "desc" },
+  { label: "Dist Economy", defaultDirection: "desc" },
+  { label: "Score", defaultDirection: "desc" },
   { sort: "route_id", label: "Route", defaultDirection: "asc" },
 ];
 
@@ -250,14 +254,22 @@ export function RunTable({
             }`}
           >
             <tr>
-              {sortableColumns.map((column) => (
-                <SortableHeader
-                  key={column.sort}
-                  params={params}
-                  tabIndex={stickyHeader ? -1 : undefined}
-                  {...column}
-                />
-              ))}
+              {sortableColumns.map((column) =>
+                column.sort ? (
+                  <SortableHeader
+                    key={column.label}
+                    params={params}
+                    tabIndex={stickyHeader ? -1 : undefined}
+                    sort={column.sort}
+                    label={column.label}
+                    defaultDirection={column.defaultDirection}
+                  />
+                ) : (
+                  <th key={column.label} className="whitespace-nowrap px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-(--text-soft) font-normal">
+                    {column.label}
+                  </th>
+                ),
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-(--border)">
@@ -272,10 +284,29 @@ export function RunTable({
                   {formatHeartRate(run.avgHeartRate)}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3">
-                  {run.totalAscent === null ? "n/a" : `${Math.round(run.totalAscent)} m`}
+                  {[
+                    formatElevation(run.totalAscent),
+                    formatElevation(run.totalDescent),
+                  ].join(" / ")}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3">
-                  {formatDistance(run.prior28dDistanceKm, unit)}
+                  {formatDistance(run.prior7dDistanceKm, unit)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3">
+                  {formatEconomy(run.distanceEconomyMperBeat, 3, "m/beat")}
+                </td>
+                <td className={`whitespace-nowrap px-4 py-3 ${
+                  run.personalEfficiencyScore != null
+                    ? run.personalEfficiencyScore > 100
+                      ? "text-(--signal-ok)"
+                      : run.personalEfficiencyScore < 100
+                        ? "text-(--signal-error)"
+                        : "text-(--text-soft)"
+                    : ""
+                }`}>
+                  {run.personalEfficiencyScore != null
+                    ? Math.round(run.personalEfficiencyScore)
+                    : "\u2014"}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3">
                   {run.routeId ? (
@@ -317,21 +348,39 @@ export function RunTable({
                   }}
                 >
                   {sortableColumns.map((column, index) => {
-                    const { ariaSort } = sortState(
-                      params,
-                      column.sort,
-                      column.defaultDirection,
-                    );
+                    if (column.sort) {
+                      const { ariaSort } = sortState(
+                        params,
+                        column.sort,
+                        column.defaultDirection,
+                      );
+
+                      return (
+                        <div
+                          key={column.label}
+                          role="columnheader"
+                          aria-sort={ariaSort}
+                          className="shrink-0 whitespace-nowrap px-3 py-2.5 font-normal"
+                          style={{ width: stickyHeader.columnWidths[index] }}
+                        >
+                          <SortLink
+                            params={params}
+                            sort={column.sort}
+                            label={column.label}
+                            defaultDirection={column.defaultDirection}
+                          />
+                        </div>
+                      );
+                    }
 
                     return (
                       <div
-                        key={column.sort}
+                        key={column.label}
                         role="columnheader"
-                        aria-sort={ariaSort}
-                        className="shrink-0 whitespace-nowrap px-3 py-2.5 font-normal"
+                        className="shrink-0 whitespace-nowrap px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-(--text-soft) font-normal"
                         style={{ width: stickyHeader.columnWidths[index] }}
                       >
-                        <SortLink params={params} {...column} />
+                        {column.label}
                       </div>
                     );
                   })}

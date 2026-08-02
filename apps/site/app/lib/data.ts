@@ -23,9 +23,12 @@ const RUN_SELECT = [
   "run_id", "activity_id", "activity_date", "start_time", "distance_km",
   "duration_seconds", "avg_pace_min_per_km", "speed_kmh", "avg_heart_rate",
   "max_heart_rate", "total_ascent", "total_descent", "garmin_recovery_hr",
+  "avg_cadence", "max_cadence",
   "route_id", "route_distance_bucket_km", "record_distance_coverage_ratio",
   "segment_count", "avg_segment_grade", "route_altitude_range_m",
   "prior_7d_distance_km", "prior_28d_distance_km",
+  "distance_economy_m_per_beat", "elevation_economy_m_per_beat",
+  "personal_efficiency_score",
 ].join(",");
 const DAY_SELECT = [
   "calendar_date", "run_count", "distance_km", "duration_seconds",
@@ -39,12 +42,15 @@ const FITNESS_SELECT = [
   "ending_heart_rate", "recovery_prior_90d_count", "recovery_prior_90d_median",
   "recovery_prior_90d_q1", "recovery_prior_90d_q3", "recovery_prior_90d_min",
   "recovery_prior_90d_max", "hr_band", "garmin_recovery_hr",
+  "distance_economy_m_per_beat", "elevation_economy_m_per_beat",
+  "personal_efficiency_score",
 ].join(",");
 const ROUTE_SELECT = [
   "route_id", "latest_observed_activity_date", "run_count", "avg_distance_km",
   "avg_pace_min_per_km", "avg_heart_rate",
   "representative_route_centroid_latitude_deg",
-  "representative_route_centroid_longitude_deg", "total_count",
+  "representative_route_centroid_longitude_deg",
+  "city_name", "country_name", "country_code", "total_count",
 ].join(",");
 const MAP_RECORD_SELECT = [
   "record_index", "record_distance_km", "altitude_m", "pace_min_per_km",

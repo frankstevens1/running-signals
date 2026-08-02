@@ -25,7 +25,7 @@ import {
   speedFromKmh,
   type DistanceUnit,
 } from "@/app/lib/distance-unit";
-import { formatPace, formatSignedPercent, shortDate } from "@/app/lib/format";
+import { formatDate, formatPace, formatSignedPercent, shortDate } from "@/app/lib/format";
 import {
   buildRecoveryTrendPoints,
   getRecoveryPointsWithinDays,
@@ -613,7 +613,7 @@ const CHART_INFO = {
     title: "Heart-rate drift over time",
     definition:
       "Heart-rate drift compares second-half run efficiency with first-half run efficiency. Segment efficiency is average speed divided by average heart rate. Drift is second-half efficiency divided by first-half efficiency minus one.",
-    source: "dbt signal_fitness, using mart_run_segments.",
+    source: "dbt mart_fitness, using mart_run_segments.",
     interpretation: [
       "Near 0% means second-half efficiency was similar to first-half efficiency.",
       "Negative values mean the second half produced less speed per heartbeat. That can reflect fatigue, heat, hills, poor pacing, or harder terrain.",
@@ -629,7 +629,7 @@ const CHART_INFO = {
     title: "Speed per heartbeat",
     definition:
       "Efficiency ratio is session speed in kilometers per hour divided by average heart rate. The rolling 4-run line averages the current run and previous three runs.",
-    source: "dbt signal_fitness, from runs speed_kmh and avg_heart_rate.",
+    source: "dbt mart_fitness, from runs speed_kmh and avg_heart_rate.",
     interpretation: [
       "Higher values mean more speed for each average heartbeat in that run.",
       "A rising rolling line can suggest improving aerobic efficiency when runs are otherwise comparable.",
@@ -644,7 +644,7 @@ const CHART_INFO = {
     title: "Post-run recovery response",
     definition:
       "Recovery heart rate is the drop from the final recorded run heart rate to Garmin's recovery reading, usually about two minutes later. The top comparison places the latest reading against the prior 90 days of runs that finished in the same 10-bpm heart-rate range; the latest run is excluded from that baseline.",
-    source: "dbt signal_fitness, from Garmin recovery heart-rate events.",
+    source: "dbt mart_fitness, from Garmin recovery heart-rate events.",
     interpretation: [
       "The shaded range is the middle half of prior comparable readings; the tick is their median. The coloured dot is the latest recovery drop relative to that reference.",
       "The lower strip shows all comparable readings from the last 90 days in run order. The rightmost dot is the latest run; older dots are neutral evidence, not judgments.",
@@ -659,7 +659,7 @@ const CHART_INFO = {
     title: "Pace at comparable heart rate",
     definition:
       "Each point is a run's average pace plotted over time, grouped by average-heart-rate band. Pace is minutes per kilometer, so lower values are faster.",
-    source: "dbt signal_fitness, from runs avg_pace_min_per_km and avg_heart_rate.",
+    source: "dbt mart_fitness, from runs avg_pace_min_per_km and avg_heart_rate.",
     interpretation: [
       "Compare points within the same heart-rate band. Faster paces at similar average heart rate are generally favorable.",
       "The trend line summarizes the selected visible points. A downward trend means faster pace at comparable heart rate.",
@@ -668,6 +668,51 @@ const CHART_INFO = {
     caveats: [
       "Average heart rate hides within-run effort changes, intervals, stops, and terrain changes.",
       "The chart is directional. It does not control for weather, route grade, fatigue, or sensor noise.",
+    ],
+  },
+  distanceEconomy: {
+    title: "Distance economy over time",
+    definition:
+      "Distance economy is total horizontal distance in metres divided by total heartbeats during the run. Total heartbeats are computed by integrating heart rate over per-second telemetry: \u03a3(HR(t) \u00d7 \u0394t / 60). Higher values mean more distance covered for the same cardiovascular effort.",
+    source: "dbt mart_fitness, from mart_activity_records heart_rate and record_distance_m.",
+    interpretation: [
+      "Higher values mean more distance travelled per heartbeat \u2014 improved aerobic efficiency.",
+      "A rising trend across comparable runs suggests improving cardiovascular fitness.",
+      "Compare runs of similar distance and terrain; economy varies naturally with pace and route profile.",
+    ],
+    caveats: [
+      "Not normalized for route, weather, workout type, or terrain.",
+      "Values are null when the run has no usable heart-rate telemetry.",
+    ],
+  },
+  elevationEconomy: {
+    title: "Elevation economy over time",
+    definition:
+      "Elevation economy is total elevation gain in metres divided by total heartbeats during the run. Only positive altitude changes are counted. The background bars show total ascent per run for context \u2014 economy naturally varies with how much climbing the run includes.",
+    source: "dbt mart_fitness, from mart_activity_records heart_rate and altitude_delta_m.",
+    interpretation: [
+      "Higher values mean more climbing per heartbeat \u2014 improved climbing efficiency.",
+      "Compare runs with similar ascent (similar bar heights). A rising line for comparable elevation gain suggests better climbing fitness.",
+      "Flat runs will show near-zero economy. That is expected and not a negative signal.",
+    ],
+    caveats: [
+      "Heavily terrain-dependent. Best interpreted alongside the ascent bars for context.",
+      "Values are null when the run has no usable heart-rate or altitude telemetry.",
+    ],
+  },
+  efficiencyScore: {
+    title: "Personal efficiency score",
+    definition:
+      "Personal efficiency score compares observed distance economy against the runner's 90-day trailing personal baseline: 100 \u00d7 observed / expected. 100 equals typical performance. Above 100 means better-than-expected efficiency; below 100 means less efficient than the recent norm.",
+    source: "dbt mart_fitness, computed from distance_economy_m_per_beat with a 90-day trailing average window (current run excluded).",
+    interpretation: [
+      "A score above 100 means you were more efficient than your recent typical performance.",
+      "A score below 100 means less efficient \u2014 this may reflect fatigue, heat, hills, or deliberate easy effort.",
+      "Trend matters more than individual scores. Look for sustained periods above or below 100.",
+    ],
+    caveats: [
+      "Requires at least three qualifying runs in the prior 90 days. Without enough history the score is null.",
+      "Score below 100 does not mean a bad run \u2014 it means less efficient than your recent norm, which may be intentional.",
     ],
   },
 } satisfies Record<string, MetricInfoContent>;
@@ -1593,6 +1638,331 @@ export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
           </div>
         ) : null}
       </div>
+    </ChartFrame>
+  );
+}
+
+function formatEconomyValue(value: unknown, decimals: number) {
+  const parsed = numberValue(value);
+  if (parsed === null) return "n/a";
+  return `${parsed.toFixed(decimals)} m/beat`;
+}
+
+function computeRolling4Run(
+  points: FitnessPoint[],
+  key: keyof FitnessPoint,
+) {
+  return points.map((_point, index) => {
+    const window = points
+      .slice(Math.max(0, index - 3), index + 1)
+      .map((p) => p[key])
+      .filter((v): v is number => v !== null && Number.isFinite(v));
+    return window.length > 0
+      ? window.reduce((sum, v) => sum + v, 0) / window.length
+      : null;
+  });
+}
+
+function getDistanceEconomyDomain(points: FitnessPoint[]): NumericDomain {
+  const values = points
+    .map((point) => point.distanceEconomyMperBeat)
+    .filter((value): value is number => value !== null && Number.isFinite(value));
+
+  if (values.length === 0) return [0, 1];
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+
+  if (min === max) {
+    const padding = Math.max(Math.abs(min) * 0.08, 0.05);
+    return [Math.max(0, min - padding), max + padding];
+  }
+
+  const padding = Math.max((max - min) * 0.15, 0.05);
+  return [Math.max(0, min - padding), max + padding];
+}
+
+function getElevationEconomyDomain(points: FitnessPoint[]): NumericDomain {
+  const values = points
+    .map((point) => point.elevationEconomyMperBeat)
+    .filter((value): value is number => value !== null && Number.isFinite(value));
+
+  if (values.length === 0) return [0, 0.01];
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+
+  if (min === max) {
+    const padding = Math.max(Math.abs(min) * 0.15, 0.001);
+    return [Math.max(0, min - padding), max + padding];
+  }
+
+  const padding = Math.max((max - min) * 0.2, 0.001);
+  return [Math.max(0, min - padding), max + padding];
+}
+
+function ScoreTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: ReadonlyArray<{
+    payload?: FitnessPoint;
+  }>;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+
+  const point = payload[0]?.payload;
+  if (!point) return null;
+
+  return (
+    <div style={tooltipStyle.contentStyle}>
+      <div style={tooltipStyle.labelStyle}>
+        {formatDate(point.activityDate)}
+      </div>
+      <div style={tooltipStyle.itemStyle}>
+        Score: {point.personalEfficiencyScore != null ? Math.round(point.personalEfficiencyScore) : "\u2014"}
+      </div>
+      <div style={tooltipStyle.itemStyle}>
+        Distance economy: {point.distanceEconomyMperBeat != null ? `${point.distanceEconomyMperBeat.toFixed(3)} m/beat` : "\u2014"}
+      </div>
+    </div>
+  );
+}
+
+export function DistanceEconomyChart({ points }: { points: FitnessPoint[] }) {
+  const displayPoints = useMemo(() => {
+    const rolling = computeRolling4Run(points, "distanceEconomyMperBeat");
+    return points.map((point, index) => ({
+      ...point,
+      rollingDistanceEconomy: rolling[index],
+    }));
+  }, [points]);
+
+  return (
+    <ChartFrame
+      title="Distance economy over time"
+      description="Metres travelled per heartbeat."
+      info={CHART_INFO.distanceEconomy}
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={displayPoints} margin={{ top: 8, right: 8, left: 0 }}>
+          <CartesianGrid
+            stroke={CHART_GRID_COLOR}
+            strokeDasharray="2 5"
+            vertical={false}
+          />
+          <XAxis
+            dataKey="activityDate"
+            tickFormatter={shortDate}
+            minTickGap={28}
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
+          />
+          <YAxis
+            domain={getDistanceEconomyDomain(points)}
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
+            tickFormatter={(value) => Number(value).toFixed(2)}
+          />
+          <Tooltip
+            {...tooltipStyle}
+            labelFormatter={(value) => shortDate(String(value))}
+            formatter={(value) => [
+              numberValue(value)?.toFixed(3) ?? "n/a",
+              "m/beat",
+            ]}
+          />
+          <Legend
+            content={
+              <FitnessLineLegend
+                sessionLabel="Session economy (thin)"
+                rollingLabel="Rolling 4-run economy (thick)"
+              />
+            }
+          />
+          <Line
+            type="monotone"
+            dataKey="distanceEconomyMperBeat"
+            name="Distance economy"
+            stroke={PRIMARY_SERIES_COLOR}
+            strokeWidth={1.5}
+            dot={false}
+          />
+          <Line
+            type="monotone"
+            dataKey="rollingDistanceEconomy"
+            name="Rolling 4-run economy"
+            stroke={SECONDARY_SERIES_COLOR}
+            strokeWidth={3}
+            dot={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </ChartFrame>
+  );
+}
+
+export function ElevationEconomyChart({ points }: { points: FitnessPoint[] }) {
+  const elevationDomain = getElevationEconomyDomain(points);
+  const displayPoints = useMemo(() => {
+    const rolling = computeRolling4Run(points, "elevationEconomyMperBeat");
+    return points.map((point, index) => ({
+      ...point,
+      rollingElevationEconomy: rolling[index],
+    }));
+  }, [points]);
+
+  return (
+    <ChartFrame
+      title="Elevation economy over time"
+      description="Vertical metres climbed per heartbeat, with total ascent for context."
+      info={CHART_INFO.elevationEconomy}
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart data={displayPoints} margin={{ top: 8, right: 8, left: 0 }}>
+          <CartesianGrid
+            stroke={CHART_GRID_COLOR}
+            strokeDasharray="2 5"
+            vertical={false}
+          />
+          <XAxis
+            dataKey="activityDate"
+            tickFormatter={shortDate}
+            minTickGap={28}
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
+          />
+          <YAxis
+            yAxisId="economy"
+            domain={elevationDomain}
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
+            tickFormatter={(value) => Number(value).toFixed(3)}
+          />
+          <YAxis
+            yAxisId="ascent"
+            orientation="right"
+            axisLine={false}
+            tickLine={false}
+            tick={false}
+          />
+          <Tooltip
+            {...tooltipStyle}
+            labelFormatter={(value) => shortDate(String(value))}
+            formatter={(value, name) => {
+              if (name === "Ascent") return [`${numberValue(value)?.toFixed(0) ?? "n/a"} m`, name];
+              return [formatEconomyValue(value, 4), name];
+            }}
+          />
+          <Legend
+            content={
+              <FitnessLineLegend
+                sessionLabel="Elevation economy (thin)"
+                rollingLabel="Rolling 4-run economy (thick)"
+              />
+            }
+          />
+          <Bar
+            yAxisId="ascent"
+            dataKey="totalAscent"
+            name="Ascent"
+            fill={MUTED_SERIES_COLOR}
+            opacity={0.3}
+            radius={[2, 2, 0, 0]}
+          />
+          <Line
+            yAxisId="economy"
+            type="monotone"
+            dataKey="elevationEconomyMperBeat"
+            name="Elevation economy"
+            stroke={PRIMARY_SERIES_COLOR}
+            strokeWidth={1.5}
+            dot={false}
+          />
+          <Line
+            yAxisId="economy"
+            type="monotone"
+            dataKey="rollingElevationEconomy"
+            name="Rolling 4-run economy"
+            stroke={SECONDARY_SERIES_COLOR}
+            strokeWidth={3}
+            dot={false}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </ChartFrame>
+  );
+}
+
+export function EfficiencyScoreChart({ points }: { points: FitnessPoint[] }) {
+  return (
+    <ChartFrame
+      title="Personal efficiency score"
+      description="Observed distance economy versus 90-day personal baseline. 100 = expected."
+      info={CHART_INFO.efficiencyScore}
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={points} margin={{ top: 8, right: 8, left: 0 }}>
+          <CartesianGrid
+            stroke={CHART_GRID_COLOR}
+            strokeDasharray="2 5"
+            vertical={false}
+          />
+          <XAxis
+            dataKey="activityDate"
+            tickFormatter={shortDate}
+            minTickGap={28}
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
+          />
+          <YAxis
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
+            tickFormatter={(value) => `${Math.round(Number(value))}`}
+          />
+          <Tooltip
+            content={<ScoreTooltip />}
+          />
+          <ReferenceLine
+            y={100}
+            stroke={CHART_GRID_COLOR}
+            strokeDasharray="3 4"
+          />
+          <Line
+            type="monotone"
+            dataKey="personalEfficiencyScore"
+            name="Efficiency score"
+            stroke={PRIMARY_SERIES_COLOR}
+            strokeWidth={2}
+            dot={(dotProps) => {
+              const value = dotProps.payload?.personalEfficiencyScore;
+              if (value == null) return <></>;
+              const color = value > 100
+                ? SIGNAL_OK_COLOR
+                : value < 100
+                  ? SIGNAL_ERROR_COLOR
+                  : MUTED_SERIES_COLOR;
+              return (
+                <circle
+                  cx={dotProps.cx}
+                  cy={dotProps.cy}
+                  r={3}
+                  fill={color}
+                  stroke="var(--surface)"
+                  strokeWidth={1}
+                />
+              );
+            }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
     </ChartFrame>
   );
 }

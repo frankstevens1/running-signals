@@ -135,6 +135,12 @@ def test_incremental_refresh_runs_stages_in_order(
         [
             "uv",
             "run",
+            "python",
+            "scripts/geocode_cities.py",
+        ],
+        [
+            "uv",
+            "run",
             "dbt",
             "build",
             "--project-dir",
@@ -153,8 +159,8 @@ def test_incremental_refresh_runs_stages_in_order(
         ],
     ]
     assert manifest.status == "succeeded"
-    assert list(manifest.stages) == ["fit_raw", "bronze_fit", "dbt_fit", "publish_fit"]
-    assert [stage.status for stage in manifest.stages.values()] == ["succeeded"] * 4
+    assert list(manifest.stages) == ["fit_raw", "bronze_fit", "geocode_cities", "dbt_fit", "publish_fit"]
+    assert [stage.status for stage in manifest.stages.values()] == ["succeeded"] * 5
     assert (tmp_path / "state" / f"{manifest.run_id}.json").exists()
 
 
@@ -274,7 +280,7 @@ def test_dbt_failure_prevents_publish(
         )
 
     assert error.value.exit_code == pipeline.DBT_FAILURE_EXIT_CODE
-    assert [call[:2] for call in commands] == [["databricks", "bundle"], ["uv", "run"]]
+    assert [call[:2] for call in commands] == [["databricks", "bundle"], ["uv", "run"], ["uv", "run"]]
 
 
 def test_dry_run_does_not_invoke_stages(
@@ -304,7 +310,7 @@ def test_dry_run_does_not_invoke_stages(
     )
 
     assert manifest.status == "succeeded"
-    assert list(manifest.stages) == ["fit_raw", "bronze_fit", "dbt_fit", "publish_fit"]
+    assert list(manifest.stages) == ["fit_raw", "bronze_fit", "geocode_cities", "dbt_fit", "publish_fit"]
     assert {stage.status for stage in manifest.stages.values()} == {"skipped"}
 
 

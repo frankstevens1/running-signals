@@ -242,6 +242,8 @@ def run_select(config: DatabricksConfig) -> str:
           total_ascent,
           total_descent,
           garmin_recovery_hr,
+          avg_cadence,
+          max_cadence,
           route_id,
           route_distance_bucket_km,
           record_distance_coverage_ratio,
@@ -249,7 +251,10 @@ def run_select(config: DatabricksConfig) -> str:
           avg_segment_grade,
           route_altitude_range_m,
           prior_7d_distance_km,
-          prior_28d_distance_km
+          prior_28d_distance_km,
+          distance_economy_m_per_beat,
+          elevation_economy_m_per_beat,
+          personal_efficiency_score
         from {gold_table(config, "mart_run_sessions")}
     """
 
@@ -334,6 +339,8 @@ EXPORTS: tuple[TableExport, ...] = (
             "total_ascent",
             "total_descent",
             "garmin_recovery_hr",
+            "avg_cadence",
+            "max_cadence",
             "route_id",
             "route_distance_bucket_km",
             "record_distance_coverage_ratio",
@@ -342,6 +349,9 @@ EXPORTS: tuple[TableExport, ...] = (
             "route_altitude_range_m",
             "prior_7d_distance_km",
             "prior_28d_distance_km",
+            "distance_economy_m_per_beat",
+            "elevation_economy_m_per_beat",
+            "personal_efficiency_score",
         ),
         statement=run_select,
     ),
@@ -366,7 +376,11 @@ EXPORTS: tuple[TableExport, ...] = (
             "route_distance_bucket_km",
             "representative_route_centroid_latitude_deg",
             "representative_route_centroid_longitude_deg",
-            "city_grid_bucket",
+            "route_start_latitude_deg",
+            "route_start_longitude_deg",
+            "city_name",
+            "country_name",
+            "country_code",
         ),
         statement=lambda config: f"""
             select
@@ -388,7 +402,11 @@ EXPORTS: tuple[TableExport, ...] = (
               route_distance_bucket_km,
               representative_route_centroid_latitude_deg,
               representative_route_centroid_longitude_deg,
-              city_grid_bucket
+              route_start_latitude_deg,
+              route_start_longitude_deg,
+              city_name,
+              country_name,
+              country_code
             from {gold_table(config, "mart_routes")}
         """,
     ),
@@ -548,6 +566,9 @@ EXPORTS: tuple[TableExport, ...] = (
             "recovery_prior_90d_max",
             "hr_band",
             "garmin_recovery_hr",
+            "distance_economy_m_per_beat",
+            "elevation_economy_m_per_beat",
+            "personal_efficiency_score",
         ),
         statement=lambda config: f"""
             select
@@ -570,8 +591,11 @@ EXPORTS: tuple[TableExport, ...] = (
                recovery_prior_90d_min,
                recovery_prior_90d_max,
               hr_band,
-              garmin_recovery_hr
-            from {gold_table(config, "signal_fitness")}
+              garmin_recovery_hr,
+              distance_economy_m_per_beat,
+              elevation_economy_m_per_beat,
+              personal_efficiency_score
+            from {gold_table(config, "mart_fitness")}
         """,
     ),
 )

@@ -92,8 +92,8 @@ mart_run_sessions
 mart_run_sessions + mart_routes
     -> mart_route_prediction_features
 runs + mart_run_segments
-    -> signal_fitness
-signal_fitness + mart_weeks
+    -> mart_fitness
+mart_fitness + mart_weeks
     -> mart_running_signals
 mart_days
     -> int_daily_streaks
@@ -218,7 +218,7 @@ Grain: one row per completed week, observed month, or observed year.
 Purpose: roll up `mart_days` into coarser calendar outputs. Weekly metrics include active-week
 streaks, missed-week flags, and rolling 4-week and 12-week distance and run-count windows.
 
-### signal_fitness
+### mart_fitness
 
 Grain: one row per run.
 
@@ -237,7 +237,7 @@ prior and next week values. Intended for offline ML experimentation.
 
 Grain: one row per run.
 
-Purpose: combine run-level `signal_fitness` metrics with week-level context from `mart_weeks`,
+Purpose: combine run-level `mart_fitness` metrics with week-level context from `mart_weeks`,
 providing a single-table view of per-run fitness indicators alongside the containing week's
 volume, consistency, and streak information.
 

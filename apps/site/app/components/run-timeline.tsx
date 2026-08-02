@@ -8,6 +8,7 @@ import {
   formatDate,
   formatDistance,
   formatDuration,
+  formatEconomy,
   formatElevation,
   formatHeartRate,
   formatPace,
@@ -89,10 +90,12 @@ function MetricItem({
   label,
   value,
   emphasis = false,
+  className,
 }: {
   label: string;
   value: string;
   emphasis?: boolean;
+  className?: string;
 }) {
   return (
     <div className="min-w-0">
@@ -100,7 +103,7 @@ function MetricItem({
         {label}
       </dt>
       <dd
-        className={`mt-1 truncate font-mono text-(--text) ${emphasis ? "text-sm" : "text-xs"}`}
+        className={`mt-1 truncate font-mono text-(--text) ${emphasis ? "text-sm" : "text-xs"} ${className ?? ""}`}
       >
         {value}
       </dd>
@@ -360,16 +363,41 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
 
                 <div className="p-4 lg:flex lg:items-center">
                   <dl className="grid w-full grid-cols-4 gap-x-2 gap-y-3 sm:gap-x-5 lg:grid-cols-[repeat(7,minmax(max-content,1fr))]">
-                    <MetricItem label="Ascent" value={formatElevation(run.totalAscent)} />
-                    <MetricItem label="Descent" value={formatElevation(run.totalDescent)} />
-                    <MetricItem label="Segments" value={run.segmentCount?.toLocaleString() ?? "n/a"} />
-                    <MetricItem label="Prior 7d" value={formatDistance(run.prior7dDistanceKm, unit)} />
-                    <MetricItem label="Prior 28d" value={formatDistance(run.prior28dDistanceKm, unit)} />
-                    <MetricItem label="Recovery HR" value={formatHeartRate(run.garminRecoveryHr)} />
                     <MetricItem
-                      label="Alt range"
-                      value={formatElevation(run.routeAltitudeRangeM)}
+                      label="Ascent/Descent"
+                      value={[
+                        formatElevation(run.totalAscent),
+                        formatElevation(run.totalDescent),
+                      ].join(" / ")}
                     />
+                    <MetricItem label="Alt range" value={formatElevation(run.routeAltitudeRangeM)} />
+                    <MetricItem
+                      label="Dist economy"
+                      value={formatEconomy(run.distanceEconomyMperBeat, 3, "m/beat")}
+                    />
+                    <MetricItem
+                      label="Elev economy"
+                      value={formatEconomy(run.elevationEconomyMperBeat, 4, "m/beat")}
+                    />
+                    <MetricItem
+                      label="Score"
+                      value={
+                        run.personalEfficiencyScore != null
+                          ? `${Math.round(run.personalEfficiencyScore)}`
+                          : "\u2014"
+                      }
+                      className={
+                        run.personalEfficiencyScore != null
+                          ? run.personalEfficiencyScore > 100
+                            ? "text-(--signal-ok)"
+                            : run.personalEfficiencyScore < 100
+                              ? "text-(--signal-error)"
+                              : "text-(--text-soft)"
+                          : ""
+                      }
+                    />
+                    <MetricItem label="Prior 7d" value={formatDistance(run.prior7dDistanceKm, unit)} />
+                    <MetricItem label="Recovery HR" value={formatHeartRate(run.garminRecoveryHr)} />
                   </dl>
                 </div>
               </div>

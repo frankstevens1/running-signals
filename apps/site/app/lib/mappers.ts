@@ -55,6 +55,11 @@ export function mapRun(row: Record<string, unknown>): RunSession {
     routeAltitudeRangeM: numberValue(row, "route_altitude_range_m"),
     prior7dDistanceKm: numberValue(row, "prior_7d_distance_km"),
     prior28dDistanceKm: numberValue(row, "prior_28d_distance_km"),
+    distanceEconomyMperBeat: numberValue(row, "distance_economy_m_per_beat"),
+    elevationEconomyMperBeat: numberValue(row, "elevation_economy_m_per_beat"),
+    personalEfficiencyScore: numberValue(row, "personal_efficiency_score"),
+    avgCadence: numberValue(row, "avg_cadence"),
+    maxCadence: numberValue(row, "max_cadence"),
   };
 }
 
@@ -91,6 +96,9 @@ export function mapRoute(row: Record<string, unknown>): RouteSummary {
       row,
       "representative_route_centroid_longitude_deg",
     ),
+    cityName: stringValue(row, "city_name"),
+    countryName: stringValue(row, "country_name"),
+    countryCode: stringValue(row, "country_code"),
   };
 }
 
@@ -208,5 +216,8 @@ export function mapFitness(row: Record<string, unknown>): FitnessPoint {
     recoveryPrior90dMax: numberValue(row, "recovery_prior_90d_max"),
     hrBand: stringValue(row, "hr_band"),
     garminRecoveryHr: numberValue(row, "garmin_recovery_hr"),
+    distanceEconomyMperBeat: numberValue(row, "distance_economy_m_per_beat"),
+    elevationEconomyMperBeat: numberValue(row, "elevation_economy_m_per_beat"),
+    personalEfficiencyScore: numberValue(row, "personal_efficiency_score"),
   };
 }

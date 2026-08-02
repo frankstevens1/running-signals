@@ -57,6 +57,33 @@ hr_drift as (
     from segment_halves
 ),
 
+record_economy as (
+    select
+        run_id,
+        sum(heart_rate * seconds_since_previous_record / 60.0) as total_heartbeats,
+        max(record_distance_m) as total_distance_m,
+        sum(case when altitude_delta_m > 0 then altitude_delta_m else 0 end) as elevation_gain_m
+    from {{ ref('mart_activity_records') }}
+    where heart_rate is not null
+      and seconds_since_previous_record is not null
+      and seconds_since_previous_record > 0
+    group by run_id
+),
+
+economy_metrics as (
+    select
+        run_id,
+        case
+            when total_heartbeats > 0
+            then total_distance_m / total_heartbeats
+        end as distance_economy_m_per_beat,
+        case
+            when total_heartbeats > 0
+            then elevation_gain_m / total_heartbeats
+        end as elevation_economy_m_per_beat
+    from record_economy
+),
+
 run_fitness as (
     select
         runs.activity_id,
@@ -82,10 +109,14 @@ run_fitness as (
             else 'other'
         end as hr_band,
         runs.garmin_recovery_hr,
-        hr_drift.hr_drift_pct
+        hr_drift.hr_drift_pct,
+        economy.distance_economy_m_per_beat,
+        economy.elevation_economy_m_per_beat
     from runs
     left join hr_drift
         on runs.run_id = hr_drift.run_id
+    left join economy_metrics as economy
+        on runs.run_id = economy.run_id
 ),
 
 windowed as (
@@ -126,7 +157,15 @@ windowed as (
     end) over recovery_prior_90d_window as recovery_prior_90d_min,
     max(case
         when garmin_recovery_hr > 0 and ending_heart_rate > 0 then garmin_recovery_hr
-    end) over recovery_prior_90d_window as recovery_prior_90d_max
+    end) over recovery_prior_90d_window as recovery_prior_90d_max,
+    avg(distance_economy_m_per_beat) over (
+        order by activity_date
+        range between interval '90' day preceding and interval '1' day preceding
+    ) as expected_distance_economy_m_per_beat,
+    count(distance_economy_m_per_beat) over (
+        order by activity_date
+        range between interval '90' day preceding and interval '1' day preceding
+    ) as expected_economy_sample_size
     from run_fitness
     window recovery_prior_90d_window as (
         partition by case
@@ -143,7 +182,9 @@ select
         recovery_prior_90d_q1,
         recovery_prior_90d_q3,
         recovery_prior_90d_min,
-        recovery_prior_90d_max
+        recovery_prior_90d_max,
+        expected_distance_economy_m_per_beat,
+        expected_economy_sample_size
     ),
     case when recovery_prior_90d_count >= 4 then recovery_prior_90d_median end
         as recovery_prior_90d_median,
@@ -154,5 +195,11 @@ select
     case when recovery_prior_90d_count >= 4 then recovery_prior_90d_min end
         as recovery_prior_90d_min,
     case when recovery_prior_90d_count >= 4 then recovery_prior_90d_max end
-        as recovery_prior_90d_max
+        as recovery_prior_90d_max,
+    case
+        when expected_economy_sample_size >= 3
+            and expected_distance_economy_m_per_beat > 0
+            and distance_economy_m_per_beat is not null
+        then 100 * distance_economy_m_per_beat / expected_distance_economy_m_per_beat
+    end as personal_efficiency_score
 from windowed

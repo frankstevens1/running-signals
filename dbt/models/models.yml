@@ -170,8 +170,8 @@ models:
       - name: year_start_date
       - name: yearly_distance_km
 
-  - name: signal_fitness
-    description: FIT-only run-level fitness indicators based on pace, heart rate, recovery heart rate, and derived efficiency.
+  - name: mart_fitness
+    description: FIT-only run-level fitness indicators based on pace, heart rate, recovery heart rate, economy metrics, and personal efficiency.
     columns:
       - name: activity_id
         description: Garmin activity identifier.
@@ -198,9 +198,22 @@ models:
         description: Lowest qualifying recovery drop in the prior 90-day comparable sample.
       - name: recovery_prior_90d_max
         description: Highest qualifying recovery drop in the prior 90-day comparable sample.
+      - name: distance_economy_m_per_beat
+        description: "Average horizontal distance travelled per heartbeat, computed by integrating heart rate and speed over record-level telemetry. Unit: metres per heartbeat."
+      - name: elevation_economy_m_per_beat
+        description: "Average elevation gained per heartbeat, computed by integrating heart rate and altitude deltas over record-level telemetry. Unit: vertical metres per heartbeat."
+      - name: personal_efficiency_score
+        description: >
+          How a run performed relative to the runner's recent historical baseline.
+          Computed as 100 × observed distance_economy_m_per_beat / expected baseline
+          (90-day trailing average, excluding current run). Requires at least 3 qualifying
+          prior runs within the 90-day window otherwise NULL. 100 equals typical performance.
+          Future enhancement: replace the simple trailing average with a regression model
+          incorporating pace, heart rate, elevation profile, run duration, temperature, and
+          terrain for more accurate expected-performance prediction.
 
   - name: mart_running_signals
-    description: Run-level signal mart combining signal_fitness metrics with mart_weeks weekly training context.
+    description: Run-level signal mart combining mart_fitness metrics with mart_weeks weekly training context.
     columns:
       - name: activity_id
 

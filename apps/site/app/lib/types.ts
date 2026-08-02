@@ -64,6 +64,11 @@ export type RunSession = {
   routeAltitudeRangeM: number | null;
   prior7dDistanceKm: number | null;
   prior28dDistanceKm: number | null;
+  distanceEconomyMperBeat: number | null;
+  elevationEconomyMperBeat: number | null;
+  personalEfficiencyScore: number | null;
+  avgCadence: number | null;
+  maxCadence: number | null;
 };
 
 export type RouteSummary = {
@@ -75,6 +80,9 @@ export type RouteSummary = {
   avgHeartRate: number | null;
   representativeRouteCentroidLatitudeDeg: number | null;
   representativeRouteCentroidLongitudeDeg: number | null;
+  cityName: string | null;
+  countryName: string | null;
+  countryCode: string | null;
 };
 
 export type MapProfileRecord = {
@@ -192,4 +200,7 @@ export type FitnessPoint = {
   recoveryPrior90dMax: number | null;
   hrBand: string | null;
   garminRecoveryHr: number | null;
+  distanceEconomyMperBeat: number | null;
+  elevationEconomyMperBeat: number | null;
+  personalEfficiencyScore: number | null;
 };

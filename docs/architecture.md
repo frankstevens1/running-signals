@@ -117,8 +117,8 @@ route_observations + route_similarity_edges -> int_route_component_roots -> mart
 runs + mart_days + mart_run_segments + mart_route_clusters -> mart_run_sessions
 mart_run_sessions -> mart_routes
 mart_run_sessions + mart_routes -> mart_route_prediction_features
-runs + mart_run_segments -> signal_fitness
-signal_fitness + mart_weeks -> mart_running_signals
+runs + mart_run_segments -> mart_fitness
+mart_fitness + mart_weeks -> mart_running_signals
 ```
 
 The FIT and health bronze sources feed a single dbt DAG. The unified `mart_days` model joins

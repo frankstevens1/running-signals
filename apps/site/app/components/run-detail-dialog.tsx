@@ -1,6 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import {
   CartesianGrid,
@@ -20,9 +21,11 @@ import {
   type SegmentResolution,
 } from "@/app/lib/distance-unit";
 import {
+  formatCadence,
   formatDate,
   formatDistance,
   formatDuration,
+  formatEconomy,
   formatElevation,
   formatGrade,
   formatHeartRate,
@@ -43,14 +46,33 @@ function statItems(run: RunSession, unit: DistanceUnit) {
     ["Duration", formatDuration(run.durationSeconds)],
     ["Pace", formatPace(run.avgPaceMinPerKm, unit)],
     ["Speed", formatSpeed(run.speedKmh, unit)],
-    ["Avg HR", formatHeartRate(run.avgHeartRate)],
-    ["Max HR", formatHeartRate(run.maxHeartRate)],
-    ["Ascent", formatElevation(run.totalAscent)],
-    ["Descent", formatElevation(run.totalDescent)],
-    ["Recovery HR", formatHeartRate(run.garminRecoveryHr)],
-    ["Route", formatRouteId(run.routeId)],
     ["Prior 7d", formatDistance(run.prior7dDistanceKm, unit)],
     ["Prior 28d", formatDistance(run.prior28dDistanceKm, unit)],
+    ["Avg Cadence", formatCadence(run.avgCadence)],
+    ["Max Cadence", formatCadence(run.maxCadence)],
+    ["Recovery HR", formatHeartRate(run.garminRecoveryHr)],
+    ["Avg HR", formatHeartRate(run.avgHeartRate)],
+    ["Max HR", formatHeartRate(run.maxHeartRate)],
+    ["Ascent/Descent",
+      [formatElevation(run.totalAscent), formatElevation(run.totalDescent)].join(" / "),
+    ],
+    ["Dist Economy", formatEconomy(run.distanceEconomyMperBeat, 3, "m/beat")],
+    ["Elev Economy", formatEconomy(run.elevationEconomyMperBeat, 4, "m/beat")],
+    ["Score",
+      run.personalEfficiencyScore != null ? `${Math.round(run.personalEfficiencyScore)}` : "\u2014",
+    ],
+    ["Route",
+      run.routeId
+        ? (
+          <Link
+            href={`/routes?routeId=${encodeURIComponent(run.routeId)}`}
+            className="font-mono text-(--accent) hover:underline"
+          >
+            {formatRouteId(run.routeId)}
+          </Link>
+        )
+        : "n/a",
+    ],
   ] as const;
 }
 

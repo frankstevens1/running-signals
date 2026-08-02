@@ -2,7 +2,7 @@
 
 with fitness as (
     select *
-    from {{ ref('signal_fitness') }}
+    from {{ ref('mart_fitness') }}
 ),
 
 weeks as (

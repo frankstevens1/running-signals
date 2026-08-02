@@ -48,17 +48,17 @@ Recovery HR when Garmin provides it. Daily health remains an independently refre
 
 | Metric | Grain | Formula / Definition | Source Model | Status |
 |---|---|---|---|---|
-| `avg_pace_min_per_km` | Run | `duration_seconds / 60 / distance_km` when distance is greater than zero. | `runs`, `signal_fitness` | Implemented |
+| `avg_pace_min_per_km` | Run | `duration_seconds / 60 / distance_km` when distance is greater than zero. | `runs`, `mart_fitness` | Implemented |
 | `speed_kmh` | Run | Enhanced average speed converted to km/h, or distance divided by duration. | `runs` | Implemented |
 | `avg_heart_rate` | Run | Average heart rate from the Garmin FIT session message. | `runs` | Implemented when present |
-| `efficiency_ratio` | Run | `speed_kmh / avg_heart_rate` when heart rate is present and positive. | `signal_fitness` | Implemented |
-| `hr_band` | Run | Bucketed average heart-rate band. | `signal_fitness` | Implemented |
-| `rolling_4_run_efficiency_ratio` | Run | Average efficiency over the current and previous three runs. | `signal_fitness` | Implemented |
-| `hr_drift_pct` | Run | Second-half segment efficiency divided by first-half segment efficiency minus one, where segment efficiency is `avg_speed_kmh / avg_heart_rate`; the established calculation remains pinned to 250m metric segments. | `signal_fitness`, `mart_run_segments` | Implemented when segment HR and speed are present |
-| `rolling_4_run_hr_drift_pct` | Run | Average HR drift over the current and previous three runs. | `signal_fitness` | Implemented |
+| `efficiency_ratio` | Run | `speed_kmh / avg_heart_rate` when heart rate is present and positive. | `mart_fitness` | Implemented |
+| `hr_band` | Run | Bucketed average heart-rate band. | `mart_fitness` | Implemented |
+| `rolling_4_run_efficiency_ratio` | Run | Average efficiency over the current and previous three runs. | `mart_fitness` | Implemented |
+| `hr_drift_pct` | Run | Second-half segment efficiency divided by first-half segment efficiency minus one, where segment efficiency is `avg_speed_kmh / avg_heart_rate`; the established calculation remains pinned to 250m metric segments. | `mart_fitness`, `mart_run_segments` | Implemented when segment HR and speed are present |
+| `rolling_4_run_hr_drift_pct` | Run | Average HR drift over the current and previous three runs. | `mart_fitness` | Implemented |
 | `garmin_recovery_hr` | Run | Final recorded run heart rate minus the latest FIT `recovery_hr` event value, reported as bpm recovered. | `runs` | Implemented when present |
-| `ending_heart_rate` | Run | Final recorded run heart rate used as the recovery-drop starting value and to group comparable recovery observations. | `runs`, `signal_fitness` | Implemented when present |
-| `recovery_prior_90d_median` | Run | Median recovery drop for qualifying runs in the same 10-bpm ending-heart-rate band over the preceding 90 calendar days; the current run is excluded. | `signal_fitness` | Implemented with at least four observations in the presentation layer |
+| `ending_heart_rate` | Run | Final recorded run heart rate used as the recovery-drop starting value and to group comparable recovery observations. | `runs`, `mart_fitness` | Implemented when present |
+| `recovery_prior_90d_median` | Run | Median recovery drop for qualifying runs in the same 10-bpm ending-heart-rate band over the preceding 90 calendar days; the current run is excluded. | `mart_fitness` | Implemented with at least four observations in the presentation layer |
 | `resting_heart_rate` | Day | Garmin daily resting heart rate. | `health_days`, `mart_days` | Implemented when present |
 | `hrv_value` | Day | Garmin daily HRV value when present. | `health_days`, `mart_days` | Implemented when present |
 | `sleep_score` | Day | Garmin sleep score when present. | `health_days`, `mart_days` | Implemented when present |

@@ -187,7 +187,7 @@ FROM date_spine`,
       "`runs` is the single standardization point for all run-level analysis. It takes raw FIT " +
       "session data and enriches it with Garmin Recovery HR from events, the latest recorded " +
       "heart rate from telemetry, and a record-level summary (count, timestamps, GPS coverage).\n\n" +
-      "Every downstream model — `mart_days`, `mart_run_sessions`, `signal_fitness`, `mart_routes` — " +
+      "Every downstream model — `mart_days`, `mart_run_sessions`, `mart_fitness`, `mart_routes` — " +
       "reads from `runs` rather than the bronze FIT tables directly. This makes `runs` the " +
       "canonical place for unit conversions (metres → kilometres, m/s → km/h) and cadence " +
       "normalization (Garmin reports per-leg cadence, so it's doubled to total steps per minute).\n\n" +
@@ -250,20 +250,22 @@ SELECT
     CAST(sessions.run_date AS date) AS activity_date,
     sessions.total_distance / 1000.0 AS distance_km,
     sessions.total_timer_time AS duration_seconds,
-    CASE WHEN sessions.total_distance > 0
+    CASE WHEN sessions.total_distance > 0 AND sessions.total_timer_time IS NOT NULL
         THEN sessions.total_timer_time / 60.0
              / (sessions.total_distance / 1000.0)
     END AS avg_pace_min_per_km,
-    COALESCE(
-        sessions.enhanced_avg_speed * 3.6,
-        (sessions.total_distance / 1000.0)
-            / (sessions.total_timer_time / 3600.0)
-    ) AS speed_kmh,
+    CASE
+        WHEN sessions.enhanced_avg_speed IS NOT NULL
+        THEN sessions.enhanced_avg_speed * 3.6
+        WHEN sessions.total_timer_time > 0
+        THEN (sessions.total_distance / 1000.0) / (sessions.total_timer_time / 3600.0)
+    END AS speed_kmh,
     sessions.avg_heart_rate, sessions.max_heart_rate,
+    last_record_heart_rates.last_record_heart_rate AS ending_heart_rate,
     sessions.avg_cadence * 2.0 AS avg_cadence,
     sessions.max_cadence * 2.0 AS max_cadence,
     sessions.total_ascent, sessions.total_descent,
-    last_record_heart_rates.last_record_heart_rate AS ending_heart_rate,
+    sessions.enhanced_avg_speed, sessions.enhanced_max_speed,
     CASE WHEN last_record_heart_rates.last_record_heart_rate IS NOT NULL
              AND recovery_events.recovery_heart_rate IS NOT NULL
         THEN last_record_heart_rates.last_record_heart_rate
@@ -274,6 +276,7 @@ SELECT
     record_summary.first_record_timestamp,
     record_summary.last_record_timestamp,
     CASE WHEN sessions.total_distance > 0
+             AND record_summary.record_distance_km IS NOT NULL
         THEN record_summary.record_distance_km
              / (sessions.total_distance / 1000.0)
     END AS record_distance_coverage_ratio,
@@ -287,7 +290,7 @@ LEFT JOIN record_summary ON sessions.run_id = record_summary.run_id`,
     keyTechnique:
       "`row_number()` with deterministic ordering ensures idempotent deduplication: the same input always produces the same recovery HR and ending heart rate, even after re-ingestion.",
     lineageContext:
-      "`runs` refs all three FIT bronze sources. It is the only model that reads `garmin_fit_events` directly. Downstream: `mart_days`, `signal_fitness`, `mart_run_sessions`, `route_observations`.",
+      "`runs` refs all three FIT bronze sources. It is the only model that reads `garmin_fit_events` directly. Downstream: `mart_days`, `mart_fitness`, `mart_run_sessions`, `route_observations`.",
   },
   {
     id: "run-records",
@@ -939,77 +942,111 @@ SELECT 'imperial', 1.00, 1609.344, '1 mi', FALSE`,
     title: "Part 1: Record Intervals & Boundaries — mart_run_segments",
     context:
       "`mart_run_segments` is the most complex model in the project. This first half covers " +
-      "sequencing telemetry records into intervals and generating segment boundaries.\n\n" +
-      "The model cross-joins `run_records` with `mart_segment_resolutions`, producing segment " +
-      "boundaries for every combination. A running maximum ensures cumulative distance is " +
+      "monotonic distance correction, sequencing telemetry, and generating segment boundaries.\n\n" +
+      "A running maximum (`GREATEST(MAX(...) OVER ...)`) forces cumulative distance to be " +
       "monotonic, correcting for GPS source corrections where the device reports a temporarily " +
-      "lower distance.\n\n" +
-      "Each record-to-record interval is mapped to all crossed segment boundaries. The lower " +
-      "boundary is exclusive and the upper is inclusive — distance zero belongs to segment 1 " +
-      "and exact-boundary finishes complete the preceding segment without creating a " +
-      "zero-distance trailing row. Stationary intervals (zero distance delta) are assigned " +
-      "entirely to the segment containing the interval's endpoint.",
-    sql: `WITH records AS (
-    SELECT * FROM {{ ref('run_records') }}
-),
-
-resolutions AS (
+      "lower distance. Eight `LAG()` columns pull the previous record's timestamp, heart rate, " +
+      "cadence, altitude, coordinates, and H3 cells into the current row.\n\n" +
+      "Segment boundaries are generated with a bounded `SEQUENCE(1, CEIL(distance / length))` " +
+      "so each run only produces the segments it needs — no wasteful cross-join to 500km. " +
+      "Part 2 covers the allocation of each record interval across all crossed segment boundaries.",
+    sql: `WITH resolutions AS (
     SELECT * FROM {{ ref('mart_segment_resolutions') }}
 ),
 
+distance_records AS (
+    SELECT *,
+        GREATEST(MAX(record_distance_m) OVER (
+            PARTITION BY run_id ORDER BY record_index
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ), 0.0) AS analysis_distance_m
+    FROM {{ ref('run_records') }}
+    WHERE record_distance_m IS NOT NULL
+),
+
+records_with_previous AS (
+    SELECT *,
+        LAG(analysis_distance_m) OVER (
+            PARTITION BY run_id ORDER BY record_index
+        ) AS previous_analysis_distance_m,
+        LAG(record_timestamp) OVER (
+            PARTITION BY run_id ORDER BY record_index
+        ) AS previous_record_timestamp,
+        LAG(heart_rate) OVER (
+            PARTITION BY run_id ORDER BY record_index
+        ) AS previous_heart_rate,
+        LAG(running_cadence) OVER (
+            PARTITION BY run_id ORDER BY record_index
+        ) AS previous_running_cadence,
+        LAG(altitude_m) OVER (
+            PARTITION BY run_id ORDER BY record_index
+        ) AS previous_altitude_m,
+        LAG(position_lat_deg) OVER (
+            PARTITION BY run_id ORDER BY record_index
+        ) AS previous_latitude_deg,
+        LAG(position_long_deg) OVER (
+            PARTITION BY run_id ORDER BY record_index
+        ) AS previous_longitude_deg,
+        LAG(h3_cell_resolution_8) OVER (
+            PARTITION BY run_id ORDER BY record_index
+        ) AS previous_h3_cell_resolution_8,
+        LAG(h3_cell_resolution_9) OVER (
+            PARTITION BY run_id ORDER BY record_index
+        ) AS previous_h3_cell_resolution_9
+    FROM distance_records
+),
+
 record_intervals AS (
-    SELECT records.*,
-        COALESCE(records.record_distance_m
-            - LAG(records.record_distance_m) OVER (
-                PARTITION BY records.run_id
-                ORDER BY records.record_timestamp), 0.0
-        ) AS interval_distance_m,
-        COALESCE(CAST(UNIX_TIMESTAMP(records.record_timestamp)
-            - UNIX_TIMESTAMP(LAG(records.record_timestamp) OVER (
-                PARTITION BY records.run_id
-                ORDER BY records.record_timestamp)) AS double), 0.0
-        ) AS interval_seconds,
-        COALESCE((records.heart_rate
-            + LAG(records.heart_rate) OVER (
-                PARTITION BY records.run_id
-                ORDER BY records.record_timestamp)) / 2.0,
-            records.heart_rate
-        ) AS interval_avg_heart_rate
-    FROM records
+    SELECT *,
+        COALESCE(previous_analysis_distance_m, 0.0)
+            AS interval_start_distance_m,
+        analysis_distance_m AS interval_end_distance_m,
+        analysis_distance_m
+            - COALESCE(previous_analysis_distance_m, 0.0)
+            AS interval_distance_m,
+        COALESCE(previous_record_timestamp, record_timestamp)
+            AS interval_start_timestamp,
+        record_timestamp AS interval_end_timestamp,
+        GREATEST(CAST(UNIX_TIMESTAMP(record_timestamp)
+            - UNIX_TIMESTAMP(COALESCE(previous_record_timestamp,
+                record_timestamp)) AS double), 0.0)
+            AS interval_duration_seconds
+    FROM records_with_previous
 ),
 
-segment_boundaries AS (
-    SELECT resolutions.*,
-        CAST(resolutions.segment_length_m
-            * segment_index_number AS decimal(12, 3))
-            AS segment_upper_boundary_m
-    FROM resolutions
-    CROSS JOIN (
-        SELECT POSEXPLODE(
-            SEQUENCE(0, CAST(500 AS int))) AS (
-            segment_index_number, _)
-    ) AS boundary_sequence
-    WHERE CAST(resolutions.segment_length_m
-        * segment_index_number AS decimal(12, 3))
-        <= CAST(500000.000 AS decimal(12, 3))
+run_distance_extents AS (
+    SELECT run_id, activity_id, activity_date,
+        MAX(analysis_distance_m) AS activity_distance_m
+    FROM distance_records
+    GROUP BY run_id, activity_id, activity_date
 ),
 
--- Maximum run distance per resolution FOR boundary filtering
-run_max_distances AS (
-    SELECT records.run_id,
+configured_segments AS (
+    SELECT
+        extents.run_id, extents.activity_id,
+        extents.activity_date,
         resolutions.unit_system,
         resolutions.segment_length_value,
-        MAX(records.record_distance_m) AS max_run_distance_m
-    FROM records
+        resolutions.segment_length_m,
+        resolutions.segment_length_label,
+        resolutions.is_canonical,
+        segment_index,
+        (segment_index - 1) * resolutions.segment_length_m
+            AS segment_start_boundary_m,
+        segment_index * resolutions.segment_length_m
+            AS segment_end_boundary_m
+    FROM run_distance_extents AS extents
     CROSS JOIN resolutions
-    GROUP BY records.run_id,
-        resolutions.unit_system,
-        resolutions.segment_length_value
+    LATERAL VIEW EXPLODE(SEQUENCE(
+        1, GREATEST(CAST(CEIL(
+            extents.activity_distance_m
+            / resolutions.segment_length_m) AS int), 1)
+    )) exploded AS segment_index
 ),
 
--- ...continued IN Part 2...`,
+-- ...continued in Part 2...`,
     keyTechnique:
-      "Cross-join with `mart_segment_resolutions` + `posexplode(sequence(...))` generates all possible segment boundaries up to 500km. `run_max_distances` prunes boundaries beyond each run's actual distance.",
+      "Running-maximum monotonic correction + eight `LAG()` columns for interpolation state. Segment generation uses `CEIL(distance / length)` to bound the `SEQUENCE` per-run, avoiding wasteful pre-generation.",
     lineageContext:
       "`mart_run_segments` refs `run_records` + `mart_segment_resolutions`. It is the heaviest model by compute — cross-joining every run with every resolution.",
   },
@@ -1027,109 +1064,264 @@ run_max_distances AS (
       "Duration, heart rate, and cadence are split by the same proportion. Telemetry values " +
       "are linearly interpolated at the boundary and weighted by distance.\n\n" +
       "The canonical 250m metric resolution (`is_canonical = true`) is used by " +
-      "`signal_fitness` for heart-rate drift and efficiency calculations. Segment distance " +
+      "`mart_fitness` for heart-rate drift and efficiency calculations. Segment distance " +
       "reconciliation tests validate that the sum of allocated distances matches the run's " +
       "total recorded distance — no distance is lost or double-counted.",
-    sql: `-- (continued FROM Part 1)...
+    sql: `-- (continued from Part 1)...
 
--- Proportional allocation of each record INTERVAL
--- across ALL crossed segment boundaries
-interval_segment_allocation AS (
+interval_segment_matches AS (
     SELECT
-        intervals.run_id,
-        boundaries.unit_system,
-        boundaries.segment_length_value,
-        boundaries.segment_length_m,
-        boundaries.segment_length_label,
-        boundaries.is_canonical,
-        CAST(boundaries.segment_length_m
-            * (CAST(boundaries.segment_index_number AS decimal(12, 3))
-               / CAST(boundaries.segment_length_m AS decimal(12, 3)))
-            AS decimal(12, 3)) AS segment_start_boundary_m,
-        CAST(boundaries.segment_length_m
-            * (CAST(boundaries.segment_index_number
-               + 1 AS decimal(12, 3))
-               / CAST(boundaries.segment_length_m AS decimal(12, 3)))
-            AS decimal(12, 3)) AS segment_end_boundary_m,
-        boundaries.segment_index_number + 1 AS segment_index,
-        -- Distance allocated to this segment FROM this INTERVAL
-        GREATEST(0.0, LEAST(
-            record_distance_m, segment_end_boundary_m
-        ) - GREATEST(
-            previous_record_distance_m, segment_start_boundary_m
-        )) AS allocated_distance_m,
-        -- Proportion FOR allocating time AND telemetry
-        CASE WHEN interval_distance_m > 0
-            THEN GREATEST(0.0, LEAST(
-                record_distance_m, segment_end_boundary_m
-            ) - GREATEST(
-                previous_record_distance_m, segment_start_boundary_m
-            )) / interval_distance_m
-            ELSE 1.0
-        END AS allocation_proportion,
-        record_timestamp, interval_seconds,
-        interval_avg_heart_rate, running_cadence,
-        altitude_m, previous_altitude_m,
-        position_lat_deg, position_long_deg,
-        previous_position_lat_deg,
-        previous_position_long_deg
-    FROM record_intervals intervals
-    INNER JOIN segment_boundaries boundaries
-        ON intervals.record_distance_m
-            > boundaries.segment_start_boundary_m
-        AND COALESCE(intervals.previous_record_distance_m, 0.0)
-            < boundaries.segment_end_boundary_m
-    INNER JOIN run_max_distances max_dists
-        ON intervals.run_id = max_dists.run_id
-        AND boundaries.unit_system = max_dists.unit_system
-        AND boundaries.segment_length_value
-            = max_dists.segment_length_value
-        AND boundaries.segment_end_boundary_m
-            <= max_dists.max_run_distance_m
-            + boundaries.segment_length_m
+        segments.*,
+        intervals.record_index,
+        intervals.interval_start_distance_m,
+        intervals.interval_end_distance_m,
+        intervals.interval_distance_m,
+        intervals.interval_duration_seconds,
+        intervals.previous_heart_rate,
+        intervals.heart_rate,
+        intervals.previous_running_cadence,
+        intervals.running_cadence,
+        intervals.previous_altitude_m,
+        intervals.altitude_m,
+        intervals.previous_latitude_deg,
+        intervals.position_lat_deg,
+        intervals.previous_longitude_deg,
+        intervals.position_long_deg,
+        intervals.previous_h3_cell_resolution_8,
+        intervals.h3_cell_resolution_8,
+        intervals.previous_h3_cell_resolution_9,
+        intervals.h3_cell_resolution_9
+    FROM configured_segments AS segments
+    INNER JOIN record_intervals AS intervals
+        ON segments.run_id = intervals.run_id
+            AND (
+                (intervals.interval_distance_m > 0
+                 AND intervals.interval_end_distance_m
+                     > segments.segment_start_boundary_m
+                 AND intervals.interval_start_distance_m
+                     < segments.segment_end_boundary_m)
+                OR (intervals.interval_distance_m = 0
+                    AND segments.segment_index = GREATEST(
+                        CAST(CEIL(intervals.interval_end_distance_m
+                            / segments.segment_length_m) AS int), 1))
+            )
 ),
 
-segment_aggregates AS (
+allocated_intervals AS (
+    SELECT *,
+        CASE WHEN interval_distance_m > 0
+            THEN GREATEST(interval_start_distance_m,
+                          segment_start_boundary_m)
+            ELSE interval_end_distance_m
+        END AS allocated_start_distance_m,
+        CASE WHEN interval_distance_m > 0
+            THEN LEAST(interval_end_distance_m,
+                       segment_end_boundary_m)
+            ELSE interval_end_distance_m
+        END AS allocated_end_distance_m
+    FROM interval_segment_matches
+),
+
+allocation_fractions AS (
+    SELECT *,
+        allocated_end_distance_m - allocated_start_distance_m
+            AS allocated_distance_m,
+        CASE WHEN interval_distance_m > 0
+            THEN (allocated_start_distance_m
+                  - interval_start_distance_m)
+                 / interval_distance_m
+            ELSE 0.0
+        END AS allocation_start_fraction,
+        CASE WHEN interval_distance_m > 0
+            THEN (allocated_end_distance_m
+                  - interval_start_distance_m)
+                 / interval_distance_m
+            ELSE 1.0
+        END AS allocation_end_fraction
+    FROM allocated_intervals
+),
+
+allocation_values AS (
+    SELECT *,
+        (allocation_start_fraction + allocation_end_fraction) / 2.0
+            AS allocation_midpoint_fraction
+    FROM allocation_fractions
+),
+
+interpolated_allocations AS (
+    SELECT *,
+        -- Interpolated heart rate, cadence, altitude, coordinates
+        -- using linear interpolation weighted by allocation fractions.
+        -- Interpolated start/end timestamps from interval boundaries.
+        CASE WHEN previous_heart_rate IS NOT NULL
+                  AND heart_rate IS NOT NULL
+            THEN previous_heart_rate
+                 + (heart_rate - previous_heart_rate)
+                   * allocation_midpoint_fraction
+            ELSE COALESCE(heart_rate, previous_heart_rate)
+        END AS allocated_heart_rate,
+        CASE WHEN previous_running_cadence IS NOT NULL
+                  AND running_cadence IS NOT NULL
+            THEN previous_running_cadence
+                 + (running_cadence - previous_running_cadence)
+                   * allocation_midpoint_fraction
+            ELSE COALESCE(running_cadence, previous_running_cadence)
+        END AS allocated_running_cadence,
+        CASE WHEN previous_altitude_m IS NOT NULL
+                  AND altitude_m IS NOT NULL
+            THEN previous_altitude_m
+                 + (altitude_m - previous_altitude_m)
+                   * allocation_start_fraction
+            ELSE COALESCE(previous_altitude_m, altitude_m)
+        END AS allocated_start_altitude_m,
+        CASE WHEN previous_altitude_m IS NOT NULL
+                  AND altitude_m IS NOT NULL
+            THEN previous_altitude_m
+                 + (altitude_m - previous_altitude_m)
+                   * allocation_end_fraction
+            ELSE COALESCE(altitude_m, previous_altitude_m)
+        END AS allocated_end_altitude_m,
+        CASE WHEN previous_latitude_deg IS NOT NULL
+                  AND position_lat_deg IS NOT NULL
+            THEN previous_latitude_deg
+                 + (position_lat_deg - previous_latitude_deg)
+                   * allocation_start_fraction
+            ELSE COALESCE(previous_latitude_deg, position_lat_deg)
+        END AS allocated_start_latitude_deg,
+        CASE WHEN previous_latitude_deg IS NOT NULL
+                  AND position_lat_deg IS NOT NULL
+            THEN previous_latitude_deg
+                 + (position_lat_deg - previous_latitude_deg)
+                   * allocation_end_fraction
+            ELSE COALESCE(position_lat_deg, previous_latitude_deg)
+        END AS allocated_end_latitude_deg,
+        CASE WHEN previous_longitude_deg IS NOT NULL
+                  AND position_long_deg IS NOT NULL
+            THEN previous_longitude_deg
+                 + (position_long_deg - previous_longitude_deg)
+                   * allocation_start_fraction
+            ELSE COALESCE(previous_longitude_deg, position_long_deg)
+        END AS allocated_start_longitude_deg,
+        CASE WHEN previous_longitude_deg IS NOT NULL
+                  AND position_long_deg IS NOT NULL
+            THEN previous_longitude_deg
+                 + (position_long_deg - previous_longitude_deg)
+                   * allocation_end_fraction
+            ELSE COALESCE(position_long_deg, previous_longitude_deg)
+        END AS allocated_end_longitude_deg,
+        CASE WHEN interval_duration_seconds > 0
+            THEN interval_duration_seconds
+            WHEN interval_distance_m > 0
+            THEN interval_distance_m
+            ELSE 1.0
+        END AS telemetry_weight
+    FROM allocation_values
+),
+
+segment_rollups AS (
     SELECT
-        run_id, unit_system, segment_length_value,
+        run_id, activity_id, activity_date,
+        unit_system, segment_length_value,
         segment_length_m, segment_length_label,
         is_canonical, segment_index,
-        segment_start_boundary_m, segment_end_boundary_m,
+        segment_start_boundary_m,
+        segment_end_boundary_m,
         SUM(allocated_distance_m) AS segment_distance_m,
-        SUM(allocation_proportion * interval_seconds)
-            AS segment_duration_seconds,
-        SUM(allocation_proportion * interval_avg_heart_rate
-            * allocated_distance_m)
-            / NULLIF(SUM(allocated_distance_m), 0)
-            AS avg_heart_rate,
-        SUM(allocation_proportion * running_cadence
-            * allocated_distance_m)
-            / NULLIF(SUM(allocated_distance_m), 0)
-            AS avg_running_cadence
-    FROM interval_segment_allocation
-    GROUP BY run_id, unit_system, segment_length_value,
+        SUM(CASE WHEN interval_duration_seconds > 0
+            THEN (allocated_distance_m / interval_distance_m)
+                 * interval_duration_seconds
+            ELSE interval_duration_seconds END
+        ) AS segment_duration_seconds,
+        SUM(allocated_heart_rate * telemetry_weight)
+            / NULLIF(SUM(CASE WHEN allocated_heart_rate IS NOT NULL
+                THEN telemetry_weight END), 0.0) AS avg_heart_rate,
+        MAX(GREATEST(allocated_start_heart_rate,
+                     allocated_end_heart_rate)) AS max_heart_rate,
+        SUM(allocated_running_cadence * telemetry_weight)
+            / NULLIF(SUM(CASE
+                WHEN allocated_running_cadence IS NOT NULL
+                THEN telemetry_weight END), 0.0)
+            AS avg_running_cadence,
+        MIN(LEAST(allocated_start_altitude_m,
+                  allocated_end_altitude_m)) AS min_altitude_m,
+        MAX(GREATEST(allocated_start_altitude_m,
+                     allocated_end_altitude_m)) AS max_altitude_m,
+        MIN_BY(allocated_start_altitude_m,
+               allocated_start_distance_m) AS segment_start_altitude_m,
+        MAX_BY(allocated_end_altitude_m,
+               allocated_end_distance_m) AS segment_end_altitude_m,
+        MIN_BY(allocated_start_latitude_deg,
+               allocated_start_distance_m)
+            AS segment_start_latitude_deg,
+        MIN_BY(allocated_start_longitude_deg,
+               allocated_start_distance_m)
+            AS segment_start_longitude_deg,
+        MAX_BY(allocated_end_latitude_deg,
+               allocated_end_distance_m)
+            AS segment_end_latitude_deg,
+        MAX_BY(allocated_end_longitude_deg,
+               allocated_end_distance_m)
+            AS segment_end_longitude_deg,
+        MIN_BY(COALESCE(previous_h3_cell_resolution_8,
+                        h3_cell_resolution_8),
+               allocated_start_timestamp)
+            AS start_h3_cell_resolution_8,
+        MAX_BY(COALESCE(h3_cell_resolution_8,
+                        previous_h3_cell_resolution_8),
+               allocated_end_timestamp)
+            AS end_h3_cell_resolution_8,
+        MIN_BY(COALESCE(h3_cell_resolution_8,
+                        previous_h3_cell_resolution_8),
+               allocated_start_distance_m)
+            AS representative_h3_cell_resolution_8,
+        MIN_BY(COALESCE(h3_cell_resolution_9,
+                        previous_h3_cell_resolution_9),
+               allocated_start_distance_m)
+            AS representative_h3_cell_resolution_9,
+        COUNT(DISTINCT record_index) AS record_count
+    FROM interpolated_allocations
+    GROUP BY run_id, activity_id, activity_date,
+        unit_system, segment_length_value,
         segment_length_m, segment_length_label,
         is_canonical, segment_index,
         segment_start_boundary_m, segment_end_boundary_m
-    HAVING SUM(allocated_distance_m) > 0
 )
 
 SELECT
+    run_id, activity_id, activity_date,
+    unit_system, segment_length_value,
+    segment_length_m, segment_length_label,
+    is_canonical, segment_index,
+    segment_start_boundary_m, segment_end_boundary_m,
+    segment_distance_m,
     segment_distance_m / 1000.0 AS segment_distance_km,
     segment_duration_seconds,
-    segment_duration_seconds / 60.0
-        / NULLIF(segment_distance_m / 1000.0, 0)
-        AS segment_pace_min_per_km,
-    (segment_distance_m / 1000.0)
-        / NULLIF(segment_duration_seconds / 3600.0, 0)
-        AS avg_speed_kmh,
-    avg_heart_rate, avg_running_cadence,
-    segment_start_boundary_m, segment_end_boundary_m
-FROM segment_aggregates`,
+    CASE WHEN segment_distance_m > 0
+        THEN segment_duration_seconds / 60.0
+             / (segment_distance_m / 1000.0)
+    END AS segment_pace_min_per_km,
+    CASE WHEN segment_duration_seconds > 0
+        THEN segment_distance_m / segment_duration_seconds * 3.6
+    END AS avg_speed_kmh,
+    avg_heart_rate, max_heart_rate, avg_running_cadence,
+    min_altitude_m, max_altitude_m,
+    segment_end_altitude_m - segment_start_altitude_m
+        AS elevation_change_m,
+    CASE WHEN segment_distance_m > 0
+        THEN (segment_end_altitude_m - segment_start_altitude_m)
+             / segment_distance_m
+    END AS segment_grade,
+    segment_start_latitude_deg, segment_start_longitude_deg,
+    segment_end_latitude_deg, segment_end_longitude_deg,
+    start_h3_cell_resolution_8, end_h3_cell_resolution_8,
+    representative_h3_cell_resolution_8,
+    representative_h3_cell_resolution_9,
+    record_count
+FROM segment_rollups`,
     keyTechnique:
-      "Distance-proportional allocation: `GREATEST(0, LEAST(end, upper) - GREATEST(start, lower))` computes the overlap between a record interval and a segment boundary. The proportion drives all telemetry allocation.",
+      "Distance-proportional allocation with interpolation: `GREATEST(0, LEAST(end, upper) - GREATEST(start, lower))` computes interval/segment overlap. Telemetry values (HR, cadence, altitude, lat/lon) are linearly interpolated at boundaries. Stationary intervals are assigned entirely to their containing segment.",
     lineageContext:
-      "`mart_run_segments` feeds `signal_fitness` (canonical 250m segments only for HR drift) and `mart_run_sessions` (segment summary). It is synced to Supabase as `site_route_segments`.",
+      "`mart_run_segments` feeds `mart_fitness` (canonical 250m segments only for HR drift) and `mart_run_sessions` (segment summary). It is synced to Supabase as `site_route_segments`.",
   },
   {
     id: "mart-activity-records",
@@ -1160,7 +1352,6 @@ FROM segment_aggregates`,
     speed_kmh,
     pace_min_per_km,
     heart_rate,
-    cadence,
     running_cadence,
     altitude_m,
     altitude_delta_m,
@@ -1240,9 +1431,9 @@ FROM sampled_records`,
   {
     id: "signal-fitness",
     module: "within-run",
-    title: "Aerobic Fitness Indicators — signal_fitness",
+    title: "Aerobic Fitness Indicators — mart_fitness",
     context:
-      "`signal_fitness` defines descriptive aerobic fitness indicators at the run grain: " +
+      "`mart_fitness` defines descriptive aerobic fitness indicators at the run grain: " +
       "heart-rate drift, speed-to-heart-rate efficiency ratios, HR band bucketing, and " +
       "rolling 4-run averages.\n\n" +
       "Heart-rate drift is calculated from 250m canonical segments: it averages the " +
@@ -1343,9 +1534,31 @@ windowed AS (
                 THEN garmin_recovery_hr END, 0.5, 10000
         ) OVER recovery_prior_90d_window
             AS recovery_prior_90d_median,
+        PERCENTILE_APPROX(
+            CASE WHEN garmin_recovery_hr > 0
+                 AND ending_heart_rate > 0
+                THEN garmin_recovery_hr END, 0.25, 10000
+        ) OVER recovery_prior_90d_window
+            AS recovery_prior_90d_q1,
+        PERCENTILE_APPROX(
+            CASE WHEN garmin_recovery_hr > 0
+                 AND ending_heart_rate > 0
+                THEN garmin_recovery_hr END, 0.75, 10000
+        ) OVER recovery_prior_90d_window
+            AS recovery_prior_90d_q3,
+        MIN(CASE WHEN garmin_recovery_hr > 0
+                 AND ending_heart_rate > 0
+                THEN garmin_recovery_hr END)
+            OVER recovery_prior_90d_window
+            AS recovery_prior_90d_min,
+        MAX(CASE WHEN garmin_recovery_hr > 0
+                 AND ending_heart_rate > 0
+                THEN garmin_recovery_hr END)
+            OVER recovery_prior_90d_window
+            AS recovery_prior_90d_max,
         COUNT(CASE WHEN garmin_recovery_hr > 0
                    AND ending_heart_rate > 0
-              THEN garmin_recovery_hr END)
+               THEN garmin_recovery_hr END)
             OVER recovery_prior_90d_window
             AS recovery_prior_90d_count
     FROM run_fitness
@@ -1359,16 +1572,30 @@ windowed AS (
 )
 
 SELECT * EXCEPT (
-    recovery_prior_90d_median, recovery_prior_90d_count
+    recovery_prior_90d_median, recovery_prior_90d_q1,
+    recovery_prior_90d_q3, recovery_prior_90d_min,
+    recovery_prior_90d_max
 ),
     CASE WHEN recovery_prior_90d_count >= 4
         THEN recovery_prior_90d_median
-    END AS recovery_prior_90d_median
+    END AS recovery_prior_90d_median,
+    CASE WHEN recovery_prior_90d_count >= 4
+        THEN recovery_prior_90d_q1
+    END AS recovery_prior_90d_q1,
+    CASE WHEN recovery_prior_90d_count >= 4
+        THEN recovery_prior_90d_q3
+    END AS recovery_prior_90d_q3,
+    CASE WHEN recovery_prior_90d_count >= 4
+        THEN recovery_prior_90d_min
+    END AS recovery_prior_90d_min,
+    CASE WHEN recovery_prior_90d_count >= 4
+        THEN recovery_prior_90d_max
+    END AS recovery_prior_90d_max
 FROM windowed`,
     keyTechnique:
-      "Named `WINDOW` clause with `PARTITION BY` heart-rate band + `RANGE` 90-day interval for recovery baselines. `CASE` in `SELECT` post-filters unreliable stats (count < 4 → null).",
+      "Named `WINDOW` clause with `PARTITION BY` heart-rate band + `RANGE` 90-day interval for recovery baselines. Five percentile stats (median, Q1, Q3, min, max) are nullified when fewer than 4 prior observations exist.",
     lineageContext:
-      "`signal_fitness` refs `runs` + `mart_run_segments`. It feeds `mart_running_signals`. Exported to Supabase as `site_fitness_core`. The most analytically sophisticated signal model.",
+      "`mart_fitness` refs `runs` + `mart_run_segments`. It feeds `mart_running_signals`. Exported to Supabase as `site_fitness_core`. The most analytically sophisticated signal model.",
   },
 
   // ── MODULE 6: Route Analytics ──
@@ -1412,6 +1639,24 @@ legacy_route_segments AS (
             AS representative_h3_cell_resolution_9
     FROM legacy_route_records
     GROUP BY run_id, segment_index
+),
+
+route_cells AS (
+    SELECT
+        runs.run_id, runs.activity_id,
+        runs.activity_date, runs.distance_km,
+        segments.segment_index,
+        CAST(segments.representative_h3_cell_resolution_8
+            AS string) AS h3_cell_resolution_8,
+        CAST(segments.representative_h3_cell_resolution_9
+            AS string) AS h3_cell_resolution_9
+    FROM legacy_route_segments AS segments
+    INNER JOIN {{ ref('runs') }} AS runs
+        ON segments.run_id = runs.run_id
+    WHERE segments.representative_h3_cell_resolution_8 IS NOT NULL
+        AND segments.representative_h3_cell_resolution_9 IS NOT NULL
+        AND runs.distance_km IS NOT NULL
+        AND runs.distance_km > 0
 ),
 
 route_observations AS (
@@ -1516,21 +1761,21 @@ similar_route_pairs AS (
     SELECT
         candidate_pairs.left_run_id,
         candidate_pairs.right_run_id,
-        LEAST(
-            pair_matches.left_matched_segment_count * 1.0
+        least(
+            coalesce(pair_matches.left_matched_segment_count, 0) * 1.0
                 / candidate_pairs.left_segment_count,
-            pair_matches.right_matched_segment_count * 1.0
+            coalesce(pair_matches.right_matched_segment_count, 0) * 1.0
                 / candidate_pairs.right_segment_count
-        ) AS route_similarity
-    FROM candidate_pairs
-    LEFT JOIN pair_matches
-        ON candidate_pairs.left_run_id = pair_matches.left_run_id
-            AND candidate_pairs.right_run_id
+        ) as route_similarity
+    from candidate_pairs
+    left join pair_matches
+        on candidate_pairs.left_run_id = pair_matches.left_run_id
+            and candidate_pairs.right_run_id
                 = pair_matches.right_run_id
-    WHERE LEAST(
-        pair_matches.left_matched_segment_count * 1.0
+    where least(
+        coalesce(pair_matches.left_matched_segment_count, 0) * 1.0
             / candidate_pairs.left_segment_count,
-        pair_matches.right_matched_segment_count * 1.0
+        coalesce(pair_matches.right_matched_segment_count, 0) * 1.0
             / candidate_pairs.right_segment_count
     ) >= 0.90
 )
@@ -1701,15 +1946,28 @@ segment_summary AS (
 
 SELECT
     runs.run_id, runs.activity_id, runs.activity_date,
+    runs.start_time, runs.session_timestamp,
     runs.distance_km, runs.duration_seconds,
     runs.avg_pace_min_per_km, runs.speed_kmh,
     runs.avg_heart_rate, runs.max_heart_rate,
-    runs.avg_cadence, runs.garmin_recovery_hr,
-    runs.gps_record_count,
+    runs.avg_cadence, runs.max_cadence,
+    runs.total_ascent, runs.total_descent,
+    runs.garmin_recovery_hr,
+    runs.start_position_lat_deg, runs.start_position_long_deg,
+    runs.end_position_lat_deg, runs.end_position_long_deg,
+    runs.record_count, runs.gps_record_count,
+    runs.first_record_timestamp, runs.last_record_timestamp,
+    runs.start_record_latitude_deg, runs.start_record_longitude_deg,
+    runs.end_record_latitude_deg, runs.end_record_longitude_deg,
+    runs.record_distance_km,
     runs.record_distance_coverage_ratio,
     route_clusters.route_id,
     route_clusters.route_representative_run_id,
     route_clusters.route_match_similarity,
+    route_clusters.route_distance_bucket_km,
+    route_clusters.start_h3_cell_resolution_9,
+    route_clusters.end_h3_cell_resolution_9,
+    route_clusters.route_h3_signature,
     segment_summary.segment_count,
     segment_summary.avg_segment_pace_min_per_km,
     segment_summary.avg_segment_grade,
@@ -1736,74 +1994,105 @@ LEFT JOIN prior_training_context
     context:
       "`mart_routes` aggregates historical outcomes for each detected `route_id`. It groups " +
       "`mart_run_sessions` by `route_id` to compute lifetime statistics: run count, average " +
-      "distance, best pace, average heart rate, total ascent/descent.\n\n" +
+      "distance, average pace, average heart rate, average ascent/descent, and route dimensions.\n\n" +
       "The representative route centroid is computed from the 500-point map profile records " +
       "of the earliest run in the cluster. This provides a stable geographic center for " +
       "placing route markers on the overview map without recomputing centroids from full " +
       "telemetry.\n\n" +
-      "The `city_grid_bucket` is a coarse 0.25-degree lat/lon grid cell used for map-based " +
-      "city grouping. This avoids the complexity of reverse geocoding while providing enough " +
-      "resolution to separate routes in different cities or regions.",
+      "The start point (first GPS record of the representative run) is used to resolve a " +
+      "human-readable city name via the geonames database. A `LEFT JOIN` with `route_city_names` " +
+      "adds city name, country name, and country code, enabling map-based city grouping " +
+      "without runtime reverse geocoding.",
     sql: `WITH sessions AS (
     SELECT * FROM {{ ref('mart_run_sessions') }}
     WHERE route_id IS NOT NULL
 ),
 
-route_aggregates AS (
+route_summaries AS (
     SELECT route_id,
+        MIN(route_representative_run_id)
+            AS route_representative_run_id,
+        MIN(activity_date) AS first_observed_activity_date,
+        MAX(activity_date) AS latest_observed_activity_date,
         COUNT(*) AS run_count,
+        MIN(route_match_similarity) AS min_route_match_similarity,
+        AVG(route_match_similarity) AS avg_route_match_similarity,
         AVG(distance_km) AS avg_distance_km,
         MIN(distance_km) AS min_distance_km,
         MAX(distance_km) AS max_distance_km,
-        MIN(avg_pace_min_per_km) AS best_pace_min_per_km,
+        AVG(duration_seconds) AS avg_duration_seconds,
         AVG(avg_pace_min_per_km) AS avg_pace_min_per_km,
         AVG(avg_heart_rate) AS avg_heart_rate,
-        SUM(total_ascent) AS total_ascent,
-        SUM(total_descent) AS total_descent,
+        AVG(total_ascent) AS avg_total_ascent,
+        AVG(total_descent) AS avg_total_descent,
         AVG(segment_count) AS avg_segment_count,
-        AVG(avg_segment_grade) AS avg_segment_grade
+        AVG(avg_segment_grade) AS avg_segment_grade,
+        AVG(route_altitude_range_m) AS avg_route_altitude_range_m,
+        MIN(route_distance_bucket_km) AS route_distance_bucket_km,
+        MIN(start_h3_cell_resolution_9) AS start_h3_cell_resolution_9,
+        MIN(end_h3_cell_resolution_9) AS end_h3_cell_resolution_9,
+        MIN(route_h3_signature) AS route_h3_signature
     FROM sessions GROUP BY route_id
 ),
 
-representative_centroids AS (
-    SELECT sessions.route_id,
+representative_route_centroids AS (
+    SELECT
+        routes.route_id,
         AVG(records.position_lat_deg)
             AS representative_route_centroid_latitude_deg,
         AVG(records.position_long_deg)
             AS representative_route_centroid_longitude_deg
-    FROM sessions
+    FROM route_summaries AS routes
     INNER JOIN {{ ref('mart_map_profile_records') }} AS records
-        ON sessions.route_representative_run_id
-            = records.run_id
-    WHERE records.position_lat_deg IS NOT NULL
-    GROUP BY sessions.route_id
+        ON records.run_id = routes.route_representative_run_id
+    WHERE records.position_lat_deg BETWEEN -90 AND 90
+      AND records.position_long_deg BETWEEN -180 AND 180
+    GROUP BY routes.route_id
+),
+
+run_start_records AS (
+    SELECT
+        run_id,
+        MIN(record_index) AS start_record_index
+    FROM {{ ref('mart_map_profile_records') }}
+    GROUP BY run_id
+),
+
+representative_route_start_points AS (
+    SELECT
+        routes.route_id,
+        records.position_lat_deg AS route_start_latitude_deg,
+        records.position_long_deg AS route_start_longitude_deg
+    FROM route_summaries AS routes
+    INNER JOIN run_start_records AS starts
+        ON starts.run_id = routes.route_representative_run_id
+    INNER JOIN {{ ref('mart_map_profile_records') }} AS records
+        ON records.run_id = starts.run_id
+        AND records.record_index = starts.start_record_index
+    WHERE records.position_lat_deg BETWEEN -90 AND 90
+      AND records.position_long_deg BETWEEN -180 AND 180
 )
 
 SELECT
-    route_aggregates.*,
-    representative_centroids
-        .representative_route_centroid_latitude_deg,
-    representative_centroids
-        .representative_route_centroid_longitude_deg,
-    CONCAT(
-        CAST(FLOOR(
-            representative_centroids
-                .representative_route_centroid_latitude_deg
-            * 4) / 4 AS string),
-        ':',
-        CAST(FLOOR(
-            representative_centroids
-                .representative_route_centroid_longitude_deg
-            * 4) / 4 AS string)
-    ) AS city_grid_bucket
-FROM route_aggregates
-INNER JOIN representative_centroids
-    ON route_aggregates.route_id
-        = representative_centroids.route_id`,
+    routes.*,
+    centroids.representative_route_centroid_latitude_deg,
+    centroids.representative_route_centroid_longitude_deg,
+    starts.route_start_latitude_deg,
+    starts.route_start_longitude_deg,
+    cities.city_name,
+    cities.country_name,
+    cities.country_code
+FROM route_summaries AS routes
+LEFT JOIN representative_route_centroids AS centroids
+    ON routes.route_id = centroids.route_id
+LEFT JOIN representative_route_start_points AS starts
+    ON routes.route_id = starts.route_id
+LEFT JOIN route_city_names AS cities
+    ON routes.route_id = cities.route_id`,
     keyTechnique:
-      "Aggregation over `route_id` produces per-route lifetime statistics. The `city_grid_bucket` concatenates quantized lat/lon into a stable grouping key for map-based filtering.",
+      "Aggregation over `route_id` with `MIN` for first/latest dates and `AVG` for all performance metrics. Start points are extracted from the first GPS record of the representative run, then `LEFT JOIN route_city_names` resolves each route to its nearest city via the geonames database.",
     lineageContext:
-      "`mart_routes` refs `mart_run_sessions` + `mart_map_profile_records`. It feeds `mart_route_prediction_features`. Exported to Supabase as `site_routes`.",
+      "`mart_routes` refs `mart_run_sessions` + `mart_map_profile_records` + `route_city_names`. It feeds `mart_route_prediction_features`. Exported to Supabase as `site_routes`.",
   },
 
   // ── MODULE 7: Signals ──
@@ -1812,15 +2101,15 @@ INNER JOIN representative_centroids
     module: "signals",
     title: "Combined Run Signals — mart_running_signals",
     context:
-      "`mart_running_signals` joins `signal_fitness` (run-level fitness indicators) with " +
+      "`mart_running_signals` joins `mart_fitness` (run-level fitness indicators) with " +
       "`mart_weeks` (week-level training context) on `date_trunc('week', activity_date)`. " +
       "This cross-grain enrichment provides a single-table view for analysis that needs " +
       "both run metrics and weekly context.\n\n" +
-      "The model is intentionally thin — all business logic lives upstream in `signal_fitness` " +
+      "The model is intentionally thin — all business logic lives upstream in `mart_fitness` " +
       "and `mart_weeks`. `mart_running_signals` is purely a join, making every value " +
       "auditable by tracing back to its source model without intermediate transformation.",
     sql: `WITH fitness AS (
-    SELECT * FROM {{ ref('signal_fitness') }}
+    SELECT * FROM {{ ref('mart_fitness') }}
 ),
 weeks AS (
     SELECT * FROM {{ ref('mart_weeks') }}
@@ -1845,9 +2134,9 @@ LEFT JOIN weeks
     ON DATE_TRUNC('week', fitness.activity_date)
         = weeks.week_start_date`,
     keyTechnique:
-      "Cross-grain `LEFT JOIN`: run-level (`signal_fitness`) ← week-level (`mart_weeks`) via `date_trunc`. A thin join model — all business logic is upstream, making it auditable.",
+      "Cross-grain `LEFT JOIN`: run-level (`mart_fitness`) ← week-level (`mart_weeks`) via `date_trunc`. A thin join model — all business logic is upstream, making it auditable.",
     lineageContext:
-      "`mart_running_signals` refs `signal_fitness` + `mart_weeks`. Not exported to Supabase. Serves as a convenience model for Databricks analysis combining run and week contexts.",
+      "`mart_running_signals` refs `mart_fitness` + `mart_weeks`. Not exported to Supabase. Serves as a convenience model for Databricks analysis combining run and week contexts.",
   },
   {
     id: "mart-weekly-training-features",
@@ -1923,41 +2212,58 @@ routes AS (
     SELECT * FROM {{ ref('mart_routes') }}
 ),
 
-session_features AS (
-    SELECT sessions.*,
-        COUNT(*) OVER (
-            PARTITION BY sessions.route_id
-            ORDER BY sessions.activity_date, sessions.activity_id
-            ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-        ) AS prior_route_run_count,
-        AVG(sessions.avg_pace_min_per_km) OVER (
-            PARTITION BY sessions.route_id
-            ORDER BY sessions.activity_date, sessions.activity_id
-            ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-        ) AS prior_route_avg_pace_min_per_km,
-        AVG(sessions.avg_heart_rate) OVER (
-            PARTITION BY sessions.route_id
-            ORDER BY sessions.activity_date, sessions.activity_id
-            ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-        ) AS prior_route_avg_heart_rate
-    FROM sessions
-)
+    session_features AS (
+        SELECT sessions.*,
+            COUNT(*) OVER (
+                PARTITION BY sessions.route_id
+                ORDER BY sessions.activity_date, sessions.activity_id
+                ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+            ) AS prior_route_run_count,
+            AVG(sessions.avg_pace_min_per_km) OVER (
+                PARTITION BY sessions.route_id
+                ORDER BY sessions.activity_date, sessions.activity_id
+                ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+            ) AS prior_route_avg_pace_min_per_km,
+            AVG(sessions.avg_heart_rate) OVER (
+                PARTITION BY sessions.route_id
+                ORDER BY sessions.activity_date, sessions.activity_id
+                ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+            ) AS prior_route_avg_heart_rate,
+            AVG(sessions.duration_seconds) OVER (
+                PARTITION BY sessions.route_id
+                ORDER BY sessions.activity_date, sessions.activity_id
+                ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+            ) AS prior_route_avg_duration_seconds
+        FROM sessions
+    )
 
-SELECT
-    session_features.run_id,
-    session_features.route_id,
-    session_features.prior_7d_run_count,
-    session_features.prior_7d_distance_km,
-    session_features.prior_28d_run_count,
-    session_features.prior_28d_distance_km,
-    session_features.prior_route_run_count,
-    session_features.prior_route_avg_pace_min_per_km,
-    session_features.prior_route_avg_heart_rate,
-    routes.run_count AS route_lifetime_run_count,
-    routes.avg_distance_km AS route_lifetime_avg_distance_km,
-    session_features.distance_km AS label_completion_distance_km,
-    session_features.avg_pace_min_per_km AS label_avg_pace_min_per_km,
-    session_features.avg_heart_rate AS label_avg_heart_rate
+    SELECT
+        session_features.run_id,
+        session_features.activity_id,
+        session_features.activity_date,
+        session_features.route_id,
+        session_features.route_distance_bucket_km,
+        session_features.segment_count,
+        session_features.avg_segment_grade,
+        session_features.route_altitude_range_m,
+        session_features.total_ascent,
+        session_features.total_descent,
+        session_features.prior_7d_run_count,
+        session_features.prior_7d_distance_km,
+        session_features.prior_28d_run_count,
+        session_features.prior_28d_distance_km,
+        session_features.prior_route_run_count,
+        session_features.prior_route_avg_pace_min_per_km,
+        session_features.prior_route_avg_heart_rate,
+        session_features.prior_route_avg_duration_seconds,
+        routes.run_count AS route_lifetime_run_count,
+        routes.avg_distance_km AS route_lifetime_avg_distance_km,
+        routes.avg_pace_min_per_km AS route_lifetime_avg_pace_min_per_km,
+        routes.avg_heart_rate AS route_lifetime_avg_heart_rate,
+        session_features.distance_km AS label_completion_distance_km,
+        session_features.duration_seconds AS label_duration_seconds,
+        session_features.avg_pace_min_per_km AS label_avg_pace_min_per_km,
+        session_features.avg_heart_rate AS label_avg_heart_rate
 FROM session_features
 LEFT JOIN routes
     ON session_features.route_id = routes.route_id`,

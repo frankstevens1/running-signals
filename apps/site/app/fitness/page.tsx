@@ -1,4 +1,4 @@
-import { Activity, Gauge, HeartPulse } from "lucide-react";
+import { Activity, ArrowRight, Gauge, HeartPulse, Mountain, Sparkles } from "lucide-react";
 
 import { AppShell } from "@/app/components/app-shell";
 import { DataState } from "@/app/components/data-state";
@@ -6,6 +6,9 @@ import { MetricCard } from "@/app/components/metric-card";
 import { ScrollReveal } from "@/app/components/motion-reveal";
 import { SectionHeading } from "@/app/components/section-heading";
 import {
+  DistanceEconomyChart,
+  EfficiencyScoreChart,
+  ElevationEconomyChart,
   FitnessEfficiencyChart,
   HrDriftChart,
   PaceHeartRateTrend,
@@ -73,7 +76,7 @@ export default async function FitnessPage({
     <AppShell>
       <div className="space-y-10">
         <SectionHeading
-          eyebrow="signal_fitness"
+          eyebrow="mart_fitness"
           title="Descriptive fitness trends"
           description="Fitness views stay descriptive: heart-rate drift over time, pace at comparable heart rate, speed per heartbeat, and post-run recovery HR."
           icon={explorerPages.fitness.icon}
@@ -117,6 +120,41 @@ export default async function FitnessPage({
               latest?.efficiencyRatio,
               efficiencyBaseline,
             );
+
+            const economyValues = data
+              .filter((p) => p.distanceEconomyMperBeat !== null)
+              .map((p) => p.distanceEconomyMperBeat!);
+            const economyBaseline = economyValues.length > 1
+              ? economyValues.slice(0, -1).reduce((s, v) => s + v, 0) / (economyValues.length - 1)
+              : null;
+            const economyTrend = relativeTrend(
+              latest?.distanceEconomyMperBeat,
+              economyBaseline,
+            );
+
+            const elevationValues = data
+              .filter((p) => p.elevationEconomyMperBeat !== null)
+              .map((p) => p.elevationEconomyMperBeat!);
+            const elevationBaseline = elevationValues.length > 1
+              ? elevationValues.slice(0, -1).reduce((s, v) => s + v, 0) / (elevationValues.length - 1)
+              : null;
+            const elevationTrend = relativeTrend(
+              latest?.elevationEconomyMperBeat,
+              elevationBaseline,
+            );
+
+            const scoreTrend =
+              latest != null && latest.personalEfficiencyScore !== null && latest.personalEfficiencyScore !== undefined
+                ? {
+                    direction: latest.personalEfficiencyScore > 100
+                      ? ("up" as const)
+                      : latest.personalEfficiencyScore < 100
+                        ? ("down" as const)
+                        : ("neutral" as const),
+                    value: `${latest.personalEfficiencyScore > 100 ? "+" : ""}${formatInteger(Math.round(latest.personalEfficiencyScore - 100))}`,
+                    label: "vs 100 baseline",
+                  }
+                : null;
 
             return (
               <div className="space-y-10">
@@ -195,6 +233,51 @@ export default async function FitnessPage({
                     }
                   />
                 </div>
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <MetricCard
+                    label="Latest distance economy"
+                    value={latest?.distanceEconomyMperBeat != null
+                      ? `${latest.distanceEconomyMperBeat.toFixed(3)} m/beat`
+                      : "\u2014"}
+                    detail={`Distance per heartbeat on ${latest ? formatDate(latest.activityDate) : "\u2014"}`}
+                    icon={ArrowRight}
+                    trend={
+                      economyTrend
+                          ? {
+                            direction: economyTrend.direction,
+                            value: formatFixedSignedPercent(economyTrend.change, false),
+                            label: "vs prior average",
+                          }
+                        : undefined
+                    }
+                  />
+                  <MetricCard
+                    label="Latest elevation economy"
+                    value={latest?.elevationEconomyMperBeat != null
+                      ? `${latest.elevationEconomyMperBeat.toFixed(4)} m/beat`
+                      : "\u2014"}
+                    detail="Vertical metres per heartbeat. Varies with terrain."
+                    icon={Mountain}
+                    trend={
+                      elevationTrend
+                          ? {
+                            direction: elevationTrend.direction,
+                            value: formatFixedSignedPercent(elevationTrend.change, false),
+                            label: "vs prior average",
+                          }
+                        : undefined
+                    }
+                  />
+                  <MetricCard
+                    label="Latest efficiency score"
+                    value={latest?.personalEfficiencyScore != null
+                      ? `${Math.round(latest.personalEfficiencyScore)}`
+                      : "\u2014"}
+                    detail="100 = typical. Higher means more efficient than your recent norm."
+                    icon={Sparkles}
+                    trend={scoreTrend ?? undefined}
+                  />
+                </div>
                 <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2">
                   <ScrollReveal className="min-w-0 xl:col-span-2">
                     <HrDriftChart points={data} />
@@ -205,7 +288,16 @@ export default async function FitnessPage({
                   <ScrollReveal className="h-full min-w-0" delayMs={120}>
                     <FitnessEfficiencyChart points={data} />
                   </ScrollReveal>
-                  <ScrollReveal className="h-full min-w-0 xl:col-span-2" delayMs={160}>
+                  <ScrollReveal className="h-full min-w-0" delayMs={140}>
+                    <DistanceEconomyChart points={data} />
+                  </ScrollReveal>
+                  <ScrollReveal className="h-full min-w-0" delayMs={160}>
+                    <ElevationEconomyChart points={data} />
+                  </ScrollReveal>
+                  <ScrollReveal className="h-full min-w-0 xl:col-span-2" delayMs={180}>
+                    <EfficiencyScoreChart points={data} />
+                  </ScrollReveal>
+                  <ScrollReveal className="h-full min-w-0 xl:col-span-2" delayMs={200}>
                     <RecoveryHeartRateChart points={data} />
                   </ScrollReveal>
                 </div>

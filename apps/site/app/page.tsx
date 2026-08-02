@@ -35,7 +35,7 @@ const pillars = [
     href: "/fitness",
     icon: explorerPages.fitness.icon,
     copy: "Explore descriptive changes in pace, heart rate, efficiency, and post-run recovery HR.",
-    source: "signal_fitness",
+    source: "mart_fitness",
   },
 ];
 
