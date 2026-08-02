@@ -362,15 +362,7 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
                 </div>
 
                 <div className="p-4 lg:flex lg:items-center">
-                  <dl className="grid w-full grid-cols-4 gap-x-2 gap-y-3 sm:gap-x-5 lg:grid-cols-[repeat(7,minmax(max-content,1fr))]">
-                    <MetricItem
-                      label="Ascent/Descent"
-                      value={[
-                        formatElevation(run.totalAscent),
-                        formatElevation(run.totalDescent),
-                      ].join(" / ")}
-                    />
-                    <MetricItem label="Alt range" value={formatElevation(run.routeAltitudeRangeM)} />
+                  <dl className="grid w-full grid-cols-3 gap-x-4 gap-y-3 sm:gap-x-5 lg:grid-cols-6">
                     <MetricItem
                       label="Dist economy"
                       value={formatEconomy(run.distanceEconomyMperBeat, 3, "m/beat")}
@@ -398,6 +390,13 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
                     />
                     <MetricItem label="Prior 7d" value={formatDistance(run.prior7dDistanceKm, unit)} />
                     <MetricItem label="Recovery HR" value={formatHeartRate(run.garminRecoveryHr)} />
+                    <MetricItem
+                      label="Ascent/Descent"
+                      value={[
+                        formatElevation(run.totalAscent),
+                        formatElevation(run.totalDescent),
+                      ].join(" / ")}
+                    />
                   </dl>
                 </div>
               </div>

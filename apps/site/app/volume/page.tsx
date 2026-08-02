@@ -15,6 +15,7 @@ import { formatDate, formatDistance, formatInteger, shortDate } from "@/app/lib/
 import { explorerPages } from "@/app/lib/page-metadata";
 import { getServerDistanceUnit } from "@/app/lib/server-distance-unit";
 import { getServerAnalyticsWindow } from "@/app/lib/analytics-window-server";
+import { comparisonTrendLabel } from "@/app/lib/analytics-window";
 
 function trendDelta(
   current: number | null | undefined,
@@ -34,6 +35,7 @@ export default async function VolumePage({
 }) {
   const resolved = await searchParams;
   const analyticsWindow = await getServerAnalyticsWindow(resolved);
+  const { effectiveComparison } = analyticsWindow;
   const [volume, comparisonVolume, unit] = await Promise.all([
     getVolume(analyticsWindow.primary),
     analyticsWindow.comparison ? getVolume(analyticsWindow.comparison) : null,
@@ -106,7 +108,7 @@ export default async function VolumePage({
                         ? {
                             direction: rollingTrend.direction,
                             value: `${rollingTrend.diff > 0 ? "+" : ""}${formatDistance(Math.abs(rollingTrend.diff), unit)}`,
-                            label: comparison ? "vs comparison" : "vs prior week",
+                            label: comparison ? (comparisonTrendLabel(effectiveComparison) ?? "vs prior week") : "vs prior week",
                           }
                         : undefined
                     }
@@ -121,7 +123,7 @@ export default async function VolumePage({
                         ? {
                             direction: monthlyTrend.direction,
                             value: `${monthlyTrend.diff > 0 ? "+" : ""}${formatDistance(Math.abs(monthlyTrend.diff), unit)}`,
-                            label: comparison ? "vs comparison" : "vs prior month",
+                            label: comparison ? (comparisonTrendLabel(effectiveComparison) ?? "vs prior month") : "vs prior month",
                           }
                         : undefined
                     }
@@ -151,7 +153,7 @@ export default async function VolumePage({
                         ? {
                             direction: yearlyTrend.direction,
                             value: `${yearlyTrend.diff > 0 ? "+" : ""}${formatDistance(Math.abs(yearlyTrend.diff), unit)}`,
-                            label: comparison ? "vs comparison" : "vs prior year",
+                            label: comparison ? (comparisonTrendLabel(effectiveComparison) ?? "vs prior year") : "vs prior year",
                           }
                         : undefined
                     }

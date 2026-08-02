@@ -1701,6 +1701,35 @@ function getElevationEconomyDomain(points: FitnessPoint[]): NumericDomain {
   return [Math.max(0, min - padding), max + padding];
 }
 
+function DistanceEconomyTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: ReadonlyArray<{
+    payload?: (FitnessPoint & { rollingDistanceEconomy?: number | null });
+  }>;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+
+  const point = payload[0]?.payload;
+  if (!point) return null;
+
+  return (
+    <div style={tooltipStyle.contentStyle}>
+      <div style={tooltipStyle.labelStyle}>
+        {formatDate(point.activityDate)}
+      </div>
+      <div style={tooltipStyle.itemStyle}>
+        Session: {point.distanceEconomyMperBeat != null ? `${point.distanceEconomyMperBeat.toFixed(3)} m/beat` : "\u2014"}
+      </div>
+      <div style={tooltipStyle.itemStyle}>
+        Rolling 4-run: {point.rollingDistanceEconomy != null ? `${point.rollingDistanceEconomy.toFixed(3)} m/beat` : "\u2014"}
+      </div>
+    </div>
+  );
+}
+
 function ScoreTooltip({
   active,
   payload,
@@ -1768,12 +1797,7 @@ export function DistanceEconomyChart({ points }: { points: FitnessPoint[] }) {
             tickFormatter={(value) => Number(value).toFixed(2)}
           />
           <Tooltip
-            {...tooltipStyle}
-            labelFormatter={(value) => shortDate(String(value))}
-            formatter={(value) => [
-              numberValue(value)?.toFixed(3) ?? "n/a",
-              "m/beat",
-            ]}
+            content={<DistanceEconomyTooltip />}
           />
           <Legend
             content={
@@ -1899,11 +1923,23 @@ export function ElevationEconomyChart({ points }: { points: FitnessPoint[] }) {
   );
 }
 
+function getEfficiencyScoreDomain(points: FitnessPoint[]): NumericDomain {
+  const scores = points
+    .map((p) => p.personalEfficiencyScore)
+    .filter((v): v is number => v !== null);
+  if (scores.length === 0) return [90, 110];
+  const min = Math.min(...scores);
+  const max = Math.max(...scores);
+  const domainMin = Math.min(90, min - 5);
+  const domainMax = Math.max(110, max + 5);
+  return [domainMin, domainMax];
+}
+
 export function EfficiencyScoreChart({ points }: { points: FitnessPoint[] }) {
   return (
     <ChartFrame
       title="Personal efficiency score"
-      description="Observed distance economy versus 90-day personal baseline. 100 = expected."
+      description="Deviation from 100 baseline (dashed). The shaded band is a 5-point typical range."
       info={CHART_INFO.efficiencyScore}
     >
       <ResponsiveContainer width="100%" height="100%">
@@ -1922,6 +1958,7 @@ export function EfficiencyScoreChart({ points }: { points: FitnessPoint[] }) {
             tick={axisTick}
           />
           <YAxis
+            domain={getEfficiencyScoreDomain(points)}
             axisLine={false}
             tickLine={false}
             tick={axisTick}
@@ -1929,6 +1966,12 @@ export function EfficiencyScoreChart({ points }: { points: FitnessPoint[] }) {
           />
           <Tooltip
             content={<ScoreTooltip />}
+          />
+          <ReferenceArea
+            y1={95}
+            y2={105}
+            fill={MUTED_SERIES_COLOR}
+            fillOpacity={0.5}
           />
           <ReferenceLine
             y={100}

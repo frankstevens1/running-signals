@@ -143,16 +143,31 @@ export default async function FitnessPage({
               elevationBaseline,
             );
 
+            const scoreBaseline = (() => {
+              if (comparison) {
+                const compScores = comparison
+                  .map((p) => p.personalEfficiencyScore)
+                  .filter((v): v is number => v !== null);
+                if (compScores.length > 0) {
+                  return {
+                    baseline: compScores.reduce((s, v) => s + v, 0) / compScores.length,
+                    label: comparisonTrendLabel(effectiveComparison) ?? "vs prior period",
+                  };
+                }
+              }
+              return { baseline: 100, label: "vs 100 baseline" };
+            })();
+
             const scoreTrend =
               latest != null && latest.personalEfficiencyScore !== null && latest.personalEfficiencyScore !== undefined
                 ? {
-                    direction: latest.personalEfficiencyScore > 100
+                    direction: latest.personalEfficiencyScore > scoreBaseline.baseline
                       ? ("up" as const)
-                      : latest.personalEfficiencyScore < 100
+                      : latest.personalEfficiencyScore < scoreBaseline.baseline
                         ? ("down" as const)
                         : ("neutral" as const),
-                    value: `${latest.personalEfficiencyScore > 100 ? "+" : ""}${formatInteger(Math.round(latest.personalEfficiencyScore - 100))}`,
-                    label: "vs 100 baseline",
+                    value: `${latest.personalEfficiencyScore > scoreBaseline.baseline ? "+" : ""}${formatInteger(Math.round(latest.personalEfficiencyScore - scoreBaseline.baseline))}`,
+                    label: scoreBaseline.label,
                   }
                 : null;
 

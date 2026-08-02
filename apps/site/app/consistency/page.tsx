@@ -165,13 +165,18 @@ export default async function ConsistencyPage({
             const latestStreak = latest?.activeWeekStreak ?? 0;
             const latestStreakStartDate = streakStartDate(latest);
 
+            const lastCompletedWeek = [...data]
+              .reverse()
+              .find((week) => currentWeek?.weekStartDate
+                ? week.weekStartDate < currentWeek.weekStartDate
+                : false);
+
             const currentWeekPct =
               currentWeek?.distanceKm &&
-              latest?.weeklyDistanceKm &&
-              latest.weeklyDistanceKm > 0
-                ? Math.round(
-                    (currentWeek.distanceKm / latest.weeklyDistanceKm) * 100,
-                  )
+              lastCompletedWeek?.weeklyDistanceKm ?
+                Math.round(
+                  (currentWeek.distanceKm / lastCompletedWeek.weeklyDistanceKm) * 100,
+                )
                 : null;
 
             const weeklyDistanceTrend = comparison
@@ -213,7 +218,7 @@ export default async function ConsistencyPage({
                       ? {
                           direction: "neutral",
                           value: `${currentWeekPct}%`,
-                          label: "of last week",
+                          label: "of last week total",
                         }
                       : undefined
                   }
@@ -273,7 +278,7 @@ export default async function ConsistencyPage({
               const recent = recentDailyContext as DailyConsistencyContext;
               const prior = priorDailyContext as DailyConsistencyContext;
               const cmp = comparisonDailyContext;
-              const cmpLabel = cmp ? comparisonTrendLabel(compMode) ?? "vs comparison" : "vs first half";
+              const cmpLabel = cmp ? comparisonTrendLabel(compMode) ?? "vs prior period" : "vs first half";
 
               const streakTrend = cmp
                 ? trendDelta(dailyContext.longestDailyRunStreak, cmp.longestDailyRunStreak)

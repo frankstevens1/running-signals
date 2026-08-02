@@ -1,15 +1,17 @@
 "use client";
 
 import { CalendarRange, X } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import {
   ANALYTICS_WINDOW_STORAGE_KEY,
   analyticsWindowStateFromUrl,
+  amsterdamToday,
   DEFAULT_ANALYTICS_WINDOW_STATE,
   parseAnalyticsWindowState,
+  resolveAnalyticsWindow,
   serializeAnalyticsWindowState,
   withAnalyticsWindowState,
   type AnalyticsComparison,
@@ -147,6 +149,19 @@ export function AnalyticsWindowSelector() {
     router.push(`${pathname}?${next.toString()}`, { scroll: false });
   }
 
+  const resolvedWindow = useMemo(() => {
+    const today = amsterdamToday();
+    const currentParams = new URLSearchParams(paramsString);
+    const cookieRaw = typeof document !== "undefined"
+      ? document.cookie.split("; ")
+          .find((row) => row.startsWith(`${ANALYTICS_WINDOW_STORAGE_KEY}=`))
+          ?.slice(ANALYTICS_WINDOW_STORAGE_KEY.length + 1) ?? null
+      : null;
+    return resolveAnalyticsWindow(currentParams, cookieRaw, today);
+  }, [paramsString]);
+
+  const fmtDate = (d: string | null) => d ?? "\u2014";
+
   return (
     <>
       <button
@@ -254,6 +269,15 @@ export function AnalyticsWindowSelector() {
                   >
                     Apply window
                   </button>
+
+                  <div className="space-y-0.5 border border-(--border) bg-(--surface-muted) px-3 py-2 font-mono text-[10px] leading-4 text-(--text-soft)">
+                    <p>Primary : {fmtDate(resolvedWindow.primary.from)} \u2013 {fmtDate(resolvedWindow.primary.to)}</p>
+                    {resolvedWindow.comparison ? (
+                      <p>Compare : {fmtDate(resolvedWindow.comparison.from)} \u2013 {fmtDate(resolvedWindow.comparison.to)}</p>
+                    ) : (
+                      <p>Compare : none</p>
+                    )}
+                  </div>
 
                   <p className="font-mono text-[10px] leading-4 text-(--text-soft)">
                     Calendar boundaries use Europe/Amsterdam.
