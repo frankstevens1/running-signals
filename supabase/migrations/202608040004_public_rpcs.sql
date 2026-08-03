@@ -1,86 +1,4 @@
-drop view if exists public.site_run_filter_bounds;
-drop view if exists public.site_runs;
-drop view if exists public.site_days;
-drop view if exists public.site_fitness;
-drop view if exists public.site_dashboard_summary;
-
-create view public.site_runs
-with (security_invoker = true)
-as
-select *
-from public.site_runs_core;
-
-create view public.site_days
-with (security_invoker = true)
-as
-select *
-from public.site_days_core;
-
-create view public.site_fitness
-with (security_invoker = true)
-as
-select *
-from public.site_fitness_core;
-
-create view public.site_dashboard_summary
-with (security_invoker = true)
-as
-select *
-from public.site_dashboard_summary_core;
-
-grant select on public.site_runs to anon, authenticated;
-grant select on public.site_days to anon, authenticated;
-grant select on public.site_fitness to anon, authenticated;
-grant select on public.site_dashboard_summary to anon, authenticated;
-
-drop table if exists public.site_health_days;
-
-delete from public.site_metadata
-where metadata_key like 'health\_%' escape '\';
-
-drop table if exists public.site_months;
-drop table if exists public.site_years;
-
-alter table public.site_routes
-    drop column if exists min_route_match_similarity,
-    drop column if exists avg_route_match_similarity,
-    drop column if exists route_h3_signature;
-
-drop index if exists public.site_routes_rank_idx;
-create index site_routes_rank_idx
-    on public.site_routes (
-        run_count desc,
-        latest_observed_activity_date desc nulls last,
-        route_id
-    );
-
-drop index if exists public.site_route_segments_route_idx;
-drop index if exists public.site_route_segments_order_idx;
-drop index if exists public.site_route_segments_route_resolution_idx;
-
-alter table public.site_route_segments
-    drop constraint if exists site_route_segments_positive_length_check,
-    drop constraint if exists site_route_segments_boundary_order_check,
-    drop column if exists route_id,
-    drop column if exists activity_date,
-    drop column if exists segment_length_m,
-    drop column if exists segment_length_label,
-    drop column if exists is_canonical,
-    drop column if exists segment_start_boundary_m,
-    drop column if exists segment_end_boundary_m,
-    drop column if exists segment_start_distance_m,
-    drop column if exists segment_end_distance_m,
-    drop column if exists segment_distance_m,
-    drop column if exists segment_distance_value,
-    drop column if exists avg_speed_kmh,
-    drop column if exists min_altitude_m,
-    drop column if exists max_altitude_m,
-    drop column if exists segment_start_latitude_deg,
-    drop column if exists segment_start_longitude_deg,
-    drop column if exists segment_end_latitude_deg,
-    drop column if exists segment_end_longitude_deg;
-
-create or replace function public.site_run_filter_bounds_for_window(
+create function public.site_run_filter_bounds_for_window(
     p_from date default null,
     p_to date default null
 )
@@ -94,10 +12,13 @@ returns table (
     min_avg_heart_rate double precision,
     max_avg_heart_rate double precision,
     min_gps_coverage double precision,
-    max_gps_coverage double precision
+    max_gps_coverage double precision,
+    min_route_altitude_range_m double precision,
+    max_route_altitude_range_m double precision
 )
 language sql
 stable
+security invoker
 set search_path = public
 as $$
     select
@@ -110,13 +31,15 @@ as $$
         min(avg_heart_rate),
         max(avg_heart_rate),
         min(record_distance_coverage_ratio),
-        max(record_distance_coverage_ratio)
+        max(record_distance_coverage_ratio),
+        min(route_altitude_range_m),
+        max(route_altitude_range_m)
     from public.site_runs_core
     where (p_from is null or activity_date >= p_from)
       and (p_to is null or activity_date <= p_to);
 $$;
 
-create or replace function public.site_route_summaries(
+create function public.site_route_summaries(
     p_from date default null,
     p_to date default null,
     p_limit integer default 100,
@@ -131,10 +54,14 @@ returns table (
     avg_heart_rate double precision,
     representative_route_centroid_latitude_deg double precision,
     representative_route_centroid_longitude_deg double precision,
+    city_name text,
+    country_name text,
+    country_code text,
     total_count bigint
 )
 language sql
 stable
+security invoker
 set search_path = public
 as $$
     with route_aggregates as (
@@ -160,7 +87,10 @@ as $$
             aggregates.avg_pace_min_per_km,
             aggregates.avg_heart_rate,
             routes.representative_route_centroid_latitude_deg,
-            routes.representative_route_centroid_longitude_deg
+            routes.representative_route_centroid_longitude_deg,
+            routes.city_name,
+            routes.country_name,
+            routes.country_code
         from route_aggregates as aggregates
         inner join public.site_routes as routes using (route_id)
     )
@@ -176,7 +106,7 @@ as $$
     offset greatest(p_offset, 0);
 $$;
 
-create or replace function public.site_period_summary(
+create function public.site_period_summary(
     p_from date default null,
     p_to date default null
 )
@@ -191,6 +121,7 @@ returns table (
 )
 language sql
 stable
+security invoker
 set search_path = public
 as $$
     with filtered_days as (
@@ -224,11 +155,56 @@ as $$
     group by latest.latest_completed_date;
 $$;
 
-grant execute on function public.site_run_filter_bounds_for_window(date, date)
-    to anon, authenticated;
-grant execute on function public.site_route_summaries(date, date, integer, integer)
-    to anon, authenticated;
-grant execute on function public.site_period_summary(date, date)
-    to anon, authenticated;
+create function public.site_map_profile_records(
+    p_run_id text default null,
+    p_route_id text default null
+)
+returns table (
+    record_index bigint,
+    record_distance_km double precision,
+    altitude_m double precision,
+    pace_min_per_km double precision,
+    heart_rate double precision,
+    position_lat_deg double precision,
+    position_long_deg double precision
+)
+language plpgsql
+stable
+security invoker
+set search_path = public
+as $$
+declare
+    target_run_id text;
+begin
+    if (p_run_id is null) = (p_route_id is null) then
+        raise exception 'Pass exactly one of p_run_id or p_route_id'
+            using errcode = '22023';
+    end if;
 
-notify pgrst, 'reload schema';
+    if p_run_id is not null then
+        target_run_id := p_run_id;
+    else
+        select route_representative_run_id
+        into target_run_id
+        from public.site_routes
+        where route_id = p_route_id;
+    end if;
+
+    if target_run_id is null then
+        return;
+    end if;
+
+    return query
+    select
+        records.record_index,
+        records.record_distance_km,
+        records.altitude_m,
+        records.pace_min_per_km,
+        records.heart_rate,
+        records.position_lat_deg,
+        records.position_long_deg
+    from public.site_map_profile_records as records
+    where records.run_id = target_run_id
+    order by records.record_index;
+end;
+$$;

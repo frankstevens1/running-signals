@@ -223,7 +223,7 @@ streaks, missed-week flags, and rolling 4-week and 12-week distance and run-coun
 Grain: one row per run.
 
 Purpose: define descriptive aerobic fitness indicators from session pace, speed, heart rate,
-heart-rate bands, first-half versus second-half heart-rate drift, Garmin Recovery HR when available,
+ heart-rate bands, quality-gated aerobic decoupling across run halves, Garmin Recovery HR when available,
 and same-day health context.
 
 ### mart_weekly_training_features

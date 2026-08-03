@@ -195,6 +195,8 @@ export function mapYear(row: Record<string, unknown>): YearRollup {
 }
 
 export function mapFitness(row: Record<string, unknown>): FitnessPoint {
+  const aerobicDecouplingStatus = stringValue(row, "aerobic_decoupling_status");
+
   return {
     activityId: stringValue(row, "activity_id") ?? "",
     activityDate: stringValue(row, "activity_date") ?? "",
@@ -205,8 +207,26 @@ export function mapFitness(row: Record<string, unknown>): FitnessPoint {
     endingHeartRate: numberValue(row, "ending_heart_rate"),
     efficiencyRatio: numberValue(row, "efficiency_ratio"),
     rolling4RunEfficiencyRatio: numberValue(row, "rolling_4_run_efficiency_ratio"),
-    hrDriftPct: numberValue(row, "hr_drift_pct"),
-    rolling4RunHrDriftPct: numberValue(row, "rolling_4_run_hr_drift_pct"),
+    aerobicDecouplingPct: numberValue(row, "aerobic_decoupling_pct"),
+    aerobicDecouplingStatus:
+      aerobicDecouplingStatus === "eligible" || aerobicDecouplingStatus === "ineligible"
+        ? aerobicDecouplingStatus
+        : null,
+    aerobicDecouplingUnavailableReason: stringValue(row, "aerobic_decoupling_unavailable_reason"),
+    aerobicDecouplingMovingDurationSeconds: numberValue(row, "aerobic_decoupling_moving_duration_seconds"),
+    aerobicDecouplingValidSegmentCount: numberValue(row, "aerobic_decoupling_valid_segment_count"),
+    aerobicDecouplingHrCoverageRatio: numberValue(row, "aerobic_decoupling_hr_coverage_ratio"),
+    aerobicDecouplingMaximumHrGapSeconds: numberValue(row, "aerobic_decoupling_maximum_hr_gap_seconds"),
+    firstHalfSpeedKmh: numberValue(row, "first_half_speed_kmh"),
+    secondHalfSpeedKmh: numberValue(row, "second_half_speed_kmh"),
+    firstHalfAvgHeartRate: numberValue(row, "first_half_avg_heart_rate"),
+    secondHalfAvgHeartRate: numberValue(row, "second_half_avg_heart_rate"),
+    firstHalfEfficiencyRatio: numberValue(row, "first_half_efficiency_ratio"),
+    secondHalfEfficiencyRatio: numberValue(row, "second_half_efficiency_ratio"),
+    aerobicDecouplingPrior90dCount: numberValue(row, "aerobic_decoupling_prior_90d_count"),
+    aerobicDecouplingPrior90dMedian: numberValue(row, "aerobic_decoupling_prior_90d_median"),
+    aerobicDecouplingPrior90dQ1: numberValue(row, "aerobic_decoupling_prior_90d_q1"),
+    aerobicDecouplingPrior90dQ3: numberValue(row, "aerobic_decoupling_prior_90d_q3"),
     rolling4RunRecoveryHr: numberValue(row, "rolling_4_run_recovery_hr"),
     recoveryPrior90dCount: numberValue(row, "recovery_prior_90d_count"),
     recoveryPrior90dMedian: numberValue(row, "recovery_prior_90d_median"),

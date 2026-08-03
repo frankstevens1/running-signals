@@ -249,106 +249,96 @@ def test_site_route_segments_export_has_only_serving_columns() -> None:
     assert " join " not in statement.lower()
 
 
-def test_supabase_migration_uses_resolution_aware_keys_and_public_read_policy() -> None:
+def test_supabase_bootstrap_core_uses_resolution_aware_segment_keys() -> None:
     migration = (
         Path(__file__).parents[1]
-        / "supabase/migrations/202607120001_activity_records_and_segment_resolutions.sql"
+        / "supabase/migrations/202608040001_core_tables.sql"
     ).read_text()
 
-    assert "create table public.site_activity_records" in migration
-    assert "primary key (run_id, record_index)" in migration
-    assert "site_activity_records_route_idx" in migration
-    assert "on public.site_activity_records for select" in migration
-    assert (
-        "add primary key (run_id, unit_system, segment_length_value, segment_index)"
-        in migration
-    )
+    assert "create table public.site_route_segments" in migration
+    assert "primary key (run_id, unit_system, segment_length_value, segment_index)" in migration
 
 
-def test_route_centroid_migration_adds_nullable_site_route_coordinates() -> None:
+def test_supabase_bootstrap_core_includes_route_coordinates() -> None:
     migration = (
-        Path(__file__).parents[1] / "supabase/migrations/202607210001_route_centroids.sql"
+        Path(__file__).parents[1] / "supabase/migrations/202608040001_core_tables.sql"
     ).read_text()
 
-    assert "add column representative_route_centroid_latitude_deg double precision" in migration
-    assert "add column representative_route_centroid_longitude_deg double precision" in migration
+    assert "representative_route_centroid_latitude_deg double precision" in migration
+    assert "representative_route_centroid_longitude_deg double precision" in migration
 
 
-def test_map_profile_records_migration_samples_in_the_database() -> None:
+def test_supabase_bootstrap_rpcs_serve_map_profile_records() -> None:
     migration = (
         Path(__file__).parents[1]
-        / "supabase/migrations/202607210002_sampled_map_profile_records.sql"
+        / "supabase/migrations/202608040004_public_rpcs.sql"
     ).read_text()
 
-    assert "create or replace function public.site_map_profile_records" in migration
-    assert "row_number() over (order by record_index)" in migration
+    assert "create function public.site_map_profile_records" in migration
+    assert "Pass exactly one of p_run_id or p_route_id" in migration
 
 
-def test_sampled_map_profile_serving_migration_replaces_full_telemetry_table() -> None:
+def test_supabase_bootstrap_core_includes_map_profile_telemetry() -> None:
     migration = (
         Path(__file__).parents[1]
-        / "supabase/migrations/202607230003_sampled_map_profile_serving.sql"
+        / "supabase/migrations/202608040001_core_tables.sql"
     ).read_text()
 
     assert "create table public.site_map_profile_records" in migration
     assert "primary key (run_id, record_index)" in migration
-    assert "from public.site_map_profile_records as records" in migration
-    assert "drop table public.site_activity_records" in migration
-    assert "heart_rate" not in migration
+    assert "pace_min_per_km double precision" in migration
+    assert "heart_rate double precision" in migration
 
 
-def test_map_profile_telemetry_migration_extends_sampled_serving_contract() -> None:
+def test_supabase_bootstrap_map_profile_rpc_reads_final_telemetry_contract() -> None:
     migration = (
         Path(__file__).parents[1]
-        / "supabase/migrations/202607280001_map_profile_telemetry.sql"
+        / "supabase/migrations/202608040004_public_rpcs.sql"
     ).read_text()
 
-    assert "alter table public.site_map_profile_records" in migration
-    assert "add column pace_min_per_km double precision" in migration
-    assert "add column heart_rate double precision" in migration
     assert "from public.site_map_profile_records as records" in migration
 
 
-def test_route_city_grid_bucket_migration_adds_nullable_text_column() -> None:
+def test_supabase_bootstrap_core_includes_route_city_fields() -> None:
     migration = (
         Path(__file__).parents[1]
-        / "supabase/migrations/202607220001_site_routes_city_grid_bucket.sql"
+        / "supabase/migrations/202608040001_core_tables.sql"
     ).read_text()
 
-    assert "alter table public.site_routes" in migration
-    assert "add column city_grid_bucket text" in migration
+    assert "city_name text" in migration
+    assert "country_name text" in migration
+    assert "country_code text" in migration
 
 
-def test_weeks_avg_run_distance_migration_adds_nullable_column() -> None:
+def test_supabase_bootstrap_core_includes_week_average_distance() -> None:
     migration = (
         Path(__file__).parents[1]
-        / "supabase/migrations/202607220002_site_weeks_avg_run_distance_km.sql"
+        / "supabase/migrations/202608040001_core_tables.sql"
     ).read_text()
 
-    assert "alter table public.site_weeks" in migration
-    assert "add column avg_run_distance_km double precision" in migration
+    assert "create table public.site_weeks" in migration
+    assert "avg_run_distance_km double precision" in migration
 
 
-def test_fit_health_migration_preserves_api_names_with_compatibility_views() -> None:
-    migration = (
+def test_supabase_bootstrap_views_and_access_controls_match_the_final_api() -> None:
+    views = (
         Path(__file__).parents[1]
-        / "supabase/migrations/202607230002_separate_fit_health_site_models.sql"
+        / "supabase/migrations/202608040003_public_views.sql"
+    ).read_text()
+    access = (
+        Path(__file__).parents[1]
+        / "supabase/migrations/202608040005_rls_grants.sql"
     ).read_text()
 
     for name in ("site_runs", "site_days", "site_fitness", "site_dashboard_summary"):
-        assert f"alter table public.{name} rename to {name}_core" in migration
-        assert f"create view public.{name}" in migration
+        assert f"create view public.{name}" in views
 
-    assert "create table public.site_health_days" in migration
-    assert "left join public.site_health_days as health" in migration
-    assert migration.count("with (security_invoker = true)") == 4
-    assert "alter table public.site_health_days enable row level security" in migration
-    assert "on public.site_health_days for select" in migration
-    assert "grant select on public.site_health_days to anon, authenticated" in migration
-    assert "count(*) filter (where has_heart_rates_payload)::integer" in migration
-    assert "where calendar_date < current_date" in migration
-    assert "row_number()" not in migration
-    assert "bool_or(resting_heart_rate is not null)" not in migration
+    assert views.count("with (security_invoker = true)") == 4
+    assert "site_health_days" not in views
+    assert "aerobic_decoupling_pct" in views
+    assert "hr_drift_pct" not in views
+    assert "grant select on public.site_runs_core" in access
+    assert "grant select on public.site_runs, public.site_days, public.site_fitness" in access
 
 
 def test_fingerprint_statement_wraps_export_sql_verbatim() -> None:

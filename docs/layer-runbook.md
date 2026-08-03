@@ -102,7 +102,7 @@ has a deployed Databricks job ID before any Garmin or S3 work begins.
 
 ```bash
 supabase start
-supabase migration up
+supabase db reset --local
 ```
 
 ## Running the Pipeline

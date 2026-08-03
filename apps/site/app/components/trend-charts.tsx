@@ -26,7 +26,14 @@ import {
   speedFromKmh,
   type DistanceUnit,
 } from "@/app/lib/distance-unit";
-import { formatDate, formatPace, formatSignedPercent, shortDate } from "@/app/lib/format";
+import {
+  formatDate,
+  formatDistance,
+  formatDuration,
+  formatPace,
+  formatSignedPercent,
+  shortDate,
+} from "@/app/lib/format";
 import {
   buildRecoveryTrendPoints,
   getRecoveryPointsWithinDays,
@@ -77,6 +84,18 @@ type EfficiencyRatioSourcePoint = FitnessPoint & {
 type EfficiencyRatioPoint = EfficiencyRatioSourcePoint & {
   efficiencyPer10Bpm: number;
   rollingEfficiencyPer10Bpm: number | null;
+};
+type AerobicDecouplingPoint = FitnessPoint & {
+  activityDateTimestamp: number;
+  aerobicDecouplingPct: number;
+  avgHeartRate: number;
+  distanceKm: number;
+  firstHalfAvgHeartRate: number;
+  firstHalfEfficiencyRatio: number;
+  firstHalfSpeedKmh: number;
+  secondHalfAvgHeartRate: number;
+  secondHalfEfficiencyRatio: number;
+  secondHalfSpeedKmh: number;
 };
 type DistanceGroup = "all" | "short" | "medium" | "long";
 
@@ -672,20 +691,20 @@ const CHART_INFO = {
       "Weeks with no runs have no average run distance.",
     ],
   },
-  hrDrift: {
-    title: "Heart-rate drift over time",
+  aerobicDecoupling: {
+    title: "Aerobic decoupling",
     definition:
-      "Heart-rate drift compares second-half run efficiency with first-half run efficiency. Segment efficiency is average speed divided by average heart rate. Drift is second-half efficiency divided by first-half efficiency minus one.",
-    source: "dbt mart_fitness, using mart_run_segments.",
+      "Aerobic decoupling compares moving-time-weighted speed-to-heart-rate efficiency between exact cumulative-distance halves of a run. It is first-half efficiency divided by second-half efficiency minus one, so positive values mean lower second-half efficiency.",
+    source: "dbt mart_run_aerobic_decoupling and mart_fitness, using record-level moving intervals and canonical 250 m segment quality checks.",
     interpretation: [
       "Near 0% means second-half efficiency was similar to first-half efficiency.",
-      "Negative values mean the second half produced less speed per heartbeat. That can reflect fatigue, heat, hills, poor pacing, or harder terrain.",
-      "Positive values mean the second half produced more speed per heartbeat. That can reflect warming up, conservative pacing, a stronger finish, or easier second-half conditions.",
-      "The rolling 4-run line is usually more useful than a single run because per-run drift is noisy.",
+      "Positive values mean lower second-half efficiency. This can reflect fatigue, heat, hills, poor pacing, or harder terrain.",
+      "Negative values mean higher second-half efficiency, which can reflect warming up, a stronger finish, or easier second-half conditions.",
+      "The 90-day baseline is available only after four prior eligible runs. Use comparable-run filters before interpreting it.",
     ],
     caveats: [
-      "Compare like with like. Route, elevation, weather, workout type, stops, and sensor quality can move this metric.",
-      "Missing values mean the run did not have enough usable segment heart-rate and speed data.",
+      "Compare like with like. Route, elevation, weather, workout type, and pacing can move this metric.",
+      "Runs must pass moving-time, distance, segment, heart-rate coverage, and sampling-gap checks before they are eligible.",
     ],
   },
   fitnessEfficiency: {
@@ -700,7 +719,7 @@ const CHART_INFO = {
     ],
     caveats: [
       "This is not normalized for route, weather, workout intent, or device behavior.",
-      "Use it with pace-at-heart-rate and HR drift rather than reading it as a standalone fitness score.",
+      "Use it with pace-at-heart-rate and aerobic decoupling rather than reading it as a standalone fitness score.",
     ],
   },
   recoveryHeartRate: {
@@ -785,12 +804,16 @@ function ChartFrame({
   description,
   info,
   controls,
+  contentClassName,
+  descriptionClassName,
   children,
 }: {
   title: string;
   description?: string;
   info: MetricInfoContent;
   controls?: ReactNode;
+  contentClassName?: string;
+  descriptionClassName?: string;
   children: ReactNode;
 }) {
   return (
@@ -801,12 +824,12 @@ function ChartFrame({
             analysis.output
           </p>
           <h2 className="mt-1 text-base font-semibold text-(--text)">{title}</h2>
-          {description ? <p className="mt-1 max-w-2xl text-sm text-(--text-soft)">{description}</p> : null}
+          {description ? <p className={`mt-1 max-w-2xl text-sm text-(--text-soft) ${descriptionClassName ?? ""}`}>{description}</p> : null}
         </div>
         <MetricInfoDialog content={info} />
       </div>
       {controls ? <div className="min-w-0 max-w-full border-b border-(--border) px-4 py-3">{controls}</div> : null}
-      <div className="h-80 min-h-80 w-full min-w-0 max-w-full flex-1 overflow-hidden px-2 pt-4 pb-3 sm:px-4">{children}</div>
+      <div className={`${contentClassName ?? "h-80 min-h-80"} w-full min-w-0 max-w-full flex-1 overflow-hidden px-2 pt-4 pb-3 sm:px-4`}>{children}</div>
     </section>
   );
 }
@@ -1029,66 +1052,547 @@ export function WeeklyStructureChart({ weeks }: { weeks: WeekRollup[] }) {
   );
 }
 
-export function HrDriftChart({ points }: { points: FitnessPoint[] }) {
+function hasAerobicDecoupling(point: FitnessPoint): point is AerobicDecouplingPoint {
+  return point.aerobicDecouplingStatus === "eligible"
+    && point.aerobicDecouplingPct !== null
+    && Number.isFinite(point.aerobicDecouplingPct)
+    && point.distanceKm !== null
+    && Number.isFinite(point.distanceKm)
+    && point.avgHeartRate !== null
+    && Number.isFinite(point.avgHeartRate)
+    && point.firstHalfSpeedKmh !== null
+    && Number.isFinite(point.firstHalfSpeedKmh)
+    && point.secondHalfSpeedKmh !== null
+    && Number.isFinite(point.secondHalfSpeedKmh)
+    && point.firstHalfAvgHeartRate !== null
+    && Number.isFinite(point.firstHalfAvgHeartRate)
+    && point.secondHalfAvgHeartRate !== null
+    && Number.isFinite(point.secondHalfAvgHeartRate)
+    && point.firstHalfEfficiencyRatio !== null
+    && Number.isFinite(point.firstHalfEfficiencyRatio)
+    && point.secondHalfEfficiencyRatio !== null
+    && Number.isFinite(point.secondHalfEfficiencyRatio);
+}
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((left, right) => left - right);
+  const midpoint = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[midpoint - 1] + sorted[midpoint]) / 2
+    : sorted[midpoint];
+}
+
+function quantile(values: number[], percentile: number): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((left, right) => left - right);
+  const position = (sorted.length - 1) * percentile;
+  const lower = Math.floor(position);
+  const upper = Math.ceil(position);
+  if (lower === upper) return sorted[lower];
+  return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
+}
+
+function getAerobicDecouplingDomain(
+  points: AerobicDecouplingPoint[],
+  q1: number | null,
+  q3: number | null,
+): NumericDomain {
+  const values = points
+    .map((point) => point.aerobicDecouplingPct)
+    .concat(q1 ?? [], q3 ?? [], 0)
+    .filter(Number.isFinite);
+  const minimum = Math.min(...values);
+  const maximum = Math.max(...values);
+  const padding = Math.max((maximum - minimum) * 0.15, 0.02);
+  return [minimum - padding, maximum + padding];
+}
+
+function formatHalfEfficiency(value: number, unit: DistanceUnit): string {
+  return formatEfficiencyRatio(speedFromKmh(value, unit) * 10, unit);
+}
+
+function aerobicDecouplingCallout(value: number): string {
+  if (value < -0.01) return "Second-half efficiency higher";
+  if (value <= 0.01) return "Stable across both halves";
+  if (value <= 0.05) return "Small second-half drop";
+  if (value <= 0.1) return "Moderate second-half drop";
+  return "Large second-half drop";
+}
+
+function aerobicDecouplingClassification(value: number) {
+  if (value <= 0.05) {
+    return {
+      label: "Low decoupling",
+      color: SIGNAL_OK_COLOR,
+      textClassName: "text-(--signal-ok)",
+    };
+  }
+  if (value <= 0.1) {
+    return {
+      label: "Moderate decoupling",
+      color: "var(--signal-warn)",
+      textClassName: "text-(--signal-warn)",
+    };
+  }
+  return {
+    label: "High decoupling",
+    color: SIGNAL_ERROR_COLOR,
+    textClassName: "text-(--signal-error)",
+  };
+}
+
+function unavailableReasonLabel(reason: string | null): string {
+  switch (reason) {
+    case "missing_moving_telemetry": return "The run did not contain enough moving telemetry.";
+    case "insufficient_moving_duration": return "Less than 20 minutes of moving time.";
+    case "insufficient_moving_distance": return "Less than 5 km of moving distance.";
+    case "insufficient_valid_segments": return "Fewer than 8 valid 250 m segments.";
+    case "insufficient_hr_coverage": return "Heart-rate coverage was below the required threshold.";
+    case "excessive_hr_gap": return "A moving-time heart-rate gap exceeded 30 seconds.";
+    case "missing_half_heart_rate": return "One half of the run lacked usable heart-rate data.";
+    case "invalid_half_speed": return "One half of the run lacked usable moving-speed data.";
+    default: return "No eligible aerobic-decoupling reading is available.";
+  }
+}
+
+function AerobicDecouplingTooltip({
+  active,
+  payload,
+  unit,
+}: {
+  active?: boolean;
+  payload?: ReadonlyArray<{ payload?: AerobicDecouplingPoint }>;
+  unit: DistanceUnit;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+  const point = payload.map((item) => item.payload).find(Boolean);
+  if (!point) return null;
+  const classification = aerobicDecouplingClassification(point.aerobicDecouplingPct);
+
+  return (
+    <div style={tooltipStyle.contentStyle}>
+      <div style={tooltipStyle.labelStyle}>{formatDate(point.activityDate)}</div>
+      <div style={tooltipStyle.itemStyle}>
+        Decoupling: {formatSignedPercent(point.aerobicDecouplingPct)}
+      </div>
+      <div style={{ ...tooltipStyle.itemStyle, color: classification.color }}>
+        {classification.label}
+      </div>
+      <div style={tooltipStyle.itemStyle}>
+        First half: {speedFromKmh(point.firstHalfSpeedKmh, unit).toFixed(1)} {unit}/h, {Math.round(point.firstHalfAvgHeartRate)} bpm
+      </div>
+      <div style={tooltipStyle.itemStyle}>
+        Second half: {speedFromKmh(point.secondHalfSpeedKmh, unit).toFixed(1)} {unit}/h, {Math.round(point.secondHalfAvgHeartRate)} bpm
+      </div>
+      <div style={tooltipStyle.itemStyle}>
+        Moving time: {formatDuration(point.aerobicDecouplingMovingDurationSeconds)}
+      </div>
+      <div style={tooltipStyle.itemStyle}>
+        Valid segments: {point.aerobicDecouplingValidSegmentCount ?? "n/a"}
+      </div>
+      <div style={tooltipStyle.itemStyle}>
+        HR coverage: {point.aerobicDecouplingHrCoverageRatio != null
+          ? formatSignedPercent(point.aerobicDecouplingHrCoverageRatio).replace("+", "")
+          : "n/a"}
+      </div>
+    </div>
+  );
+}
+
+function AerobicDecouplingComparison({
+  point,
+  unit,
+  unavailableReason,
+  heading,
+}: {
+  point: AerobicDecouplingPoint | null;
+  unit: DistanceUnit;
+  unavailableReason: string | null;
+  heading: string;
+}) {
+  if (!point) {
+    return (
+      <AerobicDecouplingUnavailableReason reason={unavailableReason} className="h-full" />
+    );
+  }
+
+  return (
+    <div className="flex h-full flex-col border border-(--border) bg-(--surface-muted)">
+      <AerobicDecouplingSummary point={point} unit={unit} heading={heading} showMeaning={false} />
+      <AerobicDecouplingHalfDetails point={point} unit={unit} className="flex-1" />
+      <AerobicDecouplingOutcome point={point} unit={unit} />
+    </div>
+  );
+}
+
+function AerobicDecouplingUnavailableReason({
+  reason,
+  className,
+}: {
+  reason: string | null;
+  className?: string;
+}) {
+  return (
+    <div className={`border border-dashed border-(--border) bg-(--surface-muted) px-4 py-3 font-mono text-xs leading-5 text-(--text-soft) ${className ?? ""}`}>
+      {unavailableReasonLabel(reason)}
+    </div>
+  );
+}
+
+function AerobicDecouplingSummary({
+  point,
+  unit,
+  heading = "Latest eligible run",
+  showMeaning = true,
+  showDivider = true,
+}: {
+  point: AerobicDecouplingPoint;
+  unit: DistanceUnit;
+  heading?: string;
+  showMeaning?: boolean;
+  showDivider?: boolean;
+}) {
+  const classification = aerobicDecouplingClassification(point.aerobicDecouplingPct);
+
+  return (
+    <div className={`grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-4 py-3 ${showDivider ? "border-b border-(--border)" : ""}`}>
+      <div>
+        <p className="whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.12em] text-(--accent)">
+          {heading}
+        </p>
+        <p className="mt-0.5 text-sm text-(--text-soft)">
+          {formatDate(point.activityDate)} · {formatDistance(point.distanceKm, unit)}
+        </p>
+      </div>
+      <div className="text-right">
+        <p className={`font-mono text-lg ${classification.textClassName}`}>{formatSignedPercent(point.aerobicDecouplingPct)}</p>
+        {showMeaning ? <p className="text-xs text-(--text-soft)">{aerobicDecouplingCallout(point.aerobicDecouplingPct)}</p> : null}
+      </div>
+    </div>
+  );
+}
+
+function AerobicDecouplingHalfDetails({
+  point,
+  unit,
+  className,
+}: {
+  point: AerobicDecouplingPoint;
+  unit: DistanceUnit;
+  className?: string;
+}) {
+  return (
+    <div className={`grid grid-cols-2 divide-x divide-(--border) ${className ?? ""}`}>
+      <AerobicDecouplingHalf
+        label="First half"
+        speedKmh={point.firstHalfSpeedKmh}
+        avgHeartRate={point.firstHalfAvgHeartRate}
+        efficiencyRatio={point.firstHalfEfficiencyRatio}
+        unit={unit}
+      />
+      <AerobicDecouplingHalf
+        label="Second half"
+        speedKmh={point.secondHalfSpeedKmh}
+        avgHeartRate={point.secondHalfAvgHeartRate}
+        efficiencyRatio={point.secondHalfEfficiencyRatio}
+        unit={unit}
+      />
+    </div>
+  );
+}
+
+function AerobicDecouplingHalf({
+  label,
+  speedKmh,
+  avgHeartRate,
+  efficiencyRatio,
+  unit,
+}: {
+  label: string;
+  speedKmh: number;
+  avgHeartRate: number;
+  efficiencyRatio: number;
+  unit: DistanceUnit;
+}) {
+  return (
+    <div className="h-full px-4 py-3">
+      <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-(--text-soft)">{label}</p>
+      <p className="mt-1 font-mono text-sm text-(--text)">{formatPace(60 / speedKmh, unit)}</p>
+      <dl className="mt-3 space-y-1.5 font-mono text-[10px] leading-4 text-(--text-soft)">
+        <div>
+          <dt>Speed</dt>
+          <dd className="text-xs text-(--text)">{speedFromKmh(speedKmh, unit).toFixed(1)} {unit}/h</dd>
+        </div>
+        <div>
+          <dt>Avg HR</dt>
+          <dd className="text-xs text-(--text)">{Math.round(avgHeartRate)} bpm</dd>
+        </div>
+        <div>
+          <dt>Efficiency</dt>
+          <dd className="text-[10px] leading-4 text-(--text)">{formatHalfEfficiency(efficiencyRatio, unit)}</dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
+function formatHalfPaceDifference(point: AerobicDecouplingPoint, unit: DistanceUnit): string {
+  const paceDifference = 60 / point.secondHalfSpeedKmh - 60 / point.firstHalfSpeedKmh;
+  const seconds = Math.round(Math.abs(paceFromMinPerKm(paceDifference, unit) * 60));
+  if (seconds === 0) return "same as first half";
+  return `${seconds}s ${paceDifference > 0 ? "slower" : "faster"} than first half`;
+}
+
+function AerobicDecouplingOutcome({
+  point,
+  unit,
+}: {
+  point: AerobicDecouplingPoint;
+  unit: DistanceUnit;
+}) {
+  const classification = aerobicDecouplingClassification(point.aerobicDecouplingPct);
+
+  return (
+    <div className="space-y-3 border-t border-(--border) px-4 py-3">
+      <div>
+        <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-(--text-soft)">Efficiency reading</p>
+        <p className={`mt-0.5 pl-2 whitespace-nowrap text-xs leading-4 ${classification.textClassName}`}>
+          {aerobicDecouplingCallout(point.aerobicDecouplingPct)}
+        </p>
+      </div>
+      <div>
+        <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-(--text-soft)">Pace shift</p>
+        <p className="mt-0.5 pl-2 text-xs leading-4 text-(--text)">{formatHalfPaceDifference(point, unit)}</p>
+      </div>
+    </div>
+  );
+}
+
+function AerobicDecouplingMobileEvidence({
+  point,
+  unit,
+}: {
+  point: AerobicDecouplingPoint | null;
+  unit: DistanceUnit;
+}) {
+  if (!point) return null;
+
+  return (
+    <details className="border border-(--border) bg-(--surface-muted) xl:hidden">
+      <summary className="cursor-pointer px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-(--text-soft)">
+        First and second-half evidence
+      </summary>
+      <AerobicDecouplingHalfDetails point={point} unit={unit} />
+    </details>
+  );
+}
+
+export function AerobicDecouplingChart({ points }: { points: FitnessPoint[] }) {
+  const { unit } = useDistanceUnit();
+  const [distanceGroup, setDistanceGroup] = useState<DistanceGroup>("all");
+  const [selectedHeartRateBandIds, setSelectedHeartRateBandIds] = useState<string[]>([]);
+  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
+  const eligibleData = useMemo(
+    () => points.filter(hasAerobicDecoupling).map((point) => ({
+      ...point,
+      activityDateTimestamp: getActivityDateTimestamp(point.activityDate),
+    })).sort((left, right) => left.activityDateTimestamp - right.activityDateTimestamp),
+    [points],
+  );
+  const distanceFilteredData = useMemo(
+    () => eligibleData.filter((point) => matchesDistanceGroup(point.distanceKm, distanceGroup)),
+    [distanceGroup, eligibleData],
+  );
+  const heartRateBands = useMemo(() => getHeartRateBands(distanceFilteredData), [distanceFilteredData]);
+  const selectedHeartRateBandIdSet = useMemo(
+    () => new Set(selectedHeartRateBandIds),
+    [selectedHeartRateBandIds],
+  );
+  const hasSelectedHeartRateBands = heartRateBands.some((band) =>
+    selectedHeartRateBandIdSet.has(band.id),
+  );
+  const visibleData = useMemo(
+    () => distanceFilteredData.filter((point) =>
+      !hasSelectedHeartRateBands || selectedHeartRateBandIdSet.has(getHeartRateBandId(point.avgHeartRate))),
+    [distanceFilteredData, hasSelectedHeartRateBands, selectedHeartRateBandIdSet],
+  );
+  const latestPoint = visibleData.at(-1) ?? null;
+  const selectedPoint = selectedActivityId === null
+    ? null
+    : visibleData.find((point) => point.activityId === selectedActivityId) ?? null;
+  const evidencePoint = selectedPoint ?? latestPoint;
+  const latestIneligibleReason = [...points]
+    .reverse()
+    .find((point) => point.aerobicDecouplingStatus === "ineligible")
+    ?.aerobicDecouplingUnavailableReason ?? null;
+  const priorBaselineValues = latestPoint
+    ? visibleData
+      .filter((point) =>
+        point.activityDateTimestamp < latestPoint.activityDateTimestamp
+        && point.activityDateTimestamp >= latestPoint.activityDateTimestamp - 90 * DAY_MS)
+      .map((point) => point.aerobicDecouplingPct)
+    : [];
+  const priorMedian = priorBaselineValues.length >= 4 ? median(priorBaselineValues) : null;
+  const priorQ1 = priorBaselineValues.length >= 4 ? quantile(priorBaselineValues, 0.25) : null;
+  const priorQ3 = priorBaselineValues.length >= 4 ? quantile(priorBaselineValues, 0.75) : null;
+  const dateTicks = useMemo(() => getUniformDateTicks(visibleData), [visibleData]);
+  const domain = getAerobicDecouplingDomain(visibleData, priorQ1, priorQ3);
+  const activeHeartRateLabels = heartRateBands
+    .filter((band) => selectedHeartRateBandIdSet.has(band.id))
+    .map((band) => `${band.label} bpm`);
+  const comparableRunLabel = [
+    comparableDistanceGroupLabel(distanceGroup, unit),
+    activeHeartRateLabels.length > 0 ? activeHeartRateLabels.join(", ") : "All avg HR",
+  ].join(" / ");
+  const toggleHeartRateBand = (bandId: string) => {
+    setSelectedActivityId(null);
+    setSelectedHeartRateBandIds((currentIds) =>
+      nextContiguousHeartRateBandIds(currentIds, bandId, heartRateBands));
+  };
+  const selectDistanceGroup = (group: DistanceGroup) => {
+    setSelectedActivityId(null);
+    setDistanceGroup(group);
+  };
+  const clearHeartRateBands = () => {
+    setSelectedActivityId(null);
+    setSelectedHeartRateBandIds([]);
+  };
+  const controls = (
+    <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+      <div className="flex flex-wrap items-center justify-start gap-1.5 xl:flex-nowrap" role="group" aria-label="Distance group">
+        {(["all", "short", "medium", "long"] as const).map((group) => (
+          <button
+            key={group}
+            type="button"
+            aria-pressed={distanceGroup === group}
+            className={heartRateBandButtonClass(distanceGroup === group)}
+            onClick={() => selectDistanceGroup(group)}
+          >
+            {distanceGroupLabel(group, unit)}
+          </button>
+        ))}
+      </div>
+      {heartRateBands.length > 1 ? (
+        <div className="flex flex-wrap items-center justify-start gap-1.5 border-t border-(--border) pt-3 xl:flex-nowrap xl:border-t-0 xl:border-l xl:pt-0 xl:pl-3" role="group" aria-label="Average heart rate range">
+          <button
+            type="button"
+            aria-pressed={!hasSelectedHeartRateBands}
+            className={heartRateBandButtonClass(!hasSelectedHeartRateBands)}
+            onClick={clearHeartRateBands}
+          >
+            All
+          </button>
+          {heartRateBands.map((band) => (
+            <button
+              key={band.id}
+              type="button"
+              aria-pressed={selectedHeartRateBandIdSet.has(band.id)}
+              className={heartRateBandButtonClass(selectedHeartRateBandIdSet.has(band.id))}
+              onClick={() => toggleHeartRateBand(band.id)}
+            >
+              {band.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+
   return (
     <ChartFrame
-      title="Heart-rate drift over time"
-      description="Second-half efficiency versus first-half efficiency."
-      info={CHART_INFO.hrDrift}
+      title="Aerobic decoupling"
+      description="Comparable runs: selected distance and average-heart-rate ranges. Positive values mean lower second-half efficiency."
+      info={CHART_INFO.aerobicDecoupling}
+      controls={controls}
+      contentClassName="min-h-[31rem] xl:h-80 xl:min-h-80"
+      descriptionClassName="xl:max-w-none xl:whitespace-nowrap"
     >
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={points} margin={{ top: 8, right: 8, left: 0 }}>
-          <CartesianGrid
-            stroke={CHART_GRID_COLOR}
-            strokeDasharray="2 5"
-            vertical={false}
+      <div className="flex h-full min-h-0 min-w-0 flex-col gap-3 xl:grid xl:grid-cols-[minmax(17rem,1.1fr)_minmax(0,2.9fr)] xl:gap-4">
+        <div className="hidden min-h-0 xl:block">
+          <AerobicDecouplingComparison
+            point={evidencePoint}
+            unit={unit}
+            unavailableReason={latestIneligibleReason}
+            heading={selectedPoint ? "Selected eligible run" : "Latest eligible run"}
           />
-          <XAxis
-            dataKey="activityDate"
-            tickFormatter={shortDate}
-            minTickGap={28}
-            axisLine={false}
-            tickLine={false}
-            tick={axisTick}
-          />
-          <YAxis
-            axisLine={false}
-            tickLine={false}
-            tick={axisTick}
-            tickFormatter={formatSignedPercentValue}
-          />
-          <Tooltip
-            {...tooltipStyle}
-            labelFormatter={(value) => shortDate(String(value))}
-            formatter={(value, name) => [formatSignedPercentValue(value), name]}
-          />
-          <Legend
-            content={
-              <FitnessLineLegend
-                sessionLabel="Session HR drift (thin)"
-                rollingLabel="Rolling 4-run HR drift (thick)"
-              />
-            }
-          />
-          <ReferenceLine y={0} stroke={CHART_GRID_COLOR} strokeDasharray="3 4" />
-          <Line
-            type="monotone"
-            dataKey="hrDriftPct"
-            name="Session HR drift"
-            stroke={PRIMARY_SERIES_COLOR}
-            strokeWidth={1.5}
-            dot={false}
-          />
-          <Line
-            type="monotone"
-            dataKey="rolling4RunHrDriftPct"
-            name="Rolling 4-run HR drift"
-            stroke={SECONDARY_SERIES_COLOR}
-            strokeWidth={3}
-            dot={false}
-          />
-        </LineChart>
-      </ResponsiveContainer>
+        </div>
+        <div className="flex min-h-0 min-w-0 flex-col gap-3">
+          <div className="xl:hidden">
+            {evidencePoint ? (
+              <div className="border border-(--border) bg-(--surface-muted)">
+                <AerobicDecouplingSummary
+                  point={evidencePoint}
+                  unit={unit}
+                  heading={selectedPoint ? "Selected eligible run" : "Latest eligible run"}
+                  showDivider={false}
+                />
+              </div>
+            ) : <AerobicDecouplingUnavailableReason reason={latestIneligibleReason} />}
+          </div>
+          <div className="flex flex-col items-start gap-0.5 px-1 font-mono text-[10px] leading-4 text-(--text-soft) xl:flex-row xl:items-center xl:justify-between xl:gap-4">
+            <span className="xl:whitespace-nowrap">{visibleData.length} eligible comparable {visibleData.length === 1 ? "run" : "runs"}: {comparableRunLabel}</span>
+            {priorMedian !== null
+              ? <span className="xl:whitespace-nowrap">Prior 90 days: median {formatSignedPercent(priorMedian)} from {priorBaselineValues.length} runs</span>
+              : <span className="xl:whitespace-nowrap">Need 4 prior eligible comparable runs for a 90-day baseline.</span>}
+          </div>
+          <div className="h-72 min-h-72 min-w-0 xl:h-auto xl:min-h-0 xl:flex-1">
+            {visibleData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={visibleData} margin={{ top: 8, right: 8, left: 0 }}>
+                  <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="2 5" vertical={false} />
+                  <XAxis
+                    dataKey="activityDateTimestamp"
+                    name="Date"
+                    type="number"
+                    scale="time"
+                    domain={["dataMin", "dataMax"]}
+                    ticks={dateTicks}
+                    tickFormatter={formatTimestampTick}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={axisTick}
+                  />
+                  <YAxis
+                    domain={domain}
+                    dataKey="aerobicDecouplingPct"
+                    name="Aerobic decoupling"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={axisTick}
+                    tickFormatter={formatSignedPercentValue}
+                  />
+                  <Tooltip content={<AerobicDecouplingTooltip unit={unit} />} cursor={false} />
+                  {priorQ1 !== null && priorQ3 !== null ? (
+                    <ReferenceArea y1={priorQ1} y2={priorQ3} fill={SECONDARY_SERIES_COLOR} fillOpacity={0.08} />
+                  ) : null}
+                  <ReferenceLine y={0} stroke={CHART_GRID_COLOR} strokeDasharray="3 4" />
+                  {priorMedian !== null ? (
+                    <ReferenceLine y={priorMedian} stroke={SECONDARY_SERIES_COLOR} strokeDasharray="3 4" />
+                  ) : null}
+                  <Scatter data={visibleData} dataKey="aerobicDecouplingPct" name="Eligible runs" fill={PRIMARY_SERIES_COLOR}>
+                    {visibleData.map((point) => (
+                      <Cell
+                        key={`${point.activityDateTimestamp}-${point.activityId}`}
+                        fill={aerobicDecouplingClassification(point.aerobicDecouplingPct).color}
+                        stroke={point.activityId === evidencePoint?.activityId ? "var(--surface)" : "none"}
+                        strokeWidth={point.activityId === evidencePoint?.activityId ? 2 : 0}
+                        style={{ cursor: "pointer" }}
+                        onClick={() => setSelectedActivityId(point.activityId)}
+                      />
+                    ))}
+                  </Scatter>
+                </ComposedChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center border border-dashed border-(--border) bg-(--surface-muted) px-4 text-center font-mono text-xs text-(--text-soft)">
+                No eligible runs match the selected comparable-run filters.
+              </div>
+            )}
+          </div>
+          <AerobicDecouplingMobileEvidence point={evidencePoint} unit={unit} />
+        </div>
+      </div>
     </ChartFrame>
   );
 }

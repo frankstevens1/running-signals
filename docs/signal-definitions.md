@@ -54,8 +54,8 @@ Recovery HR when Garmin provides it. Daily health remains an independently refre
 | `efficiency_ratio` | Run | `speed_kmh / avg_heart_rate` when heart rate is present and positive. | `mart_fitness` | Implemented |
 | `hr_band` | Run | Bucketed average heart-rate band. | `mart_fitness` | Implemented |
 | `rolling_4_run_efficiency_ratio` | Run | Average efficiency over the current and previous three runs. | `mart_fitness` | Implemented |
-| `hr_drift_pct` | Run | Second-half segment efficiency divided by first-half segment efficiency minus one, where segment efficiency is `avg_speed_kmh / avg_heart_rate`; the established calculation remains pinned to 250m metric segments. | `mart_fitness`, `mart_run_segments` | Implemented when segment HR and speed are present |
-| `rolling_4_run_hr_drift_pct` | Run | Average HR drift over the current and previous three runs. | `mart_fitness` | Implemented |
+| `aerobic_decoupling_pct` | Run | First-half moving-time-weighted speed-to-HR efficiency divided by second-half efficiency minus one. Halves split at 50% cumulative moving distance. Positive means lower second-half efficiency. | `mart_run_aerobic_decoupling`, `mart_fitness` | Implemented only after duration, distance, segment, HR coverage, and HR-gap quality gates |
+| `aerobic_decoupling_prior_90d_median` | Run | Median eligible aerobic decoupling across the preceding 90 calendar days, excluding the current run. | `mart_fitness` | Available with at least four prior eligible observations |
 | `garmin_recovery_hr` | Run | Final recorded run heart rate minus the latest FIT `recovery_hr` event value, reported as bpm recovered. | `runs` | Implemented when present |
 | `ending_heart_rate` | Run | Final recorded run heart rate used as the recovery-drop starting value and to group comparable recovery observations. | `runs`, `mart_fitness` | Implemented when present |
 | `recovery_prior_90d_median` | Run | Median recovery drop for qualifying runs in the same 10-bpm ending-heart-rate band over the preceding 90 calendar days; the current run is excluded. | `mart_fitness` | Implemented with at least four observations in the presentation layer |

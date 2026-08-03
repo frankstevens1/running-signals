@@ -182,10 +182,19 @@ models:
         description: Run calendar date.
         tests:
           - not_null
-      - name: hr_drift_pct
-        description: Run-level heart-rate drift, calculated as second-half segment efficiency divided by first-half segment efficiency minus one.
-      - name: rolling_4_run_hr_drift_pct
-        description: Rolling four-run average of heart-rate drift.
+      - name: aerobic_decoupling_pct
+        description: >
+          Relative loss of moving-time-weighted speed-to-heart-rate efficiency from the first
+          half to the second half of a run. Positive values indicate lower second-half
+          efficiency. Runs must pass aerobic-decoupling telemetry and duration quality gates.
+      - name: aerobic_decoupling_status
+        description: "Eligibility status for aerobic decoupling: eligible or ineligible."
+      - name: aerobic_decoupling_unavailable_reason
+        description: Quality-gate reason aerobic decoupling is unavailable for an ineligible run.
+      - name: aerobic_decoupling_prior_90d_count
+        description: Count of eligible aerobic-decoupling observations in the prior 90 calendar days, excluding the current run.
+      - name: aerobic_decoupling_prior_90d_median
+        description: Median eligible aerobic decoupling in the prior 90 calendar days. Available only with at least four observations.
       - name: rolling_4_run_recovery_hr
         description: Rolling four-run average of Garmin recovery heart rate. Null recovery readings are excluded from the average.
       - name: ending_heart_rate
@@ -211,6 +220,21 @@ models:
           Future enhancement: replace the simple trailing average with a regression model
           incorporating pace, heart rate, elevation profile, run duration, temperature, and
           terrain for more accurate expected-performance prediction.
+
+  - name: mart_run_aerobic_decoupling
+    description: >
+      Run-level aerobic decoupling calculated from record-level moving intervals split at
+      50 percent cumulative moving distance, with telemetry quality gates and half-level
+      evidence for presentation.
+    columns:
+      - name: run_id
+        tests:
+          - not_null
+          - unique
+      - name: aerobic_decoupling_pct
+        description: Positive means lower second-half speed-to-heart-rate efficiency.
+      - name: aerobic_decoupling_status
+        description: Eligibility status after duration, distance, segment, HR coverage, and HR gap checks.
 
   - name: mart_running_signals
     description: Run-level signal mart combining mart_fitness metrics with mart_weeks weekly training context.

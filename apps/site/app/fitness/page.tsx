@@ -10,7 +10,7 @@ import {
   EfficiencyScoreChart,
   ElevationEconomyChart,
   FitnessEfficiencyChart,
-  HrDriftChart,
+  AerobicDecouplingChart,
   PaceHeartRateTrend,
   RecoveryHeartRateChart,
 } from "@/app/components/trend-charts";
@@ -25,7 +25,6 @@ import {
 import { explorerPages } from "@/app/lib/page-metadata";
 import { getServerDistanceUnit } from "@/app/lib/server-distance-unit";
 import { getServerAnalyticsWindow } from "@/app/lib/analytics-window-server";
-import { comparisonTrendLabel } from "@/app/lib/analytics-window";
 import { RECOVERY_BASELINE_MIN_OBSERVATIONS } from "@/app/lib/recovery-trend";
 
 function trendDelta(
@@ -64,10 +63,8 @@ export default async function FitnessPage({
 }) {
   const resolved = await searchParams;
   const analyticsWindow = await getServerAnalyticsWindow(resolved);
-  const { effectiveComparison } = analyticsWindow;
-  const [fitness, comparisonFitness, unit] = await Promise.all([
+  const [fitness, unit] = await Promise.all([
     getFitness(analyticsWindow.primary),
-    analyticsWindow.comparison ? getFitness(analyticsWindow.comparison) : null,
     getServerDistanceUnit(),
   ]);
 
@@ -77,28 +74,29 @@ export default async function FitnessPage({
         <SectionHeading
           eyebrow="mart_fitness"
           title="Descriptive fitness trends"
-          description="Fitness views stay descriptive: heart-rate drift over time, pace at comparable heart rate, speed per heartbeat, and post-run recovery HR."
+          description="Fitness views stay descriptive: aerobic decoupling, pace at comparable heart rate, speed-to-HR ratio, and post-run recovery HR."
           icon={explorerPages.fitness.icon}
         />
         <DataState result={fitness}>
           {(data) => {
-            const comparison = comparisonFitness?.status === "ok" ? comparisonFitness.data : null;
             const latest = data.at(-1);
             const penultimate = data.at(-2);
             const latestRecovery = [...data]
               .reverse()
               .find((point) => point.garminRecoveryHr !== null);
-            const comparisonEfficiencies = comparison
-              ?.map((point) => point.efficiencyRatio)
-              .filter((value): value is number => value !== null) ?? [];
-            const comparisonEfficiency = comparisonEfficiencies.length > 0
-              ? comparisonEfficiencies.reduce((sum, value) => sum + value, 0)
-                / comparisonEfficiencies.length
-              : null;
+            const latestAerobicDecoupling = [...data]
+              .reverse()
+              .find((point) =>
+                point.aerobicDecouplingStatus === "eligible"
+                && point.aerobicDecouplingPct !== null,
+              );
 
-            const driftTrend = trendDelta(
-              latest?.hrDriftPct,
-              latest?.rolling4RunHrDriftPct,
+            const aerobicDecouplingTrend = trendDelta(
+              latestAerobicDecoupling?.aerobicDecouplingPct,
+              latestAerobicDecoupling?.aerobicDecouplingPrior90dCount != null
+                && latestAerobicDecoupling.aerobicDecouplingPrior90dCount >= 4
+                ? latestAerobicDecoupling.aerobicDecouplingPrior90dMedian
+                : null,
             );
 
             const hrTrend =
@@ -114,59 +112,65 @@ export default async function FitnessPage({
                 : null,
             );
 
-            const efficiencyBaseline = comparisonEfficiency ?? latest?.rolling4RunEfficiencyRatio;
+            const latestSpeedToHr = [...data]
+              .reverse()
+              .find((point) => point.efficiencyRatio !== null);
+            const efficiencyValues = data
+              .filter((point) => point.efficiencyRatio !== null)
+              .map((point) => point.efficiencyRatio!);
+            const priorEfficiencyValues = efficiencyValues.slice(0, -1).slice(-4);
+            const efficiencyBaseline = priorEfficiencyValues.length === 4
+              ? priorEfficiencyValues.reduce((sum, value) => sum + value, 0) / 4
+              : null;
             const efficiencyTrend = relativeTrend(
-              latest?.efficiencyRatio,
+              latestSpeedToHr?.efficiencyRatio,
               efficiencyBaseline,
             );
 
+            const latestDistanceEconomy = [...data]
+              .reverse()
+              .find((point) => point.distanceEconomyMperBeat !== null);
             const economyValues = data
               .filter((p) => p.distanceEconomyMperBeat !== null)
               .map((p) => p.distanceEconomyMperBeat!);
-            const economyBaseline = economyValues.length > 1
-              ? economyValues.slice(0, -1).reduce((s, v) => s + v, 0) / (economyValues.length - 1)
+            const priorEconomyValues = economyValues.slice(0, -1);
+            const economyBaseline = priorEconomyValues.length > 0
+              ? priorEconomyValues.reduce((s, v) => s + v, 0) / priorEconomyValues.length
               : null;
             const economyTrend = relativeTrend(
-              latest?.distanceEconomyMperBeat,
+              latestDistanceEconomy?.distanceEconomyMperBeat,
               economyBaseline,
             );
 
+            const latestElevationEconomy = [...data]
+              .reverse()
+              .find((point) => point.elevationEconomyMperBeat !== null);
             const elevationValues = data
               .filter((p) => p.elevationEconomyMperBeat !== null)
               .map((p) => p.elevationEconomyMperBeat!);
-            const elevationBaseline = elevationValues.length > 1
-              ? elevationValues.slice(0, -1).reduce((s, v) => s + v, 0) / (elevationValues.length - 1)
+            const priorElevationValues = elevationValues.slice(0, -1);
+            const elevationBaseline = priorElevationValues.length > 0
+              ? priorElevationValues.reduce((s, v) => s + v, 0) / priorElevationValues.length
               : null;
             const elevationTrend = relativeTrend(
-              latest?.elevationEconomyMperBeat,
+              latestElevationEconomy?.elevationEconomyMperBeat,
               elevationBaseline,
             );
 
-            const scoreBaseline = (() => {
-              if (comparison) {
-                const compScores = comparison
-                  .map((p) => p.personalEfficiencyScore)
-                  .filter((v): v is number => v !== null);
-                if (compScores.length > 0) {
-                  return {
-                    baseline: compScores.reduce((s, v) => s + v, 0) / compScores.length,
-                    label: comparisonTrendLabel(effectiveComparison) ?? "vs prior period",
-                  };
-                }
-              }
-              return { baseline: 100, label: "vs 100 baseline" };
-            })();
+            const latestEfficiencyScore = [...data]
+              .reverse()
+              .find((point) => point.personalEfficiencyScore !== null);
 
             const scoreTrend =
-              latest != null && latest.personalEfficiencyScore !== null && latest.personalEfficiencyScore !== undefined
+              latestEfficiencyScore?.personalEfficiencyScore != null
                 ? {
-                    direction: latest.personalEfficiencyScore > scoreBaseline.baseline
+                    direction: latestEfficiencyScore.personalEfficiencyScore > 100
                       ? ("up" as const)
-                      : latest.personalEfficiencyScore < scoreBaseline.baseline
+                      : latestEfficiencyScore.personalEfficiencyScore < 100
                         ? ("down" as const)
                         : ("neutral" as const),
-                    value: `${latest.personalEfficiencyScore > scoreBaseline.baseline ? "+" : ""}${formatInteger(Math.round(latest.personalEfficiencyScore - scoreBaseline.baseline))}`,
-                    label: scoreBaseline.label,
+                    value: `${latestEfficiencyScore.personalEfficiencyScore > 100 ? "+" : ""}${formatInteger(Math.round(latestEfficiencyScore.personalEfficiencyScore - 100))}`,
+                    label: "vs 90-day personal baseline",
                   }
                 : null;
 
@@ -174,16 +178,19 @@ export default async function FitnessPage({
               <div className="space-y-10">
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <MetricCard
-                    label="Latest HR drift"
-                    value={formatFixedSignedPercent(latest?.hrDriftPct)}
-                    detail="Second-half versus first-half efficiency"
+                    label="Latest aerobic decoupling"
+                    value={formatFixedSignedPercent(latestAerobicDecoupling?.aerobicDecouplingPct)}
+                    detail={latestAerobicDecoupling
+                      ? `Eligible run on ${formatDate(latestAerobicDecoupling.activityDate)}. Positive means lower second-half efficiency.`
+                      : "No run in the selected period met the aerobic-decoupling quality gates."}
                     icon={Gauge}
                     trend={
-                      driftTrend
+                      aerobicDecouplingTrend
                           ? {
-                            direction: driftTrend.direction,
-                            value: formatFixedSignedPercent(driftTrend.diff, false),
-                            label: "vs prior 90-day baseline",
+                            direction: aerobicDecouplingTrend.direction,
+                            lowerIsBetter: true,
+                            value: formatFixedSignedPercent(aerobicDecouplingTrend.diff, false),
+                            label: "vs prior 90-day median",
                           }
                         : undefined
                     }
@@ -230,9 +237,9 @@ export default async function FitnessPage({
                   <MetricCard
                     label="Latest speed-to-HR ratio"
                     value={formatDecimal2(
-                      latest?.efficiencyRatio === null || latest?.efficiencyRatio === undefined
+                      latestSpeedToHr?.efficiencyRatio === null || latestSpeedToHr?.efficiencyRatio === undefined
                         ? null
-                        : speedFromKmh(latest.efficiencyRatio, unit) * 10,
+                        : speedFromKmh(latestSpeedToHr.efficiencyRatio, unit) * 10,
                     )}
                     detail={`${unit === "mi" ? "mi/h" : "km/h"} per 10 bpm`}
                     icon={Activity}
@@ -241,7 +248,7 @@ export default async function FitnessPage({
                           ? {
                             direction: efficiencyTrend.direction,
                             value: formatFixedSignedPercent(efficiencyTrend.change, false),
-                            label: comparisonEfficiency !== null ? (comparisonTrendLabel(effectiveComparison) ?? "vs comparison") : "vs 4-run rolling",
+                            label: "vs prior 4-run mean",
                           }
                         : undefined
                     }
@@ -250,51 +257,51 @@ export default async function FitnessPage({
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                   <MetricCard
                     label="Latest distance economy"
-                    value={latest?.distanceEconomyMperBeat != null
-                      ? `${latest.distanceEconomyMperBeat.toFixed(3)} m/beat`
+                    value={latestDistanceEconomy?.distanceEconomyMperBeat != null
+                      ? `${latestDistanceEconomy.distanceEconomyMperBeat.toFixed(3)} m/beat`
                       : "\u2014"}
-                    detail={`Distance per heartbeat on ${latest ? formatDate(latest.activityDate) : "\u2014"}`}
+                    detail={`Distance per heartbeat on ${latestDistanceEconomy ? formatDate(latestDistanceEconomy.activityDate) : "\u2014"}`}
                     icon={ArrowRight}
                     trend={
                       economyTrend
                           ? {
                             direction: economyTrend.direction,
                             value: formatFixedSignedPercent(economyTrend.change, false),
-                            label: "vs prior average",
-                          }
-                        : undefined
-                    }
-                  />
-                  <MetricCard
-                    label="Latest elevation economy"
-                    value={latest?.elevationEconomyMperBeat != null
-                      ? `${latest.elevationEconomyMperBeat.toFixed(4)} m/beat`
-                      : "\u2014"}
-                    detail="Vertical metres per heartbeat. Varies with terrain."
-                    icon={Mountain}
-                    trend={
-                      elevationTrend
-                          ? {
-                            direction: elevationTrend.direction,
-                            value: formatFixedSignedPercent(elevationTrend.change, false),
-                            label: "vs prior average",
+                            label: `vs prior ${priorEconomyValues.length}-run mean`,
                           }
                         : undefined
                     }
                   />
                   <MetricCard
                     label="Latest efficiency score"
-                    value={latest?.personalEfficiencyScore != null
-                      ? `${Math.round(latest.personalEfficiencyScore)}`
+                    value={latestEfficiencyScore?.personalEfficiencyScore != null
+                      ? `${Math.round(latestEfficiencyScore.personalEfficiencyScore)}`
                       : "\u2014"}
                     detail="100 = typical. Higher means more efficient than your recent norm."
                     icon={Sparkles}
                     trend={scoreTrend ?? undefined}
                   />
+                  <MetricCard
+                    label="Latest elevation economy"
+                    value={latestElevationEconomy?.elevationEconomyMperBeat != null
+                      ? `${latestElevationEconomy.elevationEconomyMperBeat.toFixed(4)} m/beat`
+                      : "\u2014"}
+                    detail={`Vertical metres per heartbeat on ${latestElevationEconomy ? formatDate(latestElevationEconomy.activityDate) : "\u2014"}. Varies with terrain.`}
+                    icon={Mountain}
+                    trend={
+                      elevationTrend
+                          ? {
+                            direction: elevationTrend.direction,
+                            value: formatFixedSignedPercent(elevationTrend.change, false),
+                            label: `vs prior ${priorElevationValues.length}-run mean`,
+                          }
+                        : undefined
+                    }
+                  />
                 </div>
                 <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2">
                   <ScrollReveal className="min-w-0 xl:col-span-2">
-                    <HrDriftChart points={data} />
+                    <AerobicDecouplingChart points={data} />
                   </ScrollReveal>
                   <ScrollReveal className="h-full min-w-0" delayMs={80}>
                     <PaceHeartRateTrend points={data} />

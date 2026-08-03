@@ -5,56 +5,9 @@ with runs as (
     from {{ ref('runs') }}
 ),
 
-segments as (
+aerobic_decoupling as (
     select *
-    from {{ ref('mart_run_segments') }}
-    where unit_system = 'metric'
-        and segment_length_m = 250.000
-        and segment_distance_km > 0
-        and avg_speed_kmh > 0
-        and avg_heart_rate > 0
-),
-
-ranked_segments as (
-    select
-        *,
-        row_number() over (
-            partition by run_id
-            order by segment_index
-        ) as segment_position,
-        count(*) over (
-            partition by run_id
-        ) as segment_count
-    from segments
-),
-
-segment_halves as (
-    select
-        run_id,
-        activity_id,
-        avg(case
-            when segment_position <= segment_count / 2.0
-            then avg_speed_kmh / avg_heart_rate
-        end) as first_half_efficiency,
-        avg(case
-            when segment_position > segment_count / 2.0
-            then avg_speed_kmh / avg_heart_rate
-        end) as second_half_efficiency
-    from ranked_segments
-    group by
-        run_id,
-        activity_id
-),
-
-hr_drift as (
-    select
-        run_id,
-        activity_id,
-        case
-            when first_half_efficiency > 0 and second_half_efficiency is not null
-            then second_half_efficiency / first_half_efficiency - 1
-        end as hr_drift_pct
-    from segment_halves
+    from {{ ref('mart_run_aerobic_decoupling') }}
 ),
 
 record_economy as (
@@ -109,12 +62,24 @@ run_fitness as (
             else 'other'
         end as hr_band,
         runs.garmin_recovery_hr,
-        hr_drift.hr_drift_pct,
+        aerobic_decoupling.aerobic_decoupling_pct,
+        aerobic_decoupling.aerobic_decoupling_status,
+        aerobic_decoupling.aerobic_decoupling_unavailable_reason,
+        aerobic_decoupling.moving_duration_seconds as aerobic_decoupling_moving_duration_seconds,
+        aerobic_decoupling.valid_segment_count as aerobic_decoupling_valid_segment_count,
+        aerobic_decoupling.hr_coverage_ratio as aerobic_decoupling_hr_coverage_ratio,
+        aerobic_decoupling.maximum_hr_gap_seconds as aerobic_decoupling_maximum_hr_gap_seconds,
+        aerobic_decoupling.first_half_speed_kmh,
+        aerobic_decoupling.second_half_speed_kmh,
+        aerobic_decoupling.first_half_avg_heart_rate,
+        aerobic_decoupling.second_half_avg_heart_rate,
+        aerobic_decoupling.first_half_efficiency_ratio,
+        aerobic_decoupling.second_half_efficiency_ratio,
         economy.distance_economy_m_per_beat,
         economy.elevation_economy_m_per_beat
     from runs
-    left join hr_drift
-        on runs.run_id = hr_drift.run_id
+    left join aerobic_decoupling
+        on runs.run_id = aerobic_decoupling.run_id
     left join economy_metrics as economy
         on runs.run_id = economy.run_id
 ),
@@ -126,10 +91,6 @@ windowed as (
         order by activity_date, activity_id
         rows between 3 preceding and current row
     ) as rolling_4_run_efficiency_ratio,
-    avg(hr_drift_pct) over (
-        order by activity_date, activity_id
-        rows between 3 preceding and current row
-    ) as rolling_4_run_hr_drift_pct,
     avg(garmin_recovery_hr) over (
         order by activity_date, activity_id
         rows between 3 preceding and current row
@@ -165,12 +126,24 @@ windowed as (
     count(distance_economy_m_per_beat) over (
         order by activity_date
         range between interval '90' day preceding and interval '1' day preceding
-    ) as expected_economy_sample_size
+    ) as expected_economy_sample_size,
+    count(aerobic_decoupling_pct) over aerobic_decoupling_prior_90d_window
+        as aerobic_decoupling_prior_90d_count,
+    percentile_approx(aerobic_decoupling_pct, 0.5, 10000) over aerobic_decoupling_prior_90d_window
+        as aerobic_decoupling_prior_90d_median,
+    percentile_approx(aerobic_decoupling_pct, 0.25, 10000) over aerobic_decoupling_prior_90d_window
+        as aerobic_decoupling_prior_90d_q1,
+    percentile_approx(aerobic_decoupling_pct, 0.75, 10000) over aerobic_decoupling_prior_90d_window
+        as aerobic_decoupling_prior_90d_q3
     from run_fitness
     window recovery_prior_90d_window as (
         partition by case
             when ending_heart_rate > 0 then floor(ending_heart_rate / 10) * 10
         end
+        order by activity_date
+        range between interval '90' day preceding and interval '1' day preceding
+    ),
+    aerobic_decoupling_prior_90d_window as (
         order by activity_date
         range between interval '90' day preceding and interval '1' day preceding
     )
@@ -184,7 +157,10 @@ select
         recovery_prior_90d_min,
         recovery_prior_90d_max,
         expected_distance_economy_m_per_beat,
-        expected_economy_sample_size
+        expected_economy_sample_size,
+        aerobic_decoupling_prior_90d_median,
+        aerobic_decoupling_prior_90d_q1,
+        aerobic_decoupling_prior_90d_q3
     ),
     case when recovery_prior_90d_count >= 4 then recovery_prior_90d_median end
         as recovery_prior_90d_median,
@@ -196,6 +172,12 @@ select
         as recovery_prior_90d_min,
     case when recovery_prior_90d_count >= 4 then recovery_prior_90d_max end
         as recovery_prior_90d_max,
+    case when aerobic_decoupling_prior_90d_count >= 4 then aerobic_decoupling_prior_90d_median end
+        as aerobic_decoupling_prior_90d_median,
+    case when aerobic_decoupling_prior_90d_count >= 4 then aerobic_decoupling_prior_90d_q1 end
+        as aerobic_decoupling_prior_90d_q1,
+    case when aerobic_decoupling_prior_90d_count >= 4 then aerobic_decoupling_prior_90d_q3 end
+        as aerobic_decoupling_prior_90d_q3,
     case
         when expected_economy_sample_size >= 3
             and expected_distance_economy_m_per_beat > 0

@@ -1064,7 +1064,7 @@ configured_segments AS (
       "Duration, heart rate, and cadence are split by the same proportion. Telemetry values " +
       "are linearly interpolated at the boundary and weighted by distance.\n\n" +
       "The canonical 250m metric resolution (`is_canonical = true`) is used by " +
-      "`mart_fitness` for heart-rate drift and efficiency calculations. Segment distance " +
+       "`mart_fitness` for aerobic decoupling and efficiency calculations. Segment distance " +
       "reconciliation tests validate that the sum of allocated distances matches the run's " +
       "total recorded distance — no distance is lost or double-counted.",
     sql: `-- (continued from Part 1)...
@@ -1321,7 +1321,7 @@ FROM segment_rollups`,
     keyTechnique:
       "Distance-proportional allocation with interpolation: `GREATEST(0, LEAST(end, upper) - GREATEST(start, lower))` computes interval/segment overlap. Telemetry values (HR, cadence, altitude, lat/lon) are linearly interpolated at boundaries. Stationary intervals are assigned entirely to their containing segment.",
     lineageContext:
-      "`mart_run_segments` feeds `mart_fitness` (canonical 250m segments only for HR drift) and `mart_run_sessions` (segment summary). It is synced to Supabase as `site_route_segments`.",
+       "`mart_run_segments` provides canonical 250m quality checks for aerobic decoupling and feeds `mart_run_sessions` (segment summary). It is synced to Supabase as `site_route_segments`.",
   },
   {
     id: "mart-activity-records",
@@ -1434,168 +1434,122 @@ FROM sampled_records`,
     title: "Aerobic Fitness Indicators — mart_fitness",
     context:
       "`mart_fitness` defines descriptive aerobic fitness indicators at the run grain: " +
-      "heart-rate drift, speed-to-heart-rate efficiency ratios, HR band bucketing, and " +
-      "rolling 4-run averages.\n\n" +
-      "Heart-rate drift is calculated from 250m canonical segments: it averages the " +
-      "efficiency ratio (`speed_kmh / avg_heart_rate`) for the first and second halves of " +
-      "each run, then computes the percentage change. A positive drift means the second half " +
-      "was less efficient (higher HR for the same speed), which can indicate fatigue or " +
-      "cardiovascular drift.\n\n" +
-      "The recovery baseline partitions prior 90-day runs by 10-bpm `ending_heart_rate` bands " +
-      "and computes percentile statistics (median, Q1, Q3, min, max) for Garmin recovery HR. " +
-      "Results are nullified when fewer than 4 prior observations exist. The 90-day `RANGE` " +
-      "window excludes the current run.",
-    sql: `WITH segments AS (
-    SELECT * FROM {{ ref('mart_run_segments') }}
-    WHERE unit_system = 'metric'
-        AND segment_length_m = 250.000
-        AND segment_distance_km > 0
-        AND avg_speed_kmh > 0 AND avg_heart_rate > 0
+       "quality-gated aerobic decoupling and speed-to-heart-rate efficiency ratios.\n\n" +
+       "Aerobic decoupling uses record-level moving intervals rather than fixed-distance segments. " +
+       "The cumulative moving-distance midpoint divides the run into first and second allocations; " +
+       "an interval crossing that midpoint is split proportionally. Each half has a moving-time-weighted " +
+       "efficiency, and a positive `aerobic_decoupling_pct` means lower second-half efficiency.\n\n" +
+       "A quality status protects the comparison by requiring sufficient moving duration, distance, " +
+       "interval coverage, heart-rate coverage, and no excessive record gaps.",
+    sql: `WITH record_intervals AS (
+    SELECT
+        run_id,
+        record_index,
+        record_distance_m
+            - LAG(record_distance_m) OVER run_records AS interval_distance_m,
+        GREATEST(CAST(
+            UNIX_TIMESTAMP(record_timestamp)
+            - UNIX_TIMESTAMP(LAG(record_timestamp) OVER run_records)
+            AS double
+        ), 0.0) AS interval_duration_seconds,
+        (heart_rate + LAG(heart_rate) OVER run_records) / 2.0
+            AS interval_heart_rate
+    FROM {{ ref('run_records') }}
+    WINDOW run_records AS (
+        PARTITION BY run_id ORDER BY record_index
+    )
 ),
 
-ranked_segments AS (
+moving_intervals AS (
     SELECT *,
-        ROW_NUMBER() OVER (PARTITION BY run_id
-            ORDER BY segment_index) AS segment_position,
-        COUNT(*) OVER (PARTITION BY run_id) AS segment_count
-    FROM segments
+        SUM(interval_distance_m) OVER run_distance
+            - interval_distance_m AS interval_start_m,
+        SUM(interval_distance_m) OVER run_distance AS interval_end_m,
+        SUM(interval_distance_m) OVER (
+            PARTITION BY run_id
+        ) AS moving_distance_m
+    FROM record_intervals
+    WHERE interval_distance_m > 0
+        AND interval_duration_seconds > 0
+        AND interval_distance_m / interval_duration_seconds >= 0.5
+    WINDOW run_distance AS (
+        PARTITION BY run_id
+        ORDER BY record_index
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    )
 ),
 
-segment_halves AS (
-    SELECT run_id,
-        AVG(CASE WHEN segment_position <= segment_count / 2.0
-            THEN avg_speed_kmh / avg_heart_rate
-        END) AS first_half_efficiency,
-        AVG(CASE WHEN segment_position > segment_count / 2.0
-            THEN avg_speed_kmh / avg_heart_rate
-        END) AS second_half_efficiency
-    FROM ranked_segments
+half_allocations AS (
+    SELECT *,
+        GREATEST(
+            LEAST(interval_end_m, moving_distance_m / 2.0) - interval_start_m,
+            0.0
+        ) AS first_distance_m,
+        GREATEST(
+            interval_end_m - GREATEST(interval_start_m, moving_distance_m / 2.0),
+            0.0
+        ) AS second_distance_m
+    FROM moving_intervals
+),
+
+run_quality AS (
+    SELECT
+        run_id,
+        SUM(interval_distance_m) AS moving_distance_m,
+        SUM(interval_duration_seconds) AS moving_duration_seconds,
+        COUNT(*) AS moving_interval_count,
+        AVG(CASE WHEN interval_heart_rate > 0 THEN 1.0 ELSE 0.0 END)
+            AS heart_rate_coverage,
+        MAX(interval_duration_seconds) AS longest_interval_seconds,
+        CASE
+            WHEN SUM(interval_duration_seconds) < 1200
+                OR SUM(interval_distance_m) < 5000
+                OR COUNT(*) < 8 THEN 'insufficient_moving_data'
+            WHEN AVG(CASE WHEN interval_heart_rate > 0 THEN 1.0 ELSE 0.0 END) < 0.80
+                OR MAX(interval_duration_seconds) > 30 THEN 'insufficient_heart_rate_quality'
+            ELSE 'pass'
+        END AS aerobic_decoupling_quality_status
+    FROM half_allocations
     GROUP BY run_id
 ),
 
-hr_drift AS (
-    SELECT run_id,
-        CASE WHEN first_half_efficiency > 0
-                 AND second_half_efficiency IS NOT NULL
-            THEN second_half_efficiency
-                 / first_half_efficiency - 1
-        END AS hr_drift_pct
-    FROM segment_halves
-),
-
-run_fitness AS (
-    SELECT runs.activity_id, runs.activity_date,
-        runs.distance_km, runs.duration_seconds,
-        runs.avg_pace_min_per_km, runs.speed_kmh,
-        runs.avg_heart_rate, runs.ending_heart_rate,
-        CASE WHEN runs.avg_heart_rate > 0
-            THEN runs.speed_kmh / runs.avg_heart_rate
-        END AS efficiency_ratio,
-        CASE
-            WHEN runs.avg_heart_rate BETWEEN 100 AND 109
-                THEN '100-109'
-            WHEN runs.avg_heart_rate BETWEEN 110 AND 119
-                THEN '110-119'
-            WHEN runs.avg_heart_rate BETWEEN 120 AND 129
-                THEN '120-129'
-            WHEN runs.avg_heart_rate BETWEEN 130 AND 139
-                THEN '130-139'
-            WHEN runs.avg_heart_rate BETWEEN 140 AND 149
-                THEN '140-149'
-            WHEN runs.avg_heart_rate BETWEEN 150 AND 159
-                THEN '150-159'
-            WHEN runs.avg_heart_rate BETWEEN 160 AND 169
-                THEN '160-169'
-            ELSE 'other'
-        END AS hr_band,
-        runs.garmin_recovery_hr,
-        hr_drift.hr_drift_pct
-    FROM {{ ref('runs') }} AS runs
-    LEFT JOIN hr_drift ON runs.run_id = hr_drift.run_id
-),
-
-windowed AS (
-    SELECT *,
-        AVG(efficiency_ratio) OVER (
-            ORDER BY activity_date, activity_id
-            ROWS BETWEEN 3 PRECEDING AND CURRENT ROW
-        ) AS rolling_4_run_efficiency_ratio,
-        AVG(hr_drift_pct) OVER (
-            ORDER BY activity_date, activity_id
-            ROWS BETWEEN 3 PRECEDING AND CURRENT ROW
-        ) AS rolling_4_run_hr_drift_pct,
-        AVG(garmin_recovery_hr) OVER (
-            ORDER BY activity_date, activity_id
-            ROWS BETWEEN 3 PRECEDING AND CURRENT ROW
-        ) AS rolling_4_run_recovery_hr,
-        PERCENTILE_APPROX(
-            CASE WHEN garmin_recovery_hr > 0
-                 AND ending_heart_rate > 0
-                THEN garmin_recovery_hr END, 0.5, 10000
-        ) OVER recovery_prior_90d_window
-            AS recovery_prior_90d_median,
-        PERCENTILE_APPROX(
-            CASE WHEN garmin_recovery_hr > 0
-                 AND ending_heart_rate > 0
-                THEN garmin_recovery_hr END, 0.25, 10000
-        ) OVER recovery_prior_90d_window
-            AS recovery_prior_90d_q1,
-        PERCENTILE_APPROX(
-            CASE WHEN garmin_recovery_hr > 0
-                 AND ending_heart_rate > 0
-                THEN garmin_recovery_hr END, 0.75, 10000
-        ) OVER recovery_prior_90d_window
-            AS recovery_prior_90d_q3,
-        MIN(CASE WHEN garmin_recovery_hr > 0
-                 AND ending_heart_rate > 0
-                THEN garmin_recovery_hr END)
-            OVER recovery_prior_90d_window
-            AS recovery_prior_90d_min,
-        MAX(CASE WHEN garmin_recovery_hr > 0
-                 AND ending_heart_rate > 0
-                THEN garmin_recovery_hr END)
-            OVER recovery_prior_90d_window
-            AS recovery_prior_90d_max,
-        COUNT(CASE WHEN garmin_recovery_hr > 0
-                   AND ending_heart_rate > 0
-               THEN garmin_recovery_hr END)
-            OVER recovery_prior_90d_window
-            AS recovery_prior_90d_count
-    FROM run_fitness
-    window recovery_prior_90d_window AS (
-        PARTITION BY CASE WHEN ending_heart_rate > 0
-            THEN FLOOR(ending_heart_rate / 10) * 10 END
-        ORDER BY activity_date
-        RANGE BETWEEN INTERVAL '90' day PRECEDING
-              AND INTERVAL '1' day PRECEDING
-    )
+half_efficiency AS (
+    SELECT
+        run_id,
+        SUM(first_distance_m) * 3.6
+            / NULLIF(SUM(
+                CASE WHEN interval_heart_rate > 0
+                    THEN interval_heart_rate * interval_duration_seconds
+                        * first_distance_m / interval_distance_m
+                END
+            ), 0.0) AS first_half_efficiency,
+        SUM(second_distance_m) * 3.6
+            / NULLIF(SUM(
+                CASE WHEN interval_heart_rate > 0
+                    THEN interval_heart_rate * interval_duration_seconds
+                        * second_distance_m / interval_distance_m
+                END
+            ), 0.0) AS second_half_efficiency
+    FROM half_allocations
+    GROUP BY run_id
 )
 
-SELECT * EXCEPT (
-    recovery_prior_90d_median, recovery_prior_90d_q1,
-    recovery_prior_90d_q3, recovery_prior_90d_min,
-    recovery_prior_90d_max
-),
-    CASE WHEN recovery_prior_90d_count >= 4
-        THEN recovery_prior_90d_median
-    END AS recovery_prior_90d_median,
-    CASE WHEN recovery_prior_90d_count >= 4
-        THEN recovery_prior_90d_q1
-    END AS recovery_prior_90d_q1,
-    CASE WHEN recovery_prior_90d_count >= 4
-        THEN recovery_prior_90d_q3
-    END AS recovery_prior_90d_q3,
-    CASE WHEN recovery_prior_90d_count >= 4
-        THEN recovery_prior_90d_min
-    END AS recovery_prior_90d_min,
-    CASE WHEN recovery_prior_90d_count >= 4
-        THEN recovery_prior_90d_max
-    END AS recovery_prior_90d_max
-FROM windowed`,
+SELECT
+    quality.*,
+    efficiency.first_half_efficiency,
+    efficiency.second_half_efficiency,
+    CASE WHEN quality.aerobic_decoupling_quality_status = 'pass'
+            AND efficiency.second_half_efficiency > 0
+        THEN efficiency.first_half_efficiency
+            / efficiency.second_half_efficiency - 1
+    END AS aerobic_decoupling_pct
+FROM run_quality AS quality
+INNER JOIN half_efficiency AS efficiency
+    ON quality.run_id = efficiency.run_id`,
     keyTechnique:
-      "Named `WINDOW` clause with `PARTITION BY` heart-rate band + `RANGE` 90-day interval for recovery baselines. Five percentile stats (median, Q1, Q3, min, max) are nullified when fewer than 4 prior observations exist.",
-    lineageContext:
-      "`mart_fitness` refs `runs` + `mart_run_segments`. It feeds `mart_running_signals`. Exported to Supabase as `site_fitness_core`. The most analytically sophisticated signal model.",
+      "Build moving intervals at the record grain, then allocate the midpoint-crossing interval by distance. Compute each half's moving-time-weighted speed-to-heart-rate efficiency only for quality-passing runs; `first_half_efficiency / second_half_efficiency - 1` makes deterioration positive.",
+     lineageContext:
+       "`mart_fitness` refs `runs`, `mart_run_aerobic_decoupling`, and record-level economy metrics. It feeds `mart_running_signals`. Exported to Supabase as `site_fitness_core`. The most analytically sophisticated signal model.",
   },
 
   // ── MODULE 6: Route Analytics ──

@@ -61,4 +61,27 @@ describe("mapFitness", () => {
       recoveryPrior90dMax: 58,
     });
   });
+
+  it("maps aerobic decoupling evidence and rejects unknown statuses", () => {
+    expect(
+      mapFitness({
+        aerobic_decoupling_pct: "0.0625",
+        aerobic_decoupling_status: "eligible",
+        aerobic_decoupling_moving_duration_seconds: "1560",
+        aerobic_decoupling_valid_segment_count: "12",
+        aerobic_decoupling_hr_coverage_ratio: "0.92",
+        aerobic_decoupling_prior_90d_count: "5",
+        aerobic_decoupling_prior_90d_median: "0.04",
+      }),
+    ).toMatchObject({
+      aerobicDecouplingPct: 0.0625,
+      aerobicDecouplingStatus: "eligible",
+      aerobicDecouplingMovingDurationSeconds: 1560,
+      aerobicDecouplingValidSegmentCount: 12,
+      aerobicDecouplingHrCoverageRatio: 0.92,
+      aerobicDecouplingPrior90dCount: 5,
+      aerobicDecouplingPrior90dMedian: 0.04,
+    });
+    expect(mapFitness({ aerobic_decoupling_status: "unknown" }).aerobicDecouplingStatus).toBeNull();
+  });
 });
