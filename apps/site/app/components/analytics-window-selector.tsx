@@ -151,14 +151,9 @@ export function AnalyticsWindowSelector() {
 
   const resolvedWindow = useMemo(() => {
     const today = amsterdamToday();
-    const currentParams = new URLSearchParams(paramsString);
-    const cookieRaw = typeof document !== "undefined"
-      ? document.cookie.split("; ")
-          .find((row) => row.startsWith(`${ANALYTICS_WINDOW_STORAGE_KEY}=`))
-          ?.slice(ANALYTICS_WINDOW_STORAGE_KEY.length + 1) ?? null
-      : null;
-    return resolveAnalyticsWindow(currentParams, cookieRaw, today);
-  }, [paramsString]);
+    const selectedParams = withAnalyticsWindowState(new URLSearchParams(paramsString), state);
+    return resolveAnalyticsWindow(selectedParams, null, today);
+  }, [paramsString, state]);
 
   const fmtDate = (d: string | null) => d ?? "\u2014";
 
@@ -271,9 +266,9 @@ export function AnalyticsWindowSelector() {
                   </button>
 
                   <div className="space-y-0.5 border border-(--border) bg-(--surface-muted) px-3 py-2 font-mono text-[10px] leading-4 text-(--text-soft)">
-                    <p>Primary : {fmtDate(resolvedWindow.primary.from)} \u2013 {fmtDate(resolvedWindow.primary.to)}</p>
+                    <p>Primary : {fmtDate(resolvedWindow.primary.from)} – {fmtDate(resolvedWindow.primary.to)}</p>
                     {resolvedWindow.comparison ? (
-                      <p>Compare : {fmtDate(resolvedWindow.comparison.from)} \u2013 {fmtDate(resolvedWindow.comparison.to)}</p>
+                      <p>Compare : {fmtDate(resolvedWindow.comparison.from)} – {fmtDate(resolvedWindow.comparison.to)}</p>
                     ) : (
                       <p>Compare : none</p>
                     )}

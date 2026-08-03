@@ -29,8 +29,8 @@ const sortableColumns: Array<{
   { sort: "avg_heart_rate", label: "Avg HR", defaultDirection: "desc" },
   { sort: "total_ascent", label: "Ascent/Descent", defaultDirection: "desc" },
   { sort: "prior_7d_distance_km", label: "Prior 7d", defaultDirection: "desc" },
-  { label: "Dist Economy", defaultDirection: "desc" },
-  { label: "Score", defaultDirection: "desc" },
+  { sort: "distance_economy_m_per_beat", label: "Dist Economy", defaultDirection: "desc" },
+  { sort: "personal_efficiency_score", label: "Score", defaultDirection: "desc" },
   { sort: "route_id", label: "Route", defaultDirection: "asc" },
 ];
 

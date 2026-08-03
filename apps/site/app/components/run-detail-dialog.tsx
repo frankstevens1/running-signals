@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   CartesianGrid,
   Line,
@@ -74,6 +74,42 @@ function statItems(run: RunSession, unit: DistanceUnit) {
         : "n/a",
     ],
   ] as const;
+}
+
+function SummaryLabel({ label }: { label: string }) {
+  const mobileLabel = label === "Ascent/Descent"
+    ? "Asc/Desc"
+    : label === "Dist Economy"
+      ? "Dist Econ."
+      : label === "Elev Economy"
+        ? "Elev Econ."
+        : null;
+
+  if (!mobileLabel) return label;
+
+  return (
+    <>
+      <span className="sm:hidden">{mobileLabel}</span>
+      <span className="hidden sm:inline">{label}</span>
+    </>
+  );
+}
+
+const SUMMARY_UNIT_PATTERN = /(\/km|\/mi|km\/h|mph|m\/beat|bpm|spm|km|mi|m|h)/g;
+const SUMMARY_UNIT_PART = /^(\/km|\/mi|km\/h|mph|m\/beat|bpm|spm|km|mi|m|h)$/;
+
+function SummaryValue({ value }: { value: ReactNode }) {
+  if (typeof value !== "string") return value;
+
+  return value.split(SUMMARY_UNIT_PATTERN).map((part, index) =>
+    SUMMARY_UNIT_PART.test(part) ? (
+      <span key={index} className="text-[0.7em] sm:text-[1em]">
+        {part}
+      </span>
+    ) : (
+      part
+    ),
+  );
 }
 
 type ElevationProfilePoint = {
@@ -431,12 +467,14 @@ export function RunDetailDialog({
                 {statItems(run, unit).map(([label, value]) => (
                   <div
                     key={label}
-                    className="border-r border-b border-(--border) bg-(--surface-muted)/60 px-3 py-3"
+                    className={`${label === "Route" ? "hidden lg:block " : ""}border-r border-b border-(--border) bg-(--surface-muted)/60 px-3 py-3`}
                   >
                     <dt className="font-mono text-[10px] uppercase tracking-[0.1em] text-(--text-soft)">
-                      {label}
+                      <SummaryLabel label={label} />
                     </dt>
-                    <dd className="mt-1 font-mono text-sm text-(--text)">{value}</dd>
+                    <dd className="mt-1 font-mono text-sm text-(--text)">
+                      <SummaryValue value={value} />
+                    </dd>
                   </div>
                 ))}
               </dl>

@@ -22,6 +22,7 @@ import {
 import { useDistanceUnit } from "@/app/components/distance-unit-provider";
 import {
   distanceFromKm,
+  paceFromMinPerKm,
   speedFromKmh,
   type DistanceUnit,
 } from "@/app/lib/distance-unit";
@@ -44,6 +45,7 @@ type NumericDomain = [number, number];
 type PaceHeartRatePoint = FitnessPoint & {
   avgHeartRate: number;
   avgPaceMinPerKm: number;
+  distanceKm: number;
 };
 type HeartRateBand = {
   id: string;
@@ -66,6 +68,17 @@ type WeeklyVolumeDatum = WeekRollup & {
 type WeeklyStructureDatum = WeekRollup & {
   avgRunDistanceKm: number | null;
 };
+type EfficiencyRatioSourcePoint = FitnessPoint & {
+  avgHeartRate: number;
+  distanceKm: number;
+  efficiencyRatio: number;
+  speedKmh: number;
+};
+type EfficiencyRatioPoint = EfficiencyRatioSourcePoint & {
+  efficiencyPer10Bpm: number;
+  rollingEfficiencyPer10Bpm: number | null;
+};
+type DistanceGroup = "all" | "short" | "medium" | "long";
 
 const HEART_RATE_BAND_SIZE_BPM = 10;
 const PACE_DOMAIN_PADDING_MIN_PER_KM = 0.25;
@@ -220,6 +233,12 @@ function PaceHeartRateTooltip({
       <div style={tooltipStyle.itemStyle}>
         Avg HR: {Math.round(point.avgHeartRate)} bpm
       </div>
+      <div style={tooltipStyle.itemStyle}>
+        Distance: {formatDistanceValue(point.distanceKm, unit)}
+      </div>
+      <div style={tooltipStyle.itemStyle}>
+        HR bucket: {heartRateBandLabel(point.avgHeartRate)} bpm
+      </div>
     </div>
   );
 }
@@ -230,11 +249,13 @@ function hasPaceHeartRate(point: FitnessPoint): point is PaceHeartRatePoint {
     point.avgHeartRate !== null &&
     Number.isFinite(point.avgHeartRate) &&
     point.avgPaceMinPerKm !== null &&
-    Number.isFinite(point.avgPaceMinPerKm)
+    Number.isFinite(point.avgPaceMinPerKm) &&
+    point.distanceKm !== null &&
+    Number.isFinite(point.distanceKm)
   );
 }
 
-function getHeartRateBands(points: PaceHeartRatePoint[]): HeartRateBand[] {
+function getHeartRateBands(points: Array<{ avgHeartRate: number }>): HeartRateBand[] {
   if (points.length === 0) return [];
 
   const heartRates = points.map((point) => point.avgHeartRate);
@@ -278,7 +299,7 @@ function getPaceDomain(points: PaceHeartRatePoint[]): NumericDomain {
 
 function heartRateBandButtonClass(isSelected: boolean) {
   const base =
-    "inline-flex h-7 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-sm border px-2 font-mono text-[8px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--surface)";
+    "comparable-filter-button inline-flex h-[21px] shrink-0 items-center justify-center gap-1 whitespace-nowrap border px-[5px] font-mono font-medium leading-none transition-colors sm:px-[6px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--surface)";
 
   return isSelected
     ? `${base} border-(--accent) bg-(--accent-soft) text-(--accent-strong)`
@@ -352,6 +373,48 @@ function getBandColor(index: number) {
 function getHeartRateBandId(heartRate: number): string {
   const min = Math.floor(heartRate / HEART_RATE_BAND_SIZE_BPM) * HEART_RATE_BAND_SIZE_BPM;
   return `${min}-${min + HEART_RATE_BAND_SIZE_BPM}`;
+}
+
+function heartRateBandLabel(heartRate: number): string {
+  const min = Math.floor(heartRate / HEART_RATE_BAND_SIZE_BPM) * HEART_RATE_BAND_SIZE_BPM;
+  return `${min}-${min + HEART_RATE_BAND_SIZE_BPM - 1}`;
+}
+
+function nextContiguousHeartRateBandIds(
+  currentIds: string[],
+  bandId: string,
+  heartRateBands: HeartRateBand[],
+): string[] {
+  const selectedIndices = heartRateBands
+    .map((band, index) => (currentIds.includes(band.id) ? index : -1))
+    .filter((index) => index >= 0);
+  const targetIndex = heartRateBands.findIndex((band) => band.id === bandId);
+
+  if (targetIndex < 0) return [];
+  if (selectedIndices.length === 0) return [bandId];
+
+  const firstIndex = selectedIndices[0];
+  const lastIndex = selectedIndices.at(-1) ?? firstIndex;
+
+  if (selectedIndices.includes(targetIndex)) {
+    if (selectedIndices.length === 1) return [];
+    if (targetIndex === firstIndex) {
+      return heartRateBands.slice(firstIndex + 1, lastIndex + 1).map((band) => band.id);
+    }
+    if (targetIndex === lastIndex) {
+      return heartRateBands.slice(firstIndex, lastIndex).map((band) => band.id);
+    }
+
+    return [bandId];
+  }
+
+  if (targetIndex === firstIndex - 1 || targetIndex === lastIndex + 1) {
+    const rangeStart = Math.min(firstIndex, targetIndex);
+    const rangeEnd = Math.max(lastIndex, targetIndex);
+    return heartRateBands.slice(rangeStart, rangeEnd + 1).map((band) => band.id);
+  }
+
+  return [bandId];
 }
 
 function getLinearPaceTrend(
@@ -503,24 +566,24 @@ function formatMonthLabel(value: unknown) {
   }).format(date);
 }
 
-function getEfficiencyDomain(points: FitnessPoint[]): NumericDomain {
+function getEfficiencyDomain(points: EfficiencyRatioPoint[]): NumericDomain {
   const values = points
-    .flatMap((point) => [point.efficiencyRatio, point.rolling4RunEfficiencyRatio])
+    .flatMap((point) => [point.efficiencyPer10Bpm, point.rollingEfficiencyPer10Bpm])
     .filter((value): value is number => value !== null && Number.isFinite(value));
 
   if (values.length === 0) {
-    return [0, 0.1];
+    return [0, 1];
   }
 
   const min = Math.min(...values);
   const max = Math.max(...values);
 
   if (min === max) {
-    const padding = Math.max(Math.abs(min) * 0.08, 0.005);
+    const padding = Math.max(Math.abs(min) * 0.08, 0.05);
     return [Math.max(0, min - padding), max + padding];
   }
 
-  const padding = Math.max((max - min) * 0.15, 0.002);
+  const padding = Math.max((max - min) * 0.15, 0.02);
   return [Math.max(0, min - padding), max + padding];
 }
 
@@ -626,13 +689,13 @@ const CHART_INFO = {
     ],
   },
   fitnessEfficiency: {
-    title: "Speed per heartbeat",
+    title: "Speed-to-HR ratio",
     definition:
-      "Efficiency ratio is session speed in kilometers per hour divided by average heart rate. The rolling 4-run line averages the current run and previous three runs.",
+      "The speed-to-HR ratio is session speed in kilometers per hour divided by average heart rate. The chart displays the equivalent speed per 10 beats per minute. The rolling 4-run line averages the current run and previous three runs.",
     source: "dbt mart_fitness, from runs speed_kmh and avg_heart_rate.",
     interpretation: [
-      "Higher values mean more speed for each average heartbeat in that run.",
-      "A rising rolling line can suggest improving aerobic efficiency when runs are otherwise comparable.",
+      "Higher values mean more speed at a given average heart rate in that run.",
+      "A rising rolling line across comparable runs can suggest improving aerobic efficiency.",
       "A falling line can reflect fatigue, heat, hills, harder conditions, or less efficient pacing.",
     ],
     caveats: [
@@ -1030,92 +1093,273 @@ export function HrDriftChart({ points }: { points: FitnessPoint[] }) {
   );
 }
 
+function hasEfficiencyRatioData(point: FitnessPoint): point is EfficiencyRatioSourcePoint {
+  return point.avgHeartRate !== null
+    && Number.isFinite(point.avgHeartRate)
+    && point.distanceKm !== null
+    && Number.isFinite(point.distanceKm)
+    && point.efficiencyRatio !== null
+    && Number.isFinite(point.efficiencyRatio)
+    && point.speedKmh !== null
+    && Number.isFinite(point.speedKmh);
+}
+
+function matchesDistanceGroup(distanceKm: number, group: DistanceGroup): boolean {
+  if (group === "all") return true;
+  if (group === "short") return distanceKm < 5;
+  if (group === "medium") return distanceKm >= 5 && distanceKm < 10;
+  return distanceKm >= 10;
+}
+
+function distanceGroupLabel(group: DistanceGroup, unit: DistanceUnit): string {
+  if (group === "all") return "All";
+  if (unit === "mi") {
+    if (group === "short") return "Short <3.1 mi";
+    if (group === "medium") return "Medium 3.1-6.2 mi";
+    return "Long 6.2+ mi";
+  }
+  if (group === "short") return "Short <5 km";
+  if (group === "medium") return "Medium 5-10 km";
+  return "Long 10+ km";
+}
+
+function comparableDistanceGroupLabel(group: DistanceGroup, unit: DistanceUnit): string {
+  if (group === "all") return "All";
+  if (unit === "mi") {
+    if (group === "short") return "<3.1 mi";
+    if (group === "medium") return "3.1-6.2 mi";
+    return "6.2+ mi";
+  }
+  if (group === "short") return "<5 km";
+  if (group === "medium") return "5-10 km";
+  return "10+ km";
+}
+
+function formatEfficiencyRatio(value: number | null | undefined, unit: DistanceUnit): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "n/a";
+  return `${value.toFixed(2)} ${unit === "mi" ? "mi/h" : "km/h"} per 10 bpm`;
+}
+
+function EfficiencyRatioTooltip({
+  active,
+  payload,
+  unit,
+}: {
+  active?: boolean;
+  payload?: ReadonlyArray<{ payload?: EfficiencyRatioPoint }>;
+  unit: DistanceUnit;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+
+  const point = payload.map((item) => item.payload).find(Boolean);
+  if (!point) return null;
+
+  const speedUnit = unit === "mi" ? "mi/h" : "km/h";
+
+  return (
+    <div style={tooltipStyle.contentStyle}>
+      <div style={tooltipStyle.labelStyle}>{formatDate(point.activityDate)}</div>
+      <div style={tooltipStyle.itemStyle}>
+        Distance: {formatDistanceValue(point.distanceKm, unit)}
+      </div>
+      <div style={tooltipStyle.itemStyle}>
+        Speed: {speedFromKmh(point.speedKmh, unit).toFixed(1)} {speedUnit}
+      </div>
+      <div style={tooltipStyle.itemStyle}>Avg HR: {Math.round(point.avgHeartRate)} bpm</div>
+      <div style={tooltipStyle.itemStyle}>
+        Session: {formatEfficiencyRatio(point.efficiencyPer10Bpm, unit)}
+      </div>
+      <div style={tooltipStyle.itemStyle}>
+        Rolling 4-run: {formatEfficiencyRatio(point.rollingEfficiencyPer10Bpm, unit)}
+      </div>
+    </div>
+  );
+}
+
 export function FitnessEfficiencyChart({ points }: { points: FitnessPoint[] }) {
   const { unit } = useDistanceUnit();
-  const displayPoints = useMemo(
-    () =>
-      points.map((point) => ({
-        ...point,
-        efficiencyRatio:
-          point.efficiencyRatio === null
-            ? null
-            : speedFromKmh(point.efficiencyRatio, unit),
-        rolling4RunEfficiencyRatio:
-          point.rolling4RunEfficiencyRatio === null
-            ? null
-            : speedFromKmh(point.rolling4RunEfficiencyRatio, unit),
-      })),
-    [points, unit],
+  const [distanceGroup, setDistanceGroup] = useState<DistanceGroup>("all");
+  const [selectedHeartRateBandIds, setSelectedHeartRateBandIds] = useState<string[]>([]);
+  const sourceData = useMemo(
+    () => points.filter(hasEfficiencyRatioData).sort((left, right) =>
+      left.activityDate.localeCompare(right.activityDate)),
+    [points],
   );
+  const distanceFilteredData = useMemo(
+    () => sourceData.filter((point) => matchesDistanceGroup(point.distanceKm, distanceGroup)),
+    [distanceGroup, sourceData],
+  );
+  const heartRateBands = useMemo(() => getHeartRateBands(distanceFilteredData), [distanceFilteredData]);
+  const selectedHeartRateBandIdSet = useMemo(
+    () => new Set(selectedHeartRateBandIds),
+    [selectedHeartRateBandIds],
+  );
+  const hasSelectedHeartRateBands = heartRateBands.some((band) =>
+    selectedHeartRateBandIdSet.has(band.id),
+  );
+  const visibleSourceData = useMemo(
+    () => distanceFilteredData.filter((point) =>
+      !hasSelectedHeartRateBands
+      || selectedHeartRateBandIdSet.has(getHeartRateBandId(point.avgHeartRate))),
+    [distanceFilteredData, hasSelectedHeartRateBands, selectedHeartRateBandIdSet],
+  );
+  const displayPoints = useMemo<EfficiencyRatioPoint[]>(() => {
+    const values = visibleSourceData.map((point) => speedFromKmh(point.efficiencyRatio, unit) * 10);
+
+    return visibleSourceData.map((point, index) => {
+      const rollingValues = values.slice(Math.max(0, index - 3), index + 1);
+      return {
+        ...point,
+        efficiencyPer10Bpm: values[index],
+        rollingEfficiencyPer10Bpm: rollingValues.reduce((sum, value) => sum + value, 0)
+          / rollingValues.length,
+      };
+    });
+  }, [unit, visibleSourceData]);
+  const latestPoint = displayPoints.at(-1);
+  const priorComparableValues = displayPoints
+    .slice(-5, -1)
+    .map((point) => point.efficiencyPer10Bpm);
+  const priorComparableAverage = priorComparableValues.length > 0
+    ? priorComparableValues.reduce((sum, value) => sum + value, 0) / priorComparableValues.length
+    : null;
+  const latestChange = latestPoint && priorComparableAverage
+    ? latestPoint.efficiencyPer10Bpm / priorComparableAverage - 1
+    : null;
   const efficiencyDomain = getEfficiencyDomain(displayPoints);
+  const activeHeartRateLabels = heartRateBands
+    .filter((band) => selectedHeartRateBandIdSet.has(band.id))
+    .map((band) => `${band.label} bpm`);
+  const comparableRunLabel = [
+    comparableDistanceGroupLabel(distanceGroup, unit),
+    activeHeartRateLabels.length > 0 ? activeHeartRateLabels.join(", ") : "All avg HR",
+  ].join(" / ");
+  const toggleHeartRateBand = (bandId: string) => {
+    setSelectedHeartRateBandIds((currentIds) =>
+      nextContiguousHeartRateBandIds(currentIds, bandId, heartRateBands));
+  };
+  const controls = (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-start gap-1.5" role="group" aria-label="Distance group">
+        {(["all", "short", "medium", "long"] as const).map((group) => (
+          <button
+            key={group}
+            type="button"
+            aria-pressed={distanceGroup === group}
+            className={heartRateBandButtonClass(distanceGroup === group)}
+            onClick={() => setDistanceGroup(group)}
+          >
+            {distanceGroupLabel(group, unit)}
+          </button>
+        ))}
+      </div>
+      {heartRateBands.length > 1 ? (
+        <div className="flex flex-wrap items-center justify-start gap-1.5 border-t border-(--border) pt-3" role="group" aria-label="Average heart rate range">
+          <button
+            type="button"
+            aria-pressed={!hasSelectedHeartRateBands}
+          className={heartRateBandButtonClass(!hasSelectedHeartRateBands)}
+          onClick={() => setSelectedHeartRateBandIds([])}
+        >
+            All
+          </button>
+          {heartRateBands.map((band) => (
+            <button
+              key={band.id}
+              type="button"
+              aria-pressed={selectedHeartRateBandIdSet.has(band.id)}
+              className={heartRateBandButtonClass(selectedHeartRateBandIdSet.has(band.id))}
+              onClick={() => toggleHeartRateBand(band.id)}
+            >
+              {band.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
   const speedLabel = unit === "mi" ? "miles per hour" : "kilometres per hour";
   const efficiencyInfo = {
     ...CHART_INFO.fitnessEfficiency,
-    definition: `Efficiency ratio is session speed in ${speedLabel} divided by average heart rate. The rolling 4-run line averages the current run and previous three runs.`,
+    definition: `The speed-to-HR ratio is session speed in ${speedLabel} divided by average heart rate, displayed as speed per 10 beats per minute. The rolling 4-run line is recalculated from the visible comparable runs.`,
   };
 
   return (
     <ChartFrame
-      title="Speed per heartbeat"
-      description="Session speed divided by average heart rate."
+      title="Speed-to-HR ratio"
+      description="Speed per 10 bpm across comparable runs."
       info={efficiencyInfo}
+      controls={controls}
     >
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={displayPoints} margin={{ top: 8, right: 8, left: 0 }}>
-          <CartesianGrid
-            stroke={CHART_GRID_COLOR}
-            strokeDasharray="2 5"
-            vertical={false}
-          />
-          <XAxis
-            dataKey="activityDate"
-            tickFormatter={shortDate}
-            minTickGap={28}
-            axisLine={false}
-            tickLine={false}
-            tick={axisTick}
-          />
-          <YAxis
-            domain={efficiencyDomain}
-            axisLine={false}
-            tickLine={false}
-            tick={axisTick}
-            tickFormatter={(value) => Number(value).toFixed(3)}
-          />
-          <Tooltip
-            {...tooltipStyle}
-            labelFormatter={(value) => shortDate(String(value))}
-            formatter={(value, name) => [
-              numberValue(value)?.toFixed(3) ?? "n/a",
-              name,
-            ]}
-          />
-          <Legend
-            content={
-              <FitnessLineLegend
-                sessionLabel="Session efficiency (thin)"
-                rollingLabel="Rolling 4-run efficiency (thick)"
-              />
-            }
-          />
-          <Line
-            type="monotone"
-            dataKey="efficiencyRatio"
-            name="Session efficiency"
-            stroke={PRIMARY_SERIES_COLOR}
-            strokeWidth={1.5}
-            dot={false}
-          />
-          <Line
-            type="monotone"
-            dataKey="rolling4RunEfficiencyRatio"
-            name="Rolling 4-run efficiency"
-            stroke={SECONDARY_SERIES_COLOR}
-            strokeWidth={3}
-            dot={false}
-          />
-        </LineChart>
-      </ResponsiveContainer>
+      <div className="flex h-full min-h-0 min-w-0 flex-col">
+        <div className="flex flex-col items-start gap-0.5 px-1 pb-2 font-mono text-[10px] leading-4 text-(--text-soft)">
+          <span>{displayPoints.length} comparable {displayPoints.length === 1 ? "run" : "runs"}: {comparableRunLabel}</span>
+          {latestPoint ? (
+            <span>
+              Latest {formatEfficiencyRatio(latestPoint.efficiencyPer10Bpm, unit)}
+              {latestChange !== null ? ` (${formatSignedPercent(latestChange)} vs prior average)` : ""}
+            </span>
+          ) : null}
+        </div>
+        <div className="min-h-0 min-w-0 flex-1">
+          {displayPoints.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={displayPoints} margin={{ top: 8, right: 8, left: 0 }}>
+                <CartesianGrid
+                  stroke={CHART_GRID_COLOR}
+                  strokeDasharray="2 5"
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="activityDate"
+                  tickFormatter={shortDate}
+                  minTickGap={28}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={axisTick}
+                />
+                <YAxis
+                  domain={efficiencyDomain}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={axisTick}
+                  tickFormatter={(value) => Number(value).toFixed(2)}
+                />
+                <Tooltip content={<EfficiencyRatioTooltip unit={unit} />} />
+                <Legend
+                  content={
+                    <FitnessLineLegend
+                      sessionLabel="Session ratio (thin)"
+                      rollingLabel="Comparable 4-run average (thick)"
+                    />
+                  }
+                />
+                <Line
+                  type="monotone"
+                  dataKey="efficiencyPer10Bpm"
+                  name="Session ratio"
+                  stroke={PRIMARY_SERIES_COLOR}
+                  strokeWidth={1.5}
+                  dot={{ r: 2 }}
+                  activeDot={{ r: 4 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="rollingEfficiencyPer10Bpm"
+                  name="Comparable 4-run average"
+                  stroke={SECONDARY_SERIES_COLOR}
+                  strokeWidth={3}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-full items-center justify-center border border-dashed border-(--border) bg-(--surface-muted) px-4 text-center font-mono text-xs text-(--text-soft)">
+              No runs match the selected comparable-run filters.
+            </div>
+          )}
+        </div>
+      </div>
     </ChartFrame>
   );
 }
@@ -1420,7 +1664,7 @@ export function RecoveryHeartRateChart({ points }: { points: FitnessPoint[] }) {
                 tick={axisTick}
                 tickFormatter={(value) => `${Math.round(Number(value))} bpm`}
               />
-              <Tooltip content={<RecoveryTooltip />} />
+              <Tooltip content={<RecoveryTooltip />} wrapperStyle={{ zIndex: 10 }} />
               <Legend
                 content={<RecoveryLegend latestClassification={latestStripPoint?.recoveryClassification} />}
               />
@@ -1470,28 +1714,44 @@ export function RecoveryHeartRateChart({ points }: { points: FitnessPoint[] }) {
   );
 }
 
+function formatPaceDifference(value: number, unit: DistanceUnit): string {
+  const seconds = Math.round(Math.abs(paceFromMinPerKm(value, unit) * 60));
+  if (seconds === 0) return "same as prior average";
+  return `${seconds}s ${value > 0 ? "slower" : "faster"} than prior average`;
+}
+
 export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
   const { unit } = useDistanceUnit();
+  const [distanceGroup, setDistanceGroup] = useState<DistanceGroup>("all");
   const [selectedHeartRateBandIds, setSelectedHeartRateBandIds] = useState<string[]>([]);
   const data = useMemo<PaceHeartRateChartPoint[]>(
     () =>
-      points.filter(hasPaceHeartRate).map((point) => ({
-        ...point,
-        activityDateTimestamp: getActivityDateTimestamp(point.activityDate),
-      })),
+      points
+        .filter(hasPaceHeartRate)
+        .map((point) => ({
+          ...point,
+          activityDateTimestamp: getActivityDateTimestamp(point.activityDate),
+        }))
+        .sort((left, right) => left.activityDateTimestamp - right.activityDateTimestamp),
     [points],
   );
-  const heartRateBands = useMemo(() => getHeartRateBands(data), [data]);
+  const distanceFilteredData = useMemo(
+    () => data.filter((point) => matchesDistanceGroup(point.distanceKm, distanceGroup)),
+    [data, distanceGroup],
+  );
+  const heartRateBands = useMemo(() => getHeartRateBands(distanceFilteredData), [distanceFilteredData]);
   const selectedHeartRateBandIdSet = useMemo(
     () => new Set(selectedHeartRateBandIds),
     [selectedHeartRateBandIds],
   );
+  const hasSelectedHeartRateBands = heartRateBands.some((band) =>
+    selectedHeartRateBandIdSet.has(band.id),
+  );
   const visibleHeartRateBands = useMemo(
-    () =>
-      selectedHeartRateBandIds.length === 0
-        ? heartRateBands
-        : heartRateBands.filter((band) => selectedHeartRateBandIdSet.has(band.id)),
-    [heartRateBands, selectedHeartRateBandIdSet, selectedHeartRateBandIds.length],
+    () => hasSelectedHeartRateBands
+      ? heartRateBands.filter((band) => selectedHeartRateBandIdSet.has(band.id))
+      : heartRateBands,
+    [hasSelectedHeartRateBands, heartRateBands, selectedHeartRateBandIdSet],
   );
   const bandColorById = useMemo(
     () => new Map(heartRateBands.map((band, index) => [band.id, getBandColor(index)])),
@@ -1502,131 +1762,187 @@ export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
       visibleHeartRateBands.map((band) => ({
         band,
         color: bandColorById.get(band.id) ?? getBandColor(0),
-        data: data.filter(
+        data: distanceFilteredData.filter(
           (point) => point.avgHeartRate >= band.min && point.avgHeartRate < band.max,
         ),
       })),
-    [bandColorById, data, visibleHeartRateBands],
+    [bandColorById, distanceFilteredData, visibleHeartRateBands],
   );
   const visibleData = useMemo(
-    () => bandSeries.flatMap((series) => series.data),
+    () => bandSeries.flatMap((series) => series.data).sort(
+      (left, right) => left.activityDateTimestamp - right.activityDateTimestamp,
+    ),
     [bandSeries],
   );
-  const trendData = useMemo(() => getLinearPaceTrend(visibleData), [visibleData]);
+  const trendData = useMemo(
+    () => hasSelectedHeartRateBands ? getLinearPaceTrend(visibleData) : [],
+    [hasSelectedHeartRateBands, visibleData],
+  );
   const dateTicks = useMemo(() => getUniformDateTicks(visibleData), [visibleData]);
   const paceDomain = useMemo(() => getPaceDomain(visibleData), [visibleData]);
+  const latestPoint = visibleData.at(-1);
+  const priorComparablePaces = visibleData.slice(-5, -1).map((point) => point.avgPaceMinPerKm);
+  const priorComparableAverage = priorComparablePaces.length > 0
+    ? priorComparablePaces.reduce((sum, value) => sum + value, 0) / priorComparablePaces.length
+    : null;
+  const activeHeartRateLabels = heartRateBands
+    .filter((band) => selectedHeartRateBandIdSet.has(band.id))
+    .map((band) => `${band.label} bpm`);
+  const comparableRunLabel = [
+    comparableDistanceGroupLabel(distanceGroup, unit),
+    activeHeartRateLabels.length > 0 ? activeHeartRateLabels.join(", ") : "All avg HR",
+  ].join(" / ");
   const toggleHeartRateBand = (bandId: string) => {
-    setSelectedHeartRateBandIds((currentIds) => {
-      const nextIds = new Set(currentIds);
-
-      if (nextIds.has(bandId)) {
-        nextIds.delete(bandId);
-      } else {
-        nextIds.add(bandId);
-      }
-
-      return heartRateBands.filter((band) => nextIds.has(band.id)).map((band) => band.id);
-    });
+    setSelectedHeartRateBandIds((currentIds) =>
+      nextContiguousHeartRateBandIds(currentIds, bandId, heartRateBands));
   };
-  const controls = heartRateBands.length > 1 && (
-    <div className="w-full min-w-0 max-w-full">
-      <div
-        className="flex w-full min-w-0 flex-wrap items-center justify-center gap-1.5"
-        role="group"
-        aria-label="Average heart rate range"
-      >
-        {heartRateBands.map((band) => (
+  const controls = (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-start gap-1.5" role="group" aria-label="Distance group">
+        {(["all", "short", "medium", "long"] as const).map((group) => (
           <button
-            key={band.id}
+            key={group}
             type="button"
-            aria-pressed={selectedHeartRateBandIdSet.has(band.id)}
-            className={heartRateBandButtonClass(selectedHeartRateBandIdSet.has(band.id))}
-            onClick={() => toggleHeartRateBand(band.id)}
+            aria-pressed={distanceGroup === group}
+            className={heartRateBandButtonClass(distanceGroup === group)}
+            onClick={() => setDistanceGroup(group)}
           >
-            <span
-              className="size-1.5 shrink-0 rounded-full"
-              style={{ backgroundColor: bandColorById.get(band.id) ?? getBandColor(0) }}
-              aria-hidden="true"
-            />
-            {band.label}
+            {distanceGroupLabel(group, unit)}
           </button>
         ))}
       </div>
+      {heartRateBands.length > 1 ? (
+        <div className="flex flex-wrap items-center justify-start gap-1.5 border-t border-(--border) pt-3" role="group" aria-label="Average heart rate range">
+          <button
+            type="button"
+            aria-pressed={!hasSelectedHeartRateBands}
+            className={heartRateBandButtonClass(!hasSelectedHeartRateBands)}
+            onClick={() => setSelectedHeartRateBandIds([])}
+          >
+            All
+          </button>
+          {heartRateBands.map((band) => (
+            <button
+              key={band.id}
+              type="button"
+              aria-pressed={selectedHeartRateBandIdSet.has(band.id)}
+              className={heartRateBandButtonClass(selectedHeartRateBandIdSet.has(band.id))}
+              onClick={() => toggleHeartRateBand(band.id)}
+            >
+              <span
+                className="size-1.5 shrink-0 rounded-full"
+                style={{ backgroundColor: bandColorById.get(band.id) ?? getBandColor(0) }}
+                aria-hidden="true"
+              />
+              {band.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 
   return (
     <ChartFrame
       title="Pace at comparable heart rate"
-      description="Run pace over time within selected average-heart-rate bands."
+      description="Comparable runs: selected distance and average-heart-rate ranges."
       info={{
         ...CHART_INFO.paceHeartRate,
-        definition: `Each point is a run's average pace plotted over time, grouped by average-heart-rate band. Pace is minutes per ${unit === "mi" ? "mile" : "kilometre"}, so lower values are faster.`,
+        definition: `Each coloured dot is a run's average pace, grouped by 10-bpm average-heart-rate band and filtered by distance. Pace is minutes per ${unit === "mi" ? "mile" : "kilometre"}, so lower values are faster.`,
       }}
       controls={controls}
     >
-      <div className="flex h-full min-w-0 flex-col">
+      <div className="flex h-full min-h-0 min-w-0 flex-col">
+        <div className="flex flex-col items-start gap-0.5 px-1 pb-2 font-mono text-[10px] leading-4 text-(--text-soft)">
+          <span>{visibleData.length} comparable {visibleData.length === 1 ? "run" : "runs"}: {comparableRunLabel}</span>
+          {latestPoint ? (
+            <span>
+              Latest {formatPaceValue(latestPoint.avgPaceMinPerKm, unit)}
+              {priorComparableAverage !== null
+                ? ` (${formatPaceDifference(latestPoint.avgPaceMinPerKm - priorComparableAverage, unit)})`
+                : ""}
+            </span>
+          ) : null}
+        </div>
         <div className="min-h-0 min-w-0 flex-1">
-          <ResponsiveContainer width="100%" height="100%">
-            <ScatterChart data={visibleData} margin={{ top: 8, right: 8, left: 0 }}>
-              <CartesianGrid
-                stroke={CHART_GRID_COLOR}
-                strokeDasharray="2 5"
-                vertical={false}
-              />
-              <XAxis
-                dataKey="activityDateTimestamp"
-                name="Date"
-                type="number"
-                scale="time"
-                domain={visibleData.length > 0 ? ["dataMin", "dataMax"] : [0, 1]}
-                ticks={dateTicks}
-                tickFormatter={formatTimestampTick}
-                minTickGap={28}
-                axisLine={false}
-                tickLine={false}
-                tick={axisTick}
-              />
-              <YAxis
-                type="number"
-                domain={paceDomain}
-                dataKey="avgPaceMinPerKm"
-                name="Pace"
-                reversed
-                axisLine={false}
-                tickLine={false}
-                tick={axisTick}
-                tickFormatter={(value) => formatPaceValue(value, unit)}
-              />
-              <Tooltip
-                content={<PaceHeartRateTooltip unit={unit} />}
-                cursor={false}
-                shared={false}
-              />
-              {bandSeries.map((series) => (
-                <Scatter
-                  key={`${series.band.id}-runs`}
-                  data={series.data}
-                  name={`${series.band.label} bpm`}
-                  fill={series.color}
-                  line={false}
+          {visibleData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <ScatterChart data={visibleData} margin={{ top: 8, right: 8, left: 0 }}>
+                <CartesianGrid
+                  stroke={CHART_GRID_COLOR}
+                  strokeDasharray="2 5"
+                  vertical={false}
                 />
-              ))}
-              {trendData.length > 0 ? (
-                <Line
-                  data={trendData}
-                  type="linear"
-                  dataKey="trendPaceMinPerKm"
-                  name="Trend"
-                  stroke="var(--text-soft)"
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={false}
-                  tooltipType="none"
+                <XAxis
+                  dataKey="activityDateTimestamp"
+                  name="Date"
+                  type="number"
+                  scale="time"
+                  domain={["dataMin", "dataMax"]}
+                  ticks={dateTicks}
+                  tickFormatter={formatTimestampTick}
+                  minTickGap={28}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={axisTick}
                 />
-              ) : null}
-            </ScatterChart>
-          </ResponsiveContainer>
+                <YAxis
+                  type="number"
+                  domain={paceDomain}
+                  dataKey="avgPaceMinPerKm"
+                  name="Pace"
+                  reversed
+                  axisLine={false}
+                  tickLine={false}
+                  tick={axisTick}
+                  tickFormatter={(value) => formatPaceValue(value, unit)}
+                />
+                <Tooltip
+                  content={<PaceHeartRateTooltip unit={unit} />}
+                  cursor={false}
+                  shared={false}
+                />
+                {bandSeries.map((series) => (
+                  <Scatter
+                    key={`${series.band.id}-runs`}
+                    data={series.data}
+                    name={`${series.band.label} bpm`}
+                    fill={series.color}
+                    line={false}
+                  >
+                    {series.data.map((point) => {
+                      const isLatest = point.activityDateTimestamp === latestPoint?.activityDateTimestamp;
+                      return (
+                        <Cell
+                          key={`${point.activityDateTimestamp}-${point.activityId}`}
+                          fill={series.color}
+                          stroke={isLatest ? "var(--surface)" : "none"}
+                          strokeWidth={isLatest ? 2 : 0}
+                        />
+                      );
+                    })}
+                  </Scatter>
+                ))}
+                {trendData.length > 0 ? (
+                  <Line
+                    data={trendData}
+                    type="linear"
+                    dataKey="trendPaceMinPerKm"
+                    name="Trend"
+                    stroke="var(--text-soft)"
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={false}
+                    tooltipType="none"
+                  />
+                ) : null}
+              </ScatterChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-full items-center justify-center border border-dashed border-(--border) bg-(--surface-muted) px-4 text-center font-mono text-xs text-(--text-soft)">
+              No runs match the selected comparable-run filters.
+            </div>
+          )}
         </div>
         {trendData.length > 0 ? (
           <div className="mt-1 flex items-center justify-center gap-1.5 text-[11px] leading-4 text-(--text-soft)">
@@ -1636,6 +1952,10 @@ export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
             />
             <span>Trend</span>
           </div>
+        ) : !hasSelectedHeartRateBands && visibleData.length > 1 ? (
+          <p className="mt-1 text-center text-[10px] leading-4 text-(--text-soft)">
+            Select an HR bucket or contiguous range to show a pace trend.
+          </p>
         ) : null}
       </div>
     </ChartFrame>
@@ -1721,10 +2041,39 @@ function DistanceEconomyTooltip({
         {formatDate(point.activityDate)}
       </div>
       <div style={tooltipStyle.itemStyle}>
-        Session: {point.distanceEconomyMperBeat != null ? `${point.distanceEconomyMperBeat.toFixed(3)} m/beat` : "\u2014"}
+        Session: {formatEconomyValue(point.distanceEconomyMperBeat, 3)}
       </div>
       <div style={tooltipStyle.itemStyle}>
-        Rolling 4-run: {point.rollingDistanceEconomy != null ? `${point.rollingDistanceEconomy.toFixed(3)} m/beat` : "\u2014"}
+        Rolling 4-run: {formatEconomyValue(point.rollingDistanceEconomy, 3)}
+      </div>
+    </div>
+  );
+}
+
+function ElevationEconomyTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: ReadonlyArray<{
+    payload?: (FitnessPoint & { rollingElevationEconomy?: number | null });
+  }>;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+
+  const point = payload[0]?.payload;
+  if (!point) return null;
+
+  return (
+    <div style={tooltipStyle.contentStyle}>
+      <div style={tooltipStyle.labelStyle}>
+        {formatDate(point.activityDate)}
+      </div>
+      <div style={tooltipStyle.itemStyle}>
+        Session: {formatEconomyValue(point.elevationEconomyMperBeat, 4)}
+      </div>
+      <div style={tooltipStyle.itemStyle}>
+        Rolling 4-run: {formatEconomyValue(point.rollingElevationEconomy, 4)}
       </div>
     </div>
   );
@@ -1876,12 +2225,7 @@ export function ElevationEconomyChart({ points }: { points: FitnessPoint[] }) {
             tick={false}
           />
           <Tooltip
-            {...tooltipStyle}
-            labelFormatter={(value) => shortDate(String(value))}
-            formatter={(value, name) => {
-              if (name === "Ascent") return [`${numberValue(value)?.toFixed(0) ?? "n/a"} m`, name];
-              return [formatEconomyValue(value, 4), name];
-            }}
+            content={<ElevationEconomyTooltip />}
           />
           <Legend
             content={

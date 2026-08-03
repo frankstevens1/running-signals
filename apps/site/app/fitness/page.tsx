@@ -19,7 +19,6 @@ import { speedFromKmh } from "@/app/lib/distance-unit";
 import {
   formatDate,
   formatDecimal2,
-  formatDecimal3,
   formatHeartRate,
   formatInteger,
 } from "@/app/lib/format";
@@ -229,13 +228,13 @@ export default async function FitnessPage({
                     }
                   />
                   <MetricCard
-                    label="Latest efficiency"
-                    value={formatDecimal3(
+                    label="Latest speed-to-HR ratio"
+                    value={formatDecimal2(
                       latest?.efficiencyRatio === null || latest?.efficiencyRatio === undefined
                         ? null
-                        : speedFromKmh(latest.efficiencyRatio, unit),
+                        : speedFromKmh(latest.efficiencyRatio, unit) * 10,
                     )}
-                    detail={`${unit === "mi" ? "mph" : "km/h"} per bpm`}
+                    detail={`${unit === "mi" ? "mi/h" : "km/h"} per 10 bpm`}
                     icon={Activity}
                     trend={
                       efficiencyTrend

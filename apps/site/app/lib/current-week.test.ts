@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { currentWeekToDate } from "./current-week";
+import { currentWeekToDate, weekStreakRecordStatus } from "./current-week";
 import type { DayRollup } from "./types";
 
 const days: DayRollup[] = [
@@ -60,5 +60,29 @@ describe("currentWeekToDate", () => {
         activeDays: 0,
         daysSoFar: 1,
       });
+  });
+});
+
+describe("weekStreakRecordStatus", () => {
+  it("identifies a new record instead of reporting a negative shortfall", () => {
+    expect(weekStreakRecordStatus(18, 17)).toEqual({
+      kind: "new-record",
+      previousRecord: 17,
+    });
+  });
+
+  it("identifies a tied record", () => {
+    expect(weekStreakRecordStatus(17, 17)).toEqual({
+      kind: "current-record",
+      record: 17,
+    });
+  });
+
+  it("reports only positive shortfalls", () => {
+    expect(weekStreakRecordStatus(16, 17)).toEqual({
+      kind: "short",
+      record: 17,
+      weeksShort: 1,
+    });
   });
 });

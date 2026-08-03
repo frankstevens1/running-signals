@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -73,6 +74,7 @@ export function LearnClient({
   const [moduleExpanded, setModuleExpanded] = useState<Record<string, boolean>>({});
   const [showDescription, setShowDescription] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const sidebarDialogRef = useRef<HTMLDialogElement>(null);
 
   const step = steps[current];
   const progressPct = ((current + 1) / totalSteps) * 100;
@@ -90,8 +92,20 @@ export function LearnClient({
   const goPrev = useCallback(() => goTo(current - 1), [current, goTo]);
   const reset = useCallback(() => goTo(0), [goTo]);
 
+  const openSidebar = useCallback(() => {
+    const dialog = sidebarDialogRef.current;
+    if (!dialog || dialog.open) return;
+    dialog.showModal();
+    setSidebarOpen(true);
+  }, []);
+
+  const closeSidebar = useCallback(() => {
+    sidebarDialogRef.current?.close();
+  }, []);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (sidebarOpen) return;
       if (e.key === "ArrowRight" && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         goNext();
@@ -102,7 +116,23 @@ export function LearnClient({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [goNext, goPrev]);
+  }, [goNext, goPrev, sidebarOpen]);
+
+  useEffect(() => {
+    if (!sidebarOpen) return;
+
+    const root = document.documentElement;
+    const body = document.body;
+    const rootOverflow = root.style.overflow;
+    const bodyOverflow = body.style.overflow;
+    root.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+
+    return () => {
+      root.style.overflow = rootOverflow;
+      body.style.overflow = bodyOverflow;
+    };
+  }, [sidebarOpen]);
 
   const toggleModule = useCallback((id: string) => {
     setModuleExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -147,8 +177,50 @@ export function LearnClient({
         </div>
       </div>
 
-      {/* Top navigation */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 py-4">
+      {/* Mobile navigation */}
+      <div className="py-4 lg:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={openSidebar}
+            aria-haspopup="dialog"
+            aria-expanded={sidebarOpen}
+            className="inline-flex shrink-0 items-center gap-1.5 border border-(--border) bg-(--surface) px-3 py-2 font-mono text-[10px] uppercase tracking-[0.08em] text-(--text-soft) transition-colors hover:bg-(--surface-muted) hover:text-(--text)"
+          >
+            <Menu className="h-3.5 w-3.5" aria-hidden="true" />
+            Modules
+          </button>
+          <div className="min-w-0 text-right">
+            <p className="truncate font-mono text-[10px] uppercase tracking-[0.12em] text-(--text-faint)">
+              {currentModule?.label}
+            </p>
+            <p className="mt-0.5 truncate text-sm font-medium text-(--text)">{step.title}</p>
+          </div>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={goPrev}
+            disabled={current === 0}
+            className="inline-flex items-center justify-center gap-1.5 border border-(--border) bg-(--surface) px-3 py-2 font-mono text-[11px] uppercase tracking-[0.08em] text-(--text-soft) transition-colors hover:bg-(--surface-muted) hover:text-(--text) disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            Previous
+          </button>
+          <button
+            type="button"
+            onClick={goNext}
+            disabled={current === totalSteps - 1}
+            className="inline-flex items-center justify-center gap-1.5 border border-(--border) bg-(--surface) px-3 py-2 font-mono text-[11px] uppercase tracking-[0.08em] text-(--text-soft) transition-colors hover:bg-(--surface-muted) hover:text-(--text) disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            Next
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+
+      {/* Desktop navigation */}
+      <div className="hidden grid-cols-[1fr_auto_1fr] items-center gap-2 py-4 lg:grid">
         <button
           onClick={goPrev}
           disabled={current === 0}
@@ -175,54 +247,48 @@ export function LearnClient({
         </button>
       </div>
 
+      <dialog
+        ref={sidebarDialogRef}
+        aria-labelledby="learn-module-dialog-title"
+        onClose={() => setSidebarOpen(false)}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) closeSidebar();
+        }}
+        className="m-auto max-h-[calc(100dvh-2rem)] w-[min(24rem,calc(100%-2rem))] overflow-y-auto border border-(--border-strong) bg-(--surface) p-0 text-(--text) shadow-[var(--shadow-dialog)] backdrop:bg-black/70 lg:hidden"
+      >
+        <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-(--border) bg-(--surface-muted) px-4 py-3">
+          <p id="learn-module-dialog-title" className="font-mono text-xs uppercase tracking-[0.12em] text-(--accent)">
+            Module progress
+          </p>
+          <button
+            type="button"
+            aria-label="Close modules"
+            onClick={closeSidebar}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-(--border) text-(--text-soft) transition-colors hover:bg-(--surface) hover:text-(--text)"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </header>
+        <div className="p-4">
+          <ModuleProgress
+            modules={modules}
+            moduleStatus={moduleStatus}
+            moduleExpanded={moduleExpanded}
+            toggleModule={toggleModule}
+            stepModuleIndices={stepModuleIndices}
+            steps={steps}
+            current={current}
+            goTo={(i) => {
+              goTo(i);
+              closeSidebar();
+            }}
+            reset={reset}
+          />
+        </div>
+      </dialog>
+
       {/* Main layout: sidebar + content */}
-      <div className="flex gap-6 lg:gap-8">
-        {/* Mobile sidebar toggle */}
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="mb-4 inline-flex items-center gap-1.5 border border-(--border) bg-(--surface) px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-(--text-soft) transition-colors hover:bg-(--surface-muted) hover:text-(--text) lg:hidden"
-        >
-          <Menu className="h-3.5 w-3.5" />
-          Modules
-        </button>
-
-        {/* Mobile sidebar overlay */}
-        {sidebarOpen && (
-          <div className="fixed inset-0 z-40 lg:hidden">
-            <div
-              className="absolute inset-0 bg-black/50"
-              onClick={() => setSidebarOpen(false)}
-            />
-            <div className="absolute inset-y-0 left-0 w-72 overflow-y-auto border-r border-(--border) bg-(--background) p-4 shadow-lg">
-              <div className="mb-4 flex items-center justify-between">
-                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-(--text-faint)">
-                  Module Progress
-                </p>
-                <button
-                  onClick={() => setSidebarOpen(false)}
-                  className="p-1 text-(--text-faint) hover:text-(--text)"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <ModuleProgress
-                modules={modules}
-                moduleStatus={moduleStatus}
-                moduleExpanded={moduleExpanded}
-                toggleModule={toggleModule}
-                stepModuleIndices={stepModuleIndices}
-                steps={steps}
-                current={current}
-                goTo={(i) => {
-                  goTo(i);
-                  setSidebarOpen(false);
-                }}
-                reset={reset}
-              />
-            </div>
-          </div>
-        )}
-
+      <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
         {/* Desktop sidebar */}
         <aside className="hidden w-56 shrink-0 lg:block">
           <div className="sticky top-[7.5rem]">

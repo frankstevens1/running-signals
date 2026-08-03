@@ -13,6 +13,7 @@ import { getServerDistanceUnit } from "@/app/lib/server-distance-unit";
 import type { DayRollup, WeekRollup } from "@/app/lib/types";
 import { getServerAnalyticsWindow } from "@/app/lib/analytics-window-server";
 import { amsterdamToday, comparisonTrendLabel } from "@/app/lib/analytics-window";
+import { weekStreakRecordStatus } from "@/app/lib/current-week";
 
 type DailyConsistencyContext = {
   longestDailyRunStreak: number;
@@ -164,6 +165,10 @@ export default async function ConsistencyPage({
               data.length > 0 ? Math.round((activeWeeks / data.length) * 100) : null;
             const latestStreak = latest?.activeWeekStreak ?? 0;
             const latestStreakStartDate = streakStartDate(latest);
+            const streakRecordStatus = weekStreakRecordStatus(
+              latestStreak,
+              longestActiveWeekStreak,
+            );
 
             const lastCompletedWeek = [...data]
               .reverse()
@@ -234,17 +239,23 @@ export default async function ConsistencyPage({
                   }
                   icon={Flame}
                   trend={
-                    latestStreak > 0 && longestActiveWeekStreak > 0
+                    streakRecordStatus
                       ? {
                           direction: "neutral",
                           value:
-                            latestStreak === longestActiveWeekStreak
+                            streakRecordStatus.kind === "new-record"
+                              ? "new record"
+                              : streakRecordStatus.kind === "current-record"
                               ? "current record"
-                              : `${formatInteger(longestActiveWeekStreak - latestStreak)} weeks short`,
+                              : `${formatInteger(streakRecordStatus.weeksShort)} weeks short`,
                           label:
-                            latestStreak === longestActiveWeekStreak
+                            streakRecordStatus.kind === "new-record"
+                              ? streakRecordStatus.previousRecord > 0
+                                ? `vs ${formatInteger(streakRecordStatus.previousRecord)}-week record`
+                                : ""
+                              : streakRecordStatus.kind === "current-record"
                               ? ""
-                              : `vs ${formatInteger(longestActiveWeekStreak)}-week record`,
+                              : `vs ${formatInteger(streakRecordStatus.record)}-week record`,
                         }
                       : undefined
                   }

@@ -10,6 +10,30 @@ export type CurrentWeekToDate = {
   daysSoFar: number;
 };
 
+export type WeekStreakRecordStatus =
+  | { kind: "new-record"; previousRecord: number }
+  | { kind: "current-record"; record: number }
+  | { kind: "short"; record: number; weeksShort: number }
+  | null;
+
+export function weekStreakRecordStatus(
+  currentStreak: number,
+  recordedLongestStreak: number,
+): WeekStreakRecordStatus {
+  if (currentStreak < 1) return null;
+  if (currentStreak > recordedLongestStreak) {
+    return { kind: "new-record", previousRecord: recordedLongestStreak };
+  }
+  if (currentStreak === recordedLongestStreak) {
+    return { kind: "current-record", record: currentStreak };
+  }
+  return {
+    kind: "short",
+    record: recordedLongestStreak,
+    weeksShort: recordedLongestStreak - currentStreak,
+  };
+}
+
 function dateFromIso(value: string): Date {
   return new Date(`${value}T00:00:00Z`);
 }

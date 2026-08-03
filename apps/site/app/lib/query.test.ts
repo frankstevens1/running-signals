@@ -50,6 +50,24 @@ describe("run filter measurements", () => {
 });
 
 describe("strict query parsing", () => {
+  it("accepts every sort used by the runs table", () => {
+    const sorts = [
+      "activity_date",
+      "distance_km",
+      "avg_pace_min_per_km",
+      "avg_heart_rate",
+      "total_ascent",
+      "prior_7d_distance_km",
+      "distance_economy_m_per_beat",
+      "personal_efficiency_score",
+      "route_id",
+    ] as const;
+
+    for (const sort of sorts) {
+      expect(parseRunFilters(new URLSearchParams({ sort })).sort).toBe(sort);
+    }
+  });
+
   it("rejects partial, signed, zero, and out-of-range limits", () => {
     expect(parsePositiveInt("25rows", 10, 100)).toBe(10);
     expect(parsePositiveInt("0", 10, 100)).toBe(10);

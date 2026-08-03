@@ -13,7 +13,9 @@ export type RunSort =
   | "prior_7d_distance_km"
   | "prior_28d_distance_km"
   | "route_id"
-  | "record_distance_coverage_ratio";
+  | "record_distance_coverage_ratio"
+  | "distance_economy_m_per_beat"
+  | "personal_efficiency_score";
 
 export type SortDirection = "asc" | "desc";
 export type RunView = "timeline" | "table";
@@ -47,6 +49,8 @@ const RUN_SORTS = new Set<RunSort>([
   "prior_28d_distance_km",
   "route_id",
   "record_distance_coverage_ratio",
+  "distance_economy_m_per_beat",
+  "personal_efficiency_score",
 ]);
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;

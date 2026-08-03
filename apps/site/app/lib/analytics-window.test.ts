@@ -27,6 +27,17 @@ describe("analytics windows", () => {
     expect(result.comparison).toEqual({ from: "2026-05-30", to: "2026-06-26" });
   });
 
+  it("resolves an updated comparison selection before it is applied to the URL", () => {
+    const params = withAnalyticsWindowState(
+      new URLSearchParams("routeId=r1&window=last-4-weeks&comparison=auto"),
+      { preset: "last-4-weeks", comparison: "previous-year" },
+    );
+    const result = resolveAnalyticsWindow(params, null, "2026-07-24");
+
+    expect(result.primary).toEqual({ from: "2026-06-27", to: "2026-07-24" });
+    expect(result.comparison).toEqual({ from: "2025-06-27", to: "2025-07-24" });
+  });
+
   it("gives valid URL state precedence over a persisted cookie", () => {
     const cookie = serializeAnalyticsWindowState({ preset: "all-time", comparison: "none" });
     const result = resolveAnalyticsWindow(

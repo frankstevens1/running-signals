@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowDown,
   ArrowDownUp,
+  ArrowUp,
   ArrowUpRight,
   ChevronDown,
   LocateFixed,
@@ -33,7 +35,8 @@ import {
 import type { RouteSummary } from "@/app/lib/types";
 
 type RouteFilter = "all" | "short" | "medium" | "long";
-type RouteSort = "recent" | "distance" | "pace" | "heartRate";
+type RouteSort = "recent" | "distance" | "pace" | "heartRate" | "runs";
+type RouteSortDirection = "asc" | "desc";
 type RouteSelectionSource = "list" | "map";
 type MobileScrollRequest = {
   id: number;
@@ -71,21 +74,32 @@ function compareNullable(
   return direction === "ascending" ? left - right : right - left;
 }
 
-function sortRoutes(routes: RouteSummary[], sort: RouteSort) {
+function defaultSortDirection(sort: RouteSort): RouteSortDirection {
+  return sort === "pace" || sort === "heartRate" ? "asc" : "desc";
+}
+
+function sortRoutes(routes: RouteSummary[], sort: RouteSort, direction: RouteSortDirection) {
   return [...routes].sort((left, right) => {
     let comparison: number;
     if (sort === "recent") {
-      comparison = (right.latestObservedActivityDate ?? "").localeCompare(
-        left.latestObservedActivityDate ?? "",
+      comparison = (left.latestObservedActivityDate ?? "").localeCompare(
+        right.latestObservedActivityDate ?? "",
       );
     } else if (sort === "distance") {
-      comparison = compareNullable(left.avgDistanceKm, right.avgDistanceKm, "descending");
+      comparison = compareNullable(left.avgDistanceKm, right.avgDistanceKm, direction === "asc" ? "ascending" : "descending");
     } else if (sort === "pace") {
-      comparison = compareNullable(left.avgPaceMinPerKm, right.avgPaceMinPerKm, "ascending");
+      comparison = compareNullable(left.avgPaceMinPerKm, right.avgPaceMinPerKm, direction === "asc" ? "ascending" : "descending");
+    } else if (sort === "heartRate") {
+      comparison = compareNullable(left.avgHeartRate, right.avgHeartRate, direction === "asc" ? "ascending" : "descending");
     } else {
-      comparison = compareNullable(left.avgHeartRate, right.avgHeartRate, "ascending");
+      comparison = direction === "asc"
+        ? left.runCount - right.runCount
+        : right.runCount - left.runCount;
     }
-    return comparison || left.routeId.localeCompare(right.routeId);
+    const directedComparison = sort === "recent" && direction === "desc"
+      ? -comparison
+      : comparison;
+    return directedComparison || left.routeId.localeCompare(right.routeId);
   });
 }
 
@@ -131,9 +145,10 @@ export function RouteExplorer({
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const [filter, setFilter] = useState<RouteFilter>("all");
   const [sort, setSort] = useState<RouteSort>("recent");
+  const [sortDirection, setSortDirection] = useState<RouteSortDirection>("desc");
   const [routeOffset, setRouteOffset] = useState(() => {
     if (!initialSelectedRouteId) return initialOffset;
-    const sorted = sortRoutes(routes, "recent");
+    const sorted = sortRoutes(routes, "recent", "desc");
     const selectedIndex = sorted.findIndex((route) => route.routeId === initialSelectedRouteId);
     return selectedIndex < 0 ? initialOffset : Math.floor(selectedIndex / initialLimit) * initialLimit;
   });
@@ -228,8 +243,8 @@ export function RouteExplorer({
   const visibleRoutes = useMemo(() => {
     const filtered = geographicallyScopedRoutes.filter((route) => matchesRouteFilter(route, filter));
 
-    return sortRoutes(filtered, sort);
-  }, [filter, geographicallyScopedRoutes, sort]);
+    return sortRoutes(filtered, sort, sortDirection);
+  }, [filter, geographicallyScopedRoutes, sort, sortDirection]);
   const visibleRouteIds = useMemo(
     () => new Set(visibleRoutes.map((route) => route.routeId)),
     [visibleRoutes],
@@ -566,28 +581,47 @@ export function RouteExplorer({
               <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-(--text-soft)" aria-hidden="true" />
             </span>
           </label>
-          <label className="space-y-1.5">
+          <div className="space-y-1.5">
             <span className={fieldLabelClass}>
               <ArrowDownUp className="size-3" aria-hidden="true" />
               Sort
             </span>
-            <span className="relative block">
-              <select
-                value={sort}
-                onChange={(event) => {
-                  setSort(event.target.value as RouteSort);
+            <div className="flex gap-2">
+              <span className="relative block min-w-0 flex-1">
+                <select
+                  value={sort}
+                  onChange={(event) => {
+                    const nextSort = event.target.value as RouteSort;
+                    setSort(nextSort);
+                    setSortDirection(defaultSortDirection(nextSort));
+                    resetPagination();
+                  }}
+                  className={selectControlClass}
+                >
+                  <option value="recent">Recent</option>
+                  <option value="distance">Distance</option>
+                  <option value="pace">Pace</option>
+                  <option value="heartRate">Heart rate</option>
+                  <option value="runs">Runs</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-(--text-soft)" aria-hidden="true" />
+              </span>
+              <button
+                type="button"
+                aria-label={`Sort ${sortDirection === "asc" ? "ascending" : "descending"}; change direction`}
+                title={sortDirection === "asc" ? "Ascending" : "Descending"}
+                onClick={() => {
+                  setSortDirection((current) => current === "asc" ? "desc" : "asc");
                   resetPagination();
                 }}
-                className={selectControlClass}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center border border-(--border) bg-(--background) text-(--text-soft) transition hover:border-(--accent) hover:bg-(--surface) hover:text-(--text) focus:outline-none focus:ring-1 focus:ring-(--accent)"
               >
-                <option value="recent">Most recent</option>
-                <option value="distance">Distance</option>
-                <option value="pace">Fastest pace</option>
-                <option value="heartRate">Heart rate</option>
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-(--text-soft)" aria-hidden="true" />
-            </span>
-          </label>
+                {sortDirection === "asc"
+                  ? <ArrowUp className="size-4" aria-hidden="true" />
+                  : <ArrowDown className="size-4" aria-hidden="true" />}
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center justify-between gap-3 border-b border-(--border) px-4 py-2 font-mono text-[10px] text-(--text-soft)">
