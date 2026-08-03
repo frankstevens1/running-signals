@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { QueryResult, Engine } from "@/lib/types";
+import type { QueryResult } from "@/lib/types";
 
 interface UseQueryRunnerReturn {
   result: QueryResult | null;
   error: string | null;
   loading: boolean;
-  runQuery: (sql: string, engine?: Engine) => Promise<void>;
+  runQuery: (sql: string) => Promise<void>;
   clearResult: () => void;
 }
 
@@ -16,7 +16,7 @@ export function useQueryRunner(): UseQueryRunnerReturn {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const runQuery = useCallback(async (sql: string, engine: Engine = "supabase") => {
+  const runQuery = useCallback(async (sql: string) => {
     setLoading(true);
     setError(null);
     setResult(null);
@@ -25,7 +25,7 @@ export function useQueryRunner(): UseQueryRunnerReturn {
       const response = await fetch("/api/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sql, engine }),
+        body: JSON.stringify({ sql }),
       });
 
       const data = (await response.json()) as QueryResult & { error?: string };

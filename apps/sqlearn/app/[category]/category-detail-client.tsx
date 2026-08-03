@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useCallback } from "react";
 import ExerciseCard from "@/components/exercise-card";
 import type { ExerciseFile, SolutionFile } from "@/lib/types";
 
@@ -15,11 +14,6 @@ interface CategoryDetailClientProps {
 }
 
 export default function CategoryDetailClient({ categoryId, exercises }: CategoryDetailClientProps) {
-  const [, setRefresh] = useState(0);
-  const handleSolutionSaved = useCallback(() => {
-    setRefresh((n) => n + 1);
-  }, []);
-
   if (exercises.length === 0) {
     return (
       <p className="text-text-faint text-sm">
@@ -35,11 +29,10 @@ export default function CategoryDetailClient({ categoryId, exercises }: Category
         <ExerciseCard
           key={ex.id}
           categoryId={categoryId}
-          exercise={ex}
-          prompt={ex.prompt}
-          solutions={ex.solutions}
-          onSolutionSaved={handleSolutionSaved}
-        />
+            exercise={ex}
+            prompt={ex.prompt}
+            solutions={ex.solutions}
+          />
       ))}
     </div>
   );

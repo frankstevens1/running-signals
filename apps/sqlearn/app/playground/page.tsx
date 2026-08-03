@@ -5,35 +5,29 @@ import Link from "next/link";
 import SqlEditor from "@/components/sql-editor";
 import ResultsTable from "@/components/results-table";
 import { useQueryRunner } from "@/lib/use-query-runner";
-import type { Engine } from "@/lib/types";
 
-const DEFAULT_QUERIES: { label: string; sql: string; engine: Engine }[] = [
- {
- label: "List recent runs",
- sql: "SELECT activity_date, distance_km, avg_pace_min_per_km, avg_heart_rate\nFROM site_runs\nORDER BY activity_date DESC\nLIMIT 20;",
- engine: "supabase",
+const DEFAULT_QUERIES: { label: string; sql: string }[] = [
+  {
+  label: "List recent runs",
+  sql: "SELECT activity_date, distance_km, avg_pace_min_per_km, avg_heart_rate\nFROM site_runs\nORDER BY activity_date DESC\nLIMIT 20",
  },
  {
  label: "Daily totals",
- sql: "SELECT calendar_date, run_count, distance_km, duration_seconds\nFROM site_days\nORDER BY calendar_date DESC\nLIMIT 20;",
- engine: "supabase",
+  sql: "SELECT calendar_date, run_count, distance_km, duration_seconds\nFROM site_days\nORDER BY calendar_date DESC\nLIMIT 20",
  },
  {
  label: "Weekly summary",
- sql: "SELECT week_start_date, weekly_distance_km, runs_per_week, avg_pace_min_per_km\nFROM site_weeks\nORDER BY week_start_date DESC\nLIMIT 10;",
- engine: "supabase",
+  sql: "SELECT week_start_date, weekly_distance_km, runs_per_week, avg_pace_min_per_km\nFROM site_weeks\nORDER BY week_start_date DESC\nLIMIT 10",
  },
  {
  label: "Route stats",
- sql: "SELECT route_id, run_count, avg_distance_km, avg_pace_min_per_km, avg_heart_rate\nFROM site_routes\nORDER BY run_count DESC\nLIMIT 10;",
- engine: "supabase",
+  sql: "SELECT route_id, run_count, avg_distance_km, avg_pace_min_per_km, avg_heart_rate\nFROM site_routes\nORDER BY run_count DESC\nLIMIT 10",
  },
 ];
 
 export default function PlaygroundPage() {
  const { result, error, loading, runQuery, clearResult } = useQueryRunner();
  const [sql, setSql] = useState("");
- const [engine, setEngine] = useState<Engine>("supabase");
 
  return (
  <div className="min-h-screen">
@@ -46,9 +40,7 @@ export default function PlaygroundPage() {
  &larr; Curriculum
  </Link>
  <h1 className="text-2xl font-semibold text-text mb-2">SQL Playground</h1>
- <p className="text-text-soft">
- Run ad-hoc queries against your Supabase or Databricks data.
- </p>
+  <p className="text-text-soft">Run read-only queries against curated Supabase views.</p>
  </header>
 
  <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
@@ -56,17 +48,8 @@ export default function PlaygroundPage() {
  <SqlEditor value={sql} onChange={setSql} label="SQL Query" />
 
  <div className="flex items-center gap-3">
- <select
- value={engine}
- onChange={(e) => setEngine(e.target.value as Engine)}
- className="px-3 py-1.5 border border-border bg-surface-muted text-text text-sm"
- >
- <option value="supabase">Supabase (PostgreSQL)</option>
- <option value="databricks">Databricks</option>
- </select>
-
- <button
- onClick={() => runQuery(sql, engine)}
+  <button
+  onClick={() => runQuery(sql)}
  disabled={loading || !sql.trim()}
  className="px-5 py-1.5 bg-accent text-accent-foreground text-sm font-medium hover:bg-accent-strong disabled:opacity-50 transition-colors"
  >
@@ -107,10 +90,9 @@ export default function PlaygroundPage() {
  {DEFAULT_QUERIES.map((q) => (
  <button
  key={q.label}
- onClick={() => {
- setSql(q.sql);
- setEngine(q.engine);
- }}
+  onClick={() => {
+  setSql(q.sql);
+  }}
  className="w-full text-left px-3 py-2 border border-border bg-surface-muted hover:border-accent/50 hover:bg-surface-raised text-sm text-text-soft transition-colors"
  >
  {q.label}

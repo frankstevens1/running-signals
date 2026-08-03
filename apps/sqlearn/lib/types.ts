@@ -9,8 +9,6 @@ export interface QueryError {
   error: string;
 }
 
-export type Engine = "supabase" | "databricks";
-
 export interface CategoryMeta {
   id: string;
   order: number;
@@ -26,11 +24,9 @@ export interface ExerciseFile {
   id: string;
   fileName: string;
   difficulty: "easy" | "medium" | "hard";
-  filePath: string;
 }
 
 export interface SolutionFile {
   fileName: string;
   label: string;
-  filePath: string;
 }

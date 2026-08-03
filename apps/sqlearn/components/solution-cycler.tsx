@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import type { SolutionFile } from "@/lib/types";
 
 interface SolutionCyclerProps {

@@ -5,6 +5,7 @@ import SqlEditor from "./sql-editor";
 import ResultsTable from "./results-table";
 import SolutionCycler from "./solution-cycler";
 import { useQueryRunner } from "@/lib/use-query-runner";
+import { useLocalSolutions } from "@/lib/use-local-solutions";
 import { useProgress } from "@/lib/use-progress";
 import type { ExerciseFile, SolutionFile } from "@/lib/types";
 
@@ -13,7 +14,6 @@ interface ExerciseCardProps {
   exercise: ExerciseFile;
   prompt: string;
   solutions: SolutionFile[];
-  onSolutionSaved: () => void;
 }
 
 export default function ExerciseCard({
@@ -21,7 +21,6 @@ export default function ExerciseCard({
   exercise,
   prompt,
   solutions,
-  onSolutionSaved,
 }: ExerciseCardProps) {
   const { result, error, loading, runQuery, clearResult } = useQueryRunner();
   const { isCompleted, toggleExercise } = useProgress();
@@ -31,7 +30,7 @@ export default function ExerciseCard({
   const [solutionContent, setSolutionContent] = useState("");
   const [solutionHtml, setSolutionHtml] = useState("");
   const [saveLabel, setSaveLabel] = useState("");
-  const [saving, setSaving] = useState(false);
+  const { save, solutions: localSolutions } = useLocalSolutions(categoryId, exercise.id);
   const completed = isCompleted(categoryId, exercise.id);
 
   const loadSolutionContent = useCallback(
@@ -89,28 +88,10 @@ export default function ExerciseCard({
     runQuery(sql.trim());
   }, [sql, runQuery]);
 
-  const handleSaveSolution = useCallback(async () => {
+  const handleSaveSolution = useCallback(() => {
     if (!sql.trim() || !saveLabel.trim()) return;
-    setSaving(true);
-    try {
-      const res = await fetch("/api/curriculum", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          categoryId,
-          exerciseId: exercise.id,
-          label: saveLabel.trim(),
-          content: sql.trim(),
-        }),
-      });
-      if (res.ok) {
-        setSaveLabel("");
-        onSolutionSaved();
-      }
-    } finally {
-      setSaving(false);
-    }
-  }, [sql, saveLabel, categoryId, exercise.id, onSolutionSaved]);
+    if (save(saveLabel, sql.trim())) setSaveLabel("");
+  }, [save, saveLabel, sql]);
 
   const handleMarkDone = useCallback(() => {
     toggleExercise(categoryId, exercise.id);
@@ -201,14 +182,32 @@ export default function ExerciseCard({
               />
               <button
                 onClick={handleSaveSolution}
-                disabled={saving || !saveLabel.trim()}
+                disabled={!saveLabel.trim()}
                 className="px-2.5 py-1 border border-accent/30 text-accent text-xs hover:bg-accent-soft/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
-                {saving ? "Saving..." : "Save"}
+                Save locally
               </button>
             </div>
           )}
         </div>
+
+        {localSolutions.length > 0 ? (
+          <div className="border border-border bg-surface-muted/50 p-3">
+            <p className="text-xs text-text-faint">Saved in this browser</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {localSolutions.map((solution) => (
+                <button
+                  key={solution.id}
+                  type="button"
+                  onClick={() => setSql(solution.content)}
+                  className="border border-border px-2 py-1 text-xs text-text-soft transition-colors hover:border-accent hover:text-accent"
+                >
+                  {solution.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {/* solution panel */}
         {showSolution && solutions.length > 0 && (

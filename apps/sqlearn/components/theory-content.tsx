@@ -100,7 +100,7 @@ async function renderMarkdown(md: string): Promise<string> {
   const parts: string[] = [];
 
   for (const block of blocks) {
-    let inline = block.content;
+    let inline = block.type === "code" ? block.content : escapeHtml(block.content);
 
     if (block.type !== "code") {
       inline = inline.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');

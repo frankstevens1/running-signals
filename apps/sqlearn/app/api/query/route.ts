@@ -1,28 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
+import { hasValidSession, SQLEARN_SESSION_COOKIE } from "@/lib/auth";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { executeQuery } from "@/lib/sql-runner";
-import type { Engine } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
+  if (!await hasValidSession(request.cookies.get(SQLEARN_SESSION_COOKIE)?.value)) {
+    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  }
+
+  const contentLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > 12_000) {
+    return NextResponse.json({ error: "Query payload is too large." }, { status: 413 });
+  }
+
+  let rateLimitResponse: NextResponse | null;
   try {
-    const body = (await request.json()) as { sql: string; engine?: string };
-    const { sql, engine = "supabase" } = body;
+    rateLimitResponse = await enforceRateLimit(request, "query");
+  } catch {
+    return NextResponse.json({ error: "Query execution is temporarily unavailable." }, { status: 503 });
+  }
+  if (rateLimitResponse) return rateLimitResponse;
+
+  try {
+    const body = (await request.json()) as { sql?: unknown };
+    const { sql } = body;
 
     if (!sql || typeof sql !== "string") {
       return NextResponse.json({ error: "Missing or invalid 'sql' field." }, { status: 400 });
     }
 
-    const validEngines = ["supabase", "databricks"];
-    if (!validEngines.includes(engine)) {
-      return NextResponse.json(
-        { error: `Invalid engine. Must be one of: ${validEngines.join(", ")}.` },
-        { status: 400 }
-      );
-    }
-
-    const result = await executeQuery(sql, engine as Engine);
+    const result = await executeQuery(sql);
     return NextResponse.json(result);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "An unknown error occurred.";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Query execution failed.";
+    const isValidationError = message.includes("allowed")
+      || message.includes("LIMIT")
+      || message.includes("statement")
+      || message.includes("parsed")
+      || message.includes("characters");
+    return NextResponse.json({ error: isValidationError ? message : "Query execution failed." }, {
+      status: isValidationError ? 400 : 500,
+    });
   }
 }

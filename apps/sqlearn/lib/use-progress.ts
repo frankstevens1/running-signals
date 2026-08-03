@@ -37,8 +37,11 @@ export function useProgress() {
   const [progress, setProgress] = useState<ProgressState>({});
 
   useEffect(() => {
-    setProgress(loadProgress());
-    setLoaded(true);
+    const timeout = window.setTimeout(() => {
+      setProgress(loadProgress());
+      setLoaded(true);
+    }, 0);
+    return () => window.clearTimeout(timeout);
   }, []);
 
   const toggleExercise = useCallback(
@@ -71,7 +74,7 @@ export function useProgress() {
   );
 
   const categoryProgress = useCallback(
-    (categoryId: string, totalExercises: number): number => {
+    (categoryId: string): number => {
       if (!loaded) return 0;
       const cat = progress[categoryId] ?? {};
       return Object.values(cat).filter((e) => e.completed).length;

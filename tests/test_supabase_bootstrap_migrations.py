@@ -9,6 +9,7 @@ MIGRATION_NAMES = [
     "202608040004_public_rpcs.sql",
     "202608040005_rls_grants.sql",
     "202608040006_postgrest_reload.sql",
+    "202608040007_sqlearn_reader.sql",
 ]
 
 
@@ -57,3 +58,14 @@ def test_views_rpcs_and_access_controls_follow_dependency_order() -> None:
     assert rpcs.count("set search_path = public") == 4
     assert "grant usage on schema public to anon, authenticated" in access
     assert "public.site_map_profile_records(text, text)" in access
+
+
+def test_sqlearn_reader_is_limited_to_dedicated_security_barrier_views() -> None:
+    sqlearn_reader = migration("202608040007_sqlearn_reader.sql")
+
+    assert "create role sqlearn_reader nologin noinherit" in sqlearn_reader
+    assert "create schema if not exists sqlearn authorization postgres" in sqlearn_reader
+    assert sqlearn_reader.count("with (security_barrier = true)") == 6
+    assert "grant select on all tables in schema sqlearn to sqlearn_reader" in sqlearn_reader
+    assert "revoke all on all tables in schema public from sqlearn_reader" in sqlearn_reader
+    assert "default_transaction_read_only = on" in sqlearn_reader

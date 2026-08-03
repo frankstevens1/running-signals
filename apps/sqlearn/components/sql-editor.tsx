@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { EditorView, basicSetup } from "codemirror";
 import { EditorState } from "@codemirror/state";
 import { sql, PostgreSQL } from "@codemirror/lang-sql";
@@ -15,20 +15,20 @@ interface SqlEditorProps {
 export default function SqlEditor({ value, onChange, label }: SqlEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  const initialValueRef = useRef(value);
+  const onDocumentChange = useEffectEvent((nextValue: string) => onChange(nextValue));
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const updateListener = EditorView.updateListener.of((update) => {
-      if (update.docChanged) {
-        onChangeRef.current(update.state.doc.toString());
+      const updateListener = EditorView.updateListener.of((update) => {
+        if (update.docChanged) {
+          onDocumentChange(update.state.doc.toString());
       }
     });
 
     const state = EditorState.create({
-      doc: value,
+      doc: initialValueRef.current,
       extensions: [
         basicSetup,
         sql({ dialect: PostgreSQL }),

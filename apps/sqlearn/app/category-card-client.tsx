@@ -14,7 +14,7 @@ export default function CategoryCardClient({
   totalExercises,
 }: CategoryCardClientProps) {
   const { categoryProgress } = useProgress();
-  const done = categoryProgress(category.id, totalExercises);
+  const done = categoryProgress(category.id);
   const progressPct =
     totalExercises > 0 ? Math.round((done / totalExercises) * 100) : 0;
 

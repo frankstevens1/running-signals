@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { hasValidSession, SQLEARN_SESSION_COOKIE } from "@/lib/auth";
 import {
   getExerciseContent,
   getSolutionContent,
-  saveSolution,
 } from "@/lib/curriculum";
 
 export async function GET(request: NextRequest) {
+  if (!await hasValidSession(request.cookies.get(SQLEARN_SESSION_COOKIE)?.value)) {
+    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const category = searchParams.get("category");
   const exercise = searchParams.get("exercise");
@@ -28,25 +32,4 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({ error: "Missing parameters." }, { status: 400 });
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = (await request.json()) as {
-      categoryId: string;
-      exerciseId: string;
-      label: string;
-      content: string;
-    };
-
-    if (!body.categoryId || !body.exerciseId || !body.label || !body.content) {
-      return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
-    }
-
-    const result = saveSolution(body.categoryId, body.exerciseId, body.label, body.content);
-    return NextResponse.json(result);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
 }

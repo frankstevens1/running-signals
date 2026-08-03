@@ -1,5 +1,5 @@
 import "server-only";
-import { readdirSync, existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readdirSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const CURRICULUM_DIR = join(process.cwd(), "curriculum");
@@ -19,13 +19,11 @@ export interface ExerciseFile {
   id: string;
   fileName: string;
   difficulty: "easy" | "medium" | "hard";
-  filePath: string;
 }
 
 export interface SolutionFile {
   fileName: string;
   label: string;
-  filePath: string;
 }
 
 function cleanFileName(fileName: string): string {
@@ -140,7 +138,6 @@ export function getExercises(categoryId: string): ExerciseFile[] {
       id,
       fileName: cleaned,
       difficulty: parseDifficulty(fileName),
-      filePath: join(exercisesDir, fileName),
     };
   });
 }
@@ -149,7 +146,10 @@ export function getExerciseContent(categoryId: string, exerciseId: string): stri
   const categoryDir = findCategoryDir(categoryId);
   if (!categoryDir) return null;
 
-  const exercisePath = join(categoryDir, "exercises", `${exerciseId}.sql`);
+  const exercise = getExercises(categoryId).find((candidate) => candidate.id === exerciseId);
+  if (!exercise) return null;
+
+  const exercisePath = join(categoryDir, "exercises", `${exercise.id}.sql`);
   if (!existsSync(exercisePath)) return null;
 
   return readFileSync(exercisePath, "utf-8");
@@ -158,6 +158,7 @@ export function getExerciseContent(categoryId: string, exerciseId: string): stri
 export function getSolutions(categoryId: string, exerciseId: string): SolutionFile[] {
   const categoryDir = findCategoryDir(categoryId);
   if (!categoryDir) return [];
+  if (!getExercises(categoryId).some((exercise) => exercise.id === exerciseId)) return [];
 
   const solutionsDir = join(categoryDir, "_solutions", exerciseId);
   if (!existsSync(solutionsDir)) return [];
@@ -170,7 +171,6 @@ export function getSolutions(categoryId: string, exerciseId: string): SolutionFi
   return files.map((fileName) => ({
     fileName,
     label: fileName.replace(/\.sql$/, "").replace(/^\d+-/, "").replace(/-/g, " "),
-    filePath: join(solutionsDir, fileName),
   }));
 }
 
@@ -181,31 +181,14 @@ export function getSolutionContent(
 ): string | null {
   const categoryDir = findCategoryDir(categoryId);
   if (!categoryDir) return null;
+  if (!getExercises(categoryId).some((exercise) => exercise.id === exerciseId)) return null;
 
-  const solutionPath = join(categoryDir, "_solutions", exerciseId, solutionFileName);
+  const solution = getSolutions(categoryId, exerciseId)
+    .find((candidate) => candidate.fileName === solutionFileName);
+  if (!solution) return null;
+
+  const solutionPath = join(categoryDir, "_solutions", exerciseId, solution.fileName);
   if (!existsSync(solutionPath)) return null;
 
   return readFileSync(solutionPath, "utf-8");
-}
-
-export function saveSolution(
-  categoryId: string,
-  exerciseId: string,
-  label: string,
-  content: string
-): SolutionFile {
-  const categoryDir = findCategoryDir(categoryId);
-  if (!categoryDir) throw new Error(`Category ${categoryId} not found`);
-
-  const solutionsDir = join(categoryDir, "_solutions", exerciseId);
-  mkdirSync(solutionsDir, { recursive: true });
-
-  const sanitized = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-  const timestamp = Date.now();
-  const fileName = `${timestamp}-${sanitized || "solution"}.sql`;
-  const filePath = join(solutionsDir, fileName);
-
-  writeFileSync(filePath, content, "utf-8");
-
-  return { fileName, label, filePath };
 }
