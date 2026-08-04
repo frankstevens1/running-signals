@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowDown, ArrowUpRight, Braces, Database } from "lucide-react";
+import { siGithub } from "simple-icons";
 
 import { AppShell } from "@/app/components/app-shell";
 import { LandingStatusPanel } from "@/app/components/landing-status-panel";
@@ -58,8 +59,21 @@ export default function Home() {
               inspectable—from recoverable Garmin payloads to tested analytical marts and focused
               data explorers.
             </p>
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-text-soft">
+              Review the{" "}
+              <a
+                href="https://github.com/frankstevens1/running-signals"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Review the project source code on GitHub (opens in a new tab)"
+                className="font-medium text-accent underline decoration-accent underline-offset-4 transition-colors hover:text-accent-strong"
+              >
+                project source code
+              </a>{" "}
+              to inspect the pipeline, transformations, tests, and interface.
+            </p>
 
-            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <Link
                 href="#signal-families"
                 className="inline-flex h-11 items-center justify-center gap-2 bg-accent px-5 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-accent-foreground transition-colors hover:bg-accent-strong"
@@ -74,6 +88,18 @@ export default function Home() {
                 Trace the pipeline
                 <ArrowDown className="h-4 w-4" aria-hidden="true" />
               </Link>
+              <a
+                href="https://github.com/frankstevens1/running-signals"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="View the source code on GitHub (opens in a new tab)"
+                className="inline-flex h-11 items-center justify-center gap-2 border border-border bg-surface px-5 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-text transition-colors hover:border-text-soft hover:bg-surface-muted"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                  <path d={siGithub.path} />
+                </svg>
+                Source
+              </a>
             </div>
           </div>
 
