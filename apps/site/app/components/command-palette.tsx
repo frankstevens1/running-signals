@@ -144,11 +144,11 @@ export function CommandPalette() {
         type="button"
         onClick={openPalette}
         aria-haspopup="dialog"
-        className="group inline-flex h-9 items-center gap-2 border border-(--border) bg-(--surface-muted) px-3 font-mono text-xs text-(--text-soft) transition-colors hover:border-(--border-strong) hover:bg-(--surface-raised) hover:text-(--text)"
+        className="group inline-flex h-9 items-center gap-2 border border-border bg-surface-muted px-3 font-mono text-xs text-text-soft transition-colors hover:border-border-strong hover:bg-(--surface-raised) hover:text-text"
       >
-        <Search className="h-4 w-4 text-(--accent)" aria-hidden="true" />
+        <Search className="h-4 w-4 text-accent" aria-hidden="true" />
         <span className="hidden text-sm pr-4 sm:inline">Find a view</span>
-        <kbd className="hidden border border-(--border) bg-(--background) px-1.5 py-0.5 text-[10px] text-(--text-soft) md:inline">
+        <kbd className="hidden border border-border bg-background px-1.5 py-0.5 text-[10px] text-text-soft md:inline">
           <span aria-hidden="true">⌘</span>
           <span className="sr-only">Command or Control plus</span>K
         </kbd>
@@ -169,15 +169,15 @@ export function CommandPalette() {
             closePalette();
           }
         }}
-        className="m-auto w-[min(42rem,calc(100%-2rem))] overscroll-contain border border-(--border-strong) bg-(--surface) p-0 text-(--text) shadow-[var(--shadow-dialog)] backdrop:bg-black/70"
+        className="m-auto w-[min(42rem,calc(100%-2rem))] overscroll-contain border border-border-strong bg-surface p-0 text-text shadow-(--shadow-dialog) backdrop:bg-black/70"
       >
-        <div className="border-b border-(--border) px-4 py-3 sm:px-5">
+        <div className="border-b border-border px-4 py-3 sm:px-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p id="command-palette-title" className="font-mono text-xs uppercase tracking-[0.14em] text-(--accent)">
+              <p id="command-palette-title" className="font-mono text-xs uppercase tracking-[0.14em] text-accent">
                 Navigation index
               </p>
-              <p id="command-palette-description" className="mt-1 text-sm text-(--text-soft)">
+              <p id="command-palette-description" className="mt-1 text-sm text-text-soft">
                 Search explorers, signals, and project views.
               </p>
             </div>
@@ -185,14 +185,14 @@ export function CommandPalette() {
               type="button"
               onClick={closePalette}
               aria-label="Close navigation search"
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-(--border) text-(--text-soft) transition-colors hover:bg-(--surface-muted) hover:text-(--text)"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-border text-text-soft transition-colors hover:bg-surface-muted hover:text-text"
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
 
-          <div className="mt-4 flex items-center gap-3 border border-(--border-strong) bg-(--background) px-3 focus-within:border-(--accent)">
-            <Search className="h-4 w-4 shrink-0 text-(--accent)" aria-hidden="true" />
+          <div className="mt-4 flex items-center gap-3 border border-border-strong bg-background px-3 focus-within:border-accent">
+            <Search className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
             <label htmlFor="command-palette-input" className="sr-only">
               Search pages
             </label>
@@ -238,7 +238,7 @@ export function CommandPalette() {
               }
               autoComplete="off"
               placeholder="Type a page, metric, or model layer…"
-              className="command-palette-input h-12 min-w-0 flex-1 bg-transparent font-mono text-sm text-(--text) placeholder:text-(--text-faint)"
+              className="command-palette-input h-12 min-w-0 flex-1 bg-transparent font-mono text-sm text-text placeholder:text-text-faint"
             />
           </div>
         </div>
@@ -264,25 +264,25 @@ export function CommandPalette() {
                   onClick={() => selectItem(item.href)}
                   className={`flex w-full items-center gap-3 border px-3 py-3 text-left transition-colors ${
                     isActive
-                      ? "border-(--accent) bg-(--accent-soft)"
-                      : "border-transparent hover:border-(--border) hover:bg-(--surface-muted)"
+                      ? "border-accent bg-accent-soft"
+                      : "border-transparent hover:border-border hover:bg-surface-muted"
                   }`}
                 >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center border border-(--border) bg-(--surface-raised) text-(--accent)">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center border border-border bg-(--surface-raised) text-accent">
                     <Icon className="h-4 w-4" aria-hidden="true" />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2">
-                      <span className="font-medium text-(--text)">{item.label}</span>
-                      <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-(--text-faint)">
+                      <span className="font-medium text-text">{item.label}</span>
+                      <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-faint">
                         {item.group}
                       </span>
                     </span>
-                    <span className="mt-0.5 block truncate text-xs text-(--text-soft)">
+                    <span className="mt-0.5 block truncate text-xs text-text-soft">
                       {item.description}
                     </span>
                   </span>
-                  <span className="font-mono text-xs text-(--text-faint)" aria-hidden="true">
+                  <span className="font-mono text-xs text-text-faint" aria-hidden="true">
                     {isActive ? "↵" : item.href}
                   </span>
                 </button>
@@ -290,15 +290,15 @@ export function CommandPalette() {
             })
           ) : (
             <div className="px-4 py-10 text-center">
-              <p className="font-mono text-sm text-(--text)">No matching view</p>
-              <p className="mt-2 text-sm text-(--text-soft)">
+              <p className="font-mono text-sm text-text">No matching view</p>
+              <p className="mt-2 text-sm text-text-soft">
                 Try a signal name, explorer, or model layer.
               </p>
             </div>
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-(--border) px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-(--text-faint) sm:px-5">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-text-faint sm:px-5">
           <span className="inline-flex items-center gap-1.5">
             <ArrowUp className="h-3 w-3" aria-hidden="true" />
             <ArrowDown className="h-3 w-3" aria-hidden="true" />

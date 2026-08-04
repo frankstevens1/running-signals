@@ -58,20 +58,20 @@ export function RunPagination({
   const hasPrevious = safeOffset > 0;
   const hasNext = safeOffset + limit < total;
   const controlClass =
-    "inline-flex h-8 items-center gap-2 border border-(--border) px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-(--text) transition-colors hover:border-(--text-soft) hover:bg-(--surface-muted)";
+    "inline-flex h-8 items-center gap-2 border border-border px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-text transition-colors hover:border-text-soft hover:bg-surface-muted";
   const disabledClass =
-    "inline-flex h-8 items-center gap-2 border border-(--border) px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-(--text-soft) opacity-40";
+    "inline-flex h-8 items-center gap-2 border border-border px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-text-soft opacity-40";
 
   return (
     <>
       <div
         data-runs-pagination
-        className="sticky top-[calc(4rem+2.75rem+1px)] z-30 border border-(--border) bg-(--surface) px-3 py-2.5 sm:px-4 lg:top-28"
+        className="sticky top-[calc(4rem+2.75rem+1px)] z-30 border border-border bg-surface px-3 py-2.5 sm:px-4 lg:top-28"
       >
       {/* Desktop: original flat layout */}
       <div className="hidden lg:flex lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="inline-flex w-fit items-center border border-(--border) bg-(--surface-muted) p-0.5">
+          <div className="inline-flex w-fit items-center border border-border bg-surface-muted p-0.5">
             {views.map((option) => (
               <RunDataRefreshLink
                 key={option}
@@ -79,15 +79,15 @@ export function RunPagination({
                 scroll={false}
                 className={`inline-flex h-7 items-center px-2.5 font-mono text-[10px] uppercase tracking-[0.08em] ${
                   view === option
-                    ? "bg-(--accent) text-(--accent-foreground)"
-                    : "text-(--text-soft) hover:bg-(--surface) hover:text-(--text)"
+                    ? "bg-accent text-accent-foreground"
+                    : "text-text-soft hover:bg-surface hover:text-text"
                 }`}
               >
                 {option}
               </RunDataRefreshLink>
             ))}
           </div>
-          <div className="flex items-center gap-0.5 border border-(--border) bg-(--surface-muted) p-0.5">
+          <div className="flex items-center gap-0.5 border border-border bg-surface-muted p-0.5">
             {pageSizes.map((size) => (
               <RunDataRefreshLink
                 key={size}
@@ -95,23 +95,23 @@ export function RunPagination({
                 scroll={false}
                 className={`inline-flex h-7 items-center px-2 font-mono text-[10px] font-semibold ${
                   limit === size
-                    ? "bg-(--accent) text-(--accent-foreground)"
-                    : "text-(--text-soft) hover:bg-(--surface) hover:text-(--text)"
+                    ? "bg-accent text-accent-foreground"
+                    : "text-text-soft hover:bg-surface hover:text-text"
                 }`}
               >
                 {size}
               </RunDataRefreshLink>
             ))}
           </div>
-          <p className="font-mono text-[11px] text-(--text-soft)">
-            rows <span className="text-(--text)">{start.toLocaleString()}</span>-
-            <span className="text-(--text)">{end.toLocaleString()}</span> /{" "}
-            <span className="text-(--text)">{total.toLocaleString()}</span>
-            <span className="ml-3 text-(--text-soft)">
+          <p className="font-mono text-[11px] text-text-soft">
+            rows <span className="text-text">{start.toLocaleString()}</span>-
+            <span className="text-text">{end.toLocaleString()}</span> /{" "}
+            <span className="text-text">{total.toLocaleString()}</span>
+            <span className="ml-3 text-text-soft">
               page {currentPage.toLocaleString()}:{pageCount.toLocaleString()}
             </span>
             {comparisonTotal !== null ? (
-              <span className="ml-3 text-(--text-soft)">
+              <span className="ml-3 text-text-soft">
                 comparison {comparisonTotal.toLocaleString()} ({total - comparisonTotal >= 0 ? "+" : ""}
                 {(total - comparisonTotal).toLocaleString()})
               </span>
@@ -155,7 +155,7 @@ export function RunPagination({
 
         {/* Mobile: controls with a compact two-row result summary */}
         <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1 lg:hidden">
-          <div className="inline-flex w-fit items-center justify-self-start border border-(--border) bg-(--surface-muted) p-0.5">
+          <div className="inline-flex w-fit items-center justify-self-start border border-border bg-surface-muted p-0.5">
             {views.map((option) => (
               <RunDataRefreshLink
                 key={option}
@@ -163,8 +163,8 @@ export function RunPagination({
                 scroll={false}
                 className={`inline-flex h-7 items-center px-1.5 font-mono text-[8px] uppercase tracking-[0.08em] sm:px-2 sm:text-[9px] ${
                   view === option
-                    ? "bg-(--accent) text-(--accent-foreground)"
-                    : "text-(--text-soft) hover:bg-(--surface) hover:text-(--text)"
+                    ? "bg-accent text-accent-foreground"
+                    : "text-text-soft hover:bg-surface hover:text-text"
                 }`}
               >
                 {option}
@@ -172,12 +172,12 @@ export function RunPagination({
             ))}
           </div>
 
-          <div className="grid grid-rows-2 justify-self-center text-center font-mono text-[8px] leading-[11px] text-(--text-soft) sm:text-[9px] sm:leading-[12px]">
+          <div className="grid grid-rows-2 justify-self-center text-center font-mono text-[8px] leading-[11px] text-text-soft sm:text-[9px] sm:leading-[12px]">
             <p className="whitespace-nowrap">
-              rows <span className="text-(--text)">{start}-{end}/{total}</span>
+              rows <span className="text-text">{start}-{end}/{total}</span>
             </p>
             <p className="whitespace-nowrap">
-              page <span className="text-(--text)">{currentPage}/{pageCount}</span>
+              page <span className="text-text">{currentPage}/{pageCount}</span>
             </p>
           </div>
 

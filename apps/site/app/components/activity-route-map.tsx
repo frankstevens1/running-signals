@@ -234,7 +234,7 @@ export function ActivityRouteMap({
   if (sequences.length === 0) {
     return (
       <div
-        className={`flex items-center justify-center border border-dashed border-(--border) bg-(--surface-muted) px-4 font-mono text-sm text-(--text-soft) ${radiusClassName} ${className}`}
+        className={`flex items-center justify-center border border-dashed border-border bg-surface-muted px-4 font-mono text-sm text-text-soft ${radiusClassName} ${className}`}
       >
         No GPS route
       </div>
@@ -244,7 +244,7 @@ export function ActivityRouteMap({
   return (
     <div
       ref={containerRef}
-      className={`overflow-hidden bg-(--surface-muted) ${radiusClassName} ${className}`}
+      className={`overflow-hidden bg-surface-muted ${radiusClassName} ${className}`}
     />
   );
 }

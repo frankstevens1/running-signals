@@ -115,11 +115,11 @@ export function RunFilters({
   const selectedRouteId = values.routeId;
   const hasSelectedRouteOption = routes.some((route) => route.routeId === selectedRouteId);
   const controlClass =
-    "h-8 w-full rounded-none border border-(--border) bg-(--background) px-2.5 font-mono text-[11px] text-(--text) outline-none transition placeholder:text-(--text-soft) focus:border-(--accent) focus:bg-(--surface) focus:ring-1 focus:ring-(--accent)";
+    "h-8 w-full rounded-none border border-border bg-background px-2.5 font-mono text-[11px] text-text outline-none transition placeholder:text-text-soft focus:border-accent focus:bg-surface focus:ring-1 focus:ring-(--accent)";
   const selectControlClass = `${controlClass} appearance-none pr-8`;
   const fieldClass = "space-y-1";
   const fieldLabelClass =
-    "block font-mono text-[10px] uppercase tracking-[0.12em] text-(--text-soft)";
+    "block font-mono text-[10px] uppercase tracking-[0.12em] text-text-soft";
   const pairedFieldClass = `${fieldClass} sm:col-span-2 xl:col-span-3`;
   const dateMinimum = filterBounds.minActivityDate ?? undefined;
   const dateMaximum = filterBounds.maxActivityDate ?? undefined;
@@ -199,22 +199,22 @@ export function RunFilters({
   return (
     <form
       onSubmit={applyFilters}
-      className={embedded ? "" : "border border-(--border) bg-(--surface)"}
+      className={embedded ? "" : "border border-border bg-surface"}
     >
       {embedded ? null : (
-        <div className="flex items-center justify-between gap-4 border-b border-(--border) px-3 py-2.5">
+        <div className="flex items-center justify-between gap-4 border-b border-border px-3 py-2.5">
           <div className="flex min-w-0 items-center gap-3">
-            <SlidersHorizontal className="h-4 w-4 shrink-0 text-(--accent)" aria-hidden="true" />
+            <SlidersHorizontal className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
             <div>
-              <p className="font-mono text-xs uppercase tracking-[0.12em] text-(--text)">
+              <p className="font-mono text-xs uppercase tracking-[0.12em] text-text">
                 Query parameters
               </p>
-              <p className="mt-0.5 text-xs text-(--text-soft)">
+              <p className="mt-0.5 text-xs text-text-soft">
                 Filter sessions by date, distance, pace, heart rate, and route to narrow the visible list.
               </p>
             </div>
           </div>
-          <span className="hidden font-mono text-[10px] uppercase tracking-[0.12em] text-(--signal-ok) sm:block">
+          <span className="hidden font-mono text-[10px] uppercase tracking-[0.12em] text-signal-ok sm:block">
             ready
           </span>
         </div>
@@ -276,7 +276,7 @@ export function RunFilters({
               ))}
             </select>
             <ChevronDown
-              className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-(--text-soft)"
+              className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-soft"
               aria-hidden="true"
             />
           </span>
@@ -297,7 +297,7 @@ export function RunFilters({
               <option value="false">Missing</option>
             </select>
             <ChevronDown
-              className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-(--text-soft)"
+              className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-soft"
               aria-hidden="true"
             />
           </span>
@@ -420,7 +420,7 @@ export function RunFilters({
         >
           <button
             type="submit"
-            className="inline-flex h-8 min-w-0 items-center justify-center gap-2 bg-(--accent) px-3 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-(--accent-foreground) transition-colors hover:bg-(--accent-strong)"
+            className="inline-flex h-8 min-w-0 items-center justify-center gap-2 bg-accent px-3 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-accent-foreground transition-colors hover:bg-accent-strong"
           >
             <Search className="h-3.5 w-3.5" aria-hidden="true" />
             Apply
@@ -429,7 +429,7 @@ export function RunFilters({
             type="button"
             aria-label="Reset filters"
             onClick={clearFilters}
-            className="inline-flex h-8 items-center justify-center gap-2 border border-(--border) px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-(--text-soft) transition-colors hover:border-(--text-soft) hover:bg-(--surface-muted) hover:text-(--text)"
+            className="inline-flex h-8 items-center justify-center gap-2 border border-border px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-text-soft transition-colors hover:border-text-soft hover:bg-surface-muted hover:text-text"
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
             {embedded ? "Reset" : null}

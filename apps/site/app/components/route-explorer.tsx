@@ -46,10 +46,10 @@ type MobileScrollRequest = {
 };
 
 const controlClass =
-  "h-10 w-full rounded-none border border-(--border) bg-(--background) px-3 font-mono text-xs text-(--text) outline-none transition placeholder:text-(--text-soft) focus:border-(--accent) focus:bg-(--surface) focus:ring-1 focus:ring-(--accent)";
+  "h-10 w-full rounded-none border border-border bg-background px-3 font-mono text-xs text-text outline-none transition placeholder:text-text-soft focus:border-accent focus:bg-surface focus:ring-1 focus:ring-(--accent)";
 const selectControlClass = `${controlClass} appearance-none pr-9`;
 const fieldLabelClass =
-  "inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-(--text-soft)";
+  "inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-text-soft";
 
 function routeLabel(route: RouteSummary) {
   return `Route ${formatRouteId(route.routeId)}`;
@@ -432,16 +432,16 @@ export function RouteExplorer({
     >
       <section
         ref={mapPanelRef}
-        className="flex flex-col overflow-hidden border border-(--border) bg-(--surface) lg:self-start"
+        className="flex flex-col overflow-hidden border border-border bg-surface lg:self-start"
       >
-        <div className="border-b border-(--border) px-4 py-3">
-          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-(--accent)">
+        <div className="border-b border-border px-4 py-3">
+          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-accent">
             spatial.route_explorer
           </p>
           <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <h2 className="text-base font-semibold text-(--text)">Route map</h2>
+            <h2 className="text-base font-semibold text-text">Route map</h2>
             <p
-              className="font-mono text-[10px] uppercase tracking-[0.12em] text-(--text-soft)"
+              className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-soft"
               aria-live="polite"
             >
               {selectedContextLabel}
@@ -449,7 +449,7 @@ export function RouteExplorer({
           </div>
         </div>
 
-        <div className="grid gap-3 border-b border-(--border) bg-(--surface-muted) pb-3 pt-2 px-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+        <div className="grid gap-3 border-b border-border bg-surface-muted pb-3 pt-2 px-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
           <label className="space-y-1.5">
             <span className={fieldLabelClass}>
               <MapPin className="size-3" aria-hidden="true" />
@@ -469,7 +469,7 @@ export function RouteExplorer({
                   </option>
                 ))}
               </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-(--text-soft)" aria-hidden="true" />
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-text-soft" aria-hidden="true" />
             </span>
           </label>
 
@@ -492,7 +492,7 @@ export function RouteExplorer({
                   </option>
                 ))}
               </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-(--text-soft)" aria-hidden="true" />
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-text-soft" aria-hidden="true" />
             </span>
           </label>
 
@@ -504,9 +504,9 @@ export function RouteExplorer({
             <button
               type="button"
               onClick={locateUser}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-none border border-(--border) bg-(--background) px-3 font-mono text-xs font-medium text-(--text) transition-colors hover:border-(--accent) hover:bg-(--accent-soft) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--surface)"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-none border border-border bg-background px-3 font-mono text-xs font-medium text-text transition-colors hover:border-accent hover:bg-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--surface)"
             >
-              <LocateFixed className="size-4 text-(--accent)" aria-hidden="true" />
+              <LocateFixed className="size-4 text-accent" aria-hidden="true" />
               My location
             </button>
           </div>
@@ -529,16 +529,16 @@ export function RouteExplorer({
       </section>
 
       <section
-        className="flex min-h-0 flex-col overflow-hidden border border-(--border) bg-(--surface) lg:h-(--route-map-panel-height)"
+        className="flex min-h-0 flex-col overflow-hidden border border-border bg-surface lg:h-(--route-map-panel-height)"
       >
-        <div className="flex items-center justify-between gap-4 border-b border-(--border) px-4 py-3">
+        <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-3">
           <div>
-            <p className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-(--accent)">
+            <p className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-accent">
               query.route_summaries
             </p>
             <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-              <h2 className="text-base font-semibold text-(--text)">Routes</h2>
-              <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-(--text-soft)" aria-live="polite">
+              <h2 className="text-base font-semibold text-text">Routes</h2>
+              <p className="font-mono text-[10px] uppercase tracking-widest text-text-soft" aria-live="polite">
                 {visibleRoutes.length.toLocaleString()} of {routes.length.toLocaleString()} routes
                 {comparisonRouteCount !== null
                   ? ` / ${routes.length - comparisonRouteCount >= 0 ? "+" : ""}${routes.length - comparisonRouteCount} vs comparison`
@@ -550,7 +550,7 @@ export function RouteExplorer({
             <button
               type="button"
               onClick={clearExplorerContext}
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-none border border-(--border) px-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-(--text) transition-colors hover:border-(--accent) hover:bg-(--accent-soft) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-none border border-border px-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-text transition-colors hover:border-accent hover:bg-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
             >
               <X className="size-3.5" aria-hidden="true" />
               Clear
@@ -558,7 +558,7 @@ export function RouteExplorer({
           ) : null}
         </div>
 
-        <div className="grid gap-3 border-b border-(--border) bg-(--surface-muted) pb-3 pt-2 px-4 grid-cols-2">
+        <div className="grid gap-3 border-b border-border bg-surface-muted pb-3 pt-2 px-4 grid-cols-2">
           <label className="space-y-1.5">
             <span className={fieldLabelClass}>
               <SlidersHorizontal className="size-3" aria-hidden="true" />
@@ -578,7 +578,7 @@ export function RouteExplorer({
                 <option value="medium">5–10 km</option>
                 <option value="long">Long 10 km and over</option>
               </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-(--text-soft)" aria-hidden="true" />
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-text-soft" aria-hidden="true" />
             </span>
           </label>
           <div className="space-y-1.5">
@@ -604,7 +604,7 @@ export function RouteExplorer({
                   <option value="heartRate">Heart rate</option>
                   <option value="runs">Runs</option>
                 </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-(--text-soft)" aria-hidden="true" />
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-text-soft" aria-hidden="true" />
               </span>
               <button
                 type="button"
@@ -614,7 +614,7 @@ export function RouteExplorer({
                   setSortDirection((current) => current === "asc" ? "desc" : "asc");
                   resetPagination();
                 }}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center border border-(--border) bg-(--background) text-(--text-soft) transition hover:border-(--accent) hover:bg-(--surface) hover:text-(--text) focus:outline-none focus:ring-1 focus:ring-(--accent)"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center border border-border bg-background text-text-soft transition hover:border-accent hover:bg-surface hover:text-text focus:outline-none focus:ring-1 focus:ring-(--accent)"
               >
                 {sortDirection === "asc"
                   ? <ArrowUp className="size-4" aria-hidden="true" />
@@ -624,7 +624,7 @@ export function RouteExplorer({
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-b border-(--border) px-4 py-2 font-mono text-[10px] text-(--text-soft)">
+        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2 font-mono text-[10px] text-text-soft">
           <span>
             {visibleRoutes.length === 0 ? 0 : safeRouteOffset + 1}-
             {Math.min(safeRouteOffset + routeLimit, visibleRoutes.length)} of {visibleRoutes.length}
@@ -639,7 +639,7 @@ export function RouteExplorer({
                 setRouteOffset(0);
                 replaceRoutePagination(0, nextLimit);
               }}
-              className="h-7 border border-(--border) bg-(--background) pl-2 pr-1 text-(--text)"
+              className="h-7 border border-border bg-background pl-2 pr-1 text-text"
             >
               {[10, 25, 50, 100].map((value) => <option key={value} value={value}>{value}</option>)}
             </select>
@@ -651,7 +651,7 @@ export function RouteExplorer({
                 setRouteOffset(nextOffset);
                 replaceRoutePagination(nextOffset, routeLimit);
               }}
-              className="h-7 border border-(--border) px-2 text-(--text) disabled:opacity-40"
+              className="h-7 border border-border px-2 text-text disabled:opacity-40"
             >
               Prev
             </button>
@@ -663,7 +663,7 @@ export function RouteExplorer({
                 setRouteOffset(nextOffset);
                 replaceRoutePagination(nextOffset, routeLimit);
               }}
-              className="h-7 border border-(--border) px-2 text-(--text) disabled:opacity-40"
+              className="h-7 border border-border px-2 text-text disabled:opacity-40"
             >
               Next
             </button>
@@ -673,13 +673,13 @@ export function RouteExplorer({
         <div className="min-h-0 flex-1 overflow-y-auto" aria-label="Route list">
           {visibleRoutes.length === 0 ? (
             <div className="p-6 text-center">
-              <p className="font-mono text-sm text-(--text)">No routes match this view.</p>
-              <p className="mt-1 text-sm text-(--text-soft)">
+              <p className="font-mono text-sm text-text">No routes match this view.</p>
+              <p className="mt-1 text-sm text-text-soft">
                 Clear the distance filter or broaden the geographic context.
               </p>
             </div>
           ) : (
-            <ul className="divide-y divide-(--border)">
+            <ul className="divide-y divide-border">
               {paginatedRoutes.map((route) => {
                 const selected = route.routeId === activeSelectedRouteId;
 
@@ -697,8 +697,8 @@ export function RouteExplorer({
                     <article
                       className={
                         selected
-                          ? "border-l-2 border-(--accent) bg-(--accent-soft)"
-                          : "border-l-2 border-transparent transition-colors hover:bg-(--surface-muted)"
+                          ? "border-l-2 border-accent bg-accent-soft"
+                          : "border-l-2 border-transparent transition-colors hover:bg-surface-muted"
                       }
                     >
                       <button
@@ -708,37 +708,37 @@ export function RouteExplorer({
                         aria-pressed={selected}
                       >
                         <span className="flex items-start justify-between gap-3">
-                          <span className="font-mono text-sm font-medium text-(--text)">{routeLabel(route)}</span>
-                          <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.1em] text-(--text-soft)">
+                          <span className="font-mono text-sm font-medium text-text">{routeLabel(route)}</span>
+                          <span className="shrink-0 font-mono text-[10px] uppercase tracking-widest text-text-soft">
                             {route.runCount} runs
                           </span>
                         </span>
                         <span className="mt-3 grid grid-cols-3 gap-3 font-mono text-[10px] tabular-nums">
                           <span>
-                            <span className="block uppercase tracking-[0.08em] text-(--text-soft)">Distance</span>
-                            <span className="mt-1 block text-xs text-(--text)">
+                            <span className="block uppercase tracking-[0.08em] text-text-soft">Distance</span>
+                            <span className="mt-1 block text-xs text-text">
                               {formatDistance(route.avgDistanceKm, unit)}
                             </span>
                           </span>
                           <span>
-                            <span className="block uppercase tracking-[0.08em] text-(--text-soft)">Pace</span>
-                            <span className="mt-1 block text-xs text-(--text)">
+                            <span className="block uppercase tracking-[0.08em] text-text-soft">Pace</span>
+                            <span className="mt-1 block text-xs text-text">
                               {formatPace(route.avgPaceMinPerKm, unit)}
                             </span>
                           </span>
                           <span>
-                            <span className="block uppercase tracking-[0.08em] text-(--text-soft)">Avg HR</span>
-                            <span className="mt-1 block text-xs text-(--text)">
+                            <span className="block uppercase tracking-[0.08em] text-text-soft">Avg HR</span>
+                            <span className="mt-1 block text-xs text-text">
                               {formatHeartRate(route.avgHeartRate)}
                             </span>
                           </span>
                         </span>
                       </button>
-                      <div className="flex items-center justify-between gap-3 px-4 pb-3 font-mono text-[10px] text-(--text-soft)">
+                      <div className="flex items-center justify-between gap-3 px-4 pb-3 font-mono text-[10px] text-text-soft">
                         <span>Observed {formatDate(route.latestObservedActivityDate)}</span>
                         <Link
                           href={`/runs?routeId=${encodeURIComponent(route.routeId)}`}
-                          className="inline-flex items-center gap-1 font-medium text-(--accent) underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+                          className="inline-flex items-center gap-1 font-medium text-accent underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
                         >
                           Runs on this route
                           <ArrowUpRight className="size-3" aria-hidden="true" />

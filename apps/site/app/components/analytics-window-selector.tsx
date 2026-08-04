@@ -164,10 +164,10 @@ export function AnalyticsWindowSelector() {
         type="button"
         aria-haspopup="dialog"
         aria-expanded={isOpen}
-        className="flex h-9 cursor-pointer list-none items-center gap-2 border border-(--border) bg-(--surface) px-2.5 font-mono text-[10px] uppercase tracking-[0.06em] text-(--text-soft) hover:border-(--accent) hover:text-(--text)"
+        className="flex h-9 cursor-pointer list-none items-center gap-2 border border-border bg-surface px-2.5 font-mono text-[10px] uppercase tracking-[0.06em] text-text-soft hover:border-accent hover:text-text"
         onClick={() => setIsOpen(true)}
       >
-        <CalendarRange className="size-3.5 text-(--accent)" aria-hidden="true" />
+        <CalendarRange className="size-3.5 text-accent" aria-hidden="true" />
         <span className="hidden text-[8px] lg:inline">{presetLabels[state.preset]}</span>
         <span className="sr-only">Select analytics window</span>
       </button>
@@ -175,7 +175,7 @@ export function AnalyticsWindowSelector() {
       {isOpen
         ? createPortal(
             <div
-              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4 py-6 backdrop-blur-sm"
+              className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 px-4 py-6 backdrop-blur-sm"
               onClick={(event) => {
                 if (event.target === event.currentTarget) setIsOpen(false);
               }}
@@ -186,17 +186,17 @@ export function AnalyticsWindowSelector() {
                 aria-modal="true"
                 aria-label="Analytics window selector"
                 tabIndex={-1}
-                className="max-h-[calc(100dvh-3rem)] w-full max-w-sm overflow-y-auto border border-(--border) bg-(--surface) text-(--text) shadow-(--shadow-dialog) outline-none"
+                className="max-h-[calc(100dvh-3rem)] w-full max-w-sm overflow-y-auto border border-border bg-surface text-text shadow-(--shadow-dialog) outline-none"
               >
-                <div className="flex items-start justify-between gap-4 border-b border-(--border) bg-(--surface-muted) px-5 py-4">
-                  <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-(--accent)">
+                <div className="flex items-start justify-between gap-4 border-b border-border bg-surface-muted px-5 py-4">
+                  <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-accent">
                     analytics.window
                   </p>
                   <button
                     ref={closeButtonRef}
                     type="button"
                     aria-label="Close analytics window selector"
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-(--border) text-(--text-soft) transition-colors hover:border-(--accent) hover:bg-(--surface) hover:text-(--text)"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-border text-text-soft transition-colors hover:border-accent hover:bg-surface hover:text-text"
                     onClick={() => setIsOpen(false)}
                   >
                     <X className="h-4 w-4" aria-hidden="true" />
@@ -205,11 +205,11 @@ export function AnalyticsWindowSelector() {
 
                 <form onSubmit={apply} className="space-y-4 p-5">
                   <label className="block space-y-1.5">
-                    <span className="font-mono text-[10px] uppercase text-(--text-soft)">Period</span>
+                    <span className="font-mono text-[10px] uppercase text-text-soft">Period</span>
                     <select
                       value={state.preset}
                       onChange={(event) => update("preset", event.target.value as AnalyticsWindowPreset)}
-                      className="h-11 w-full border border-(--border) bg-(--background) px-2 font-mono text-xs text-(--text) outline-none focus:border-(--accent) rounded-none"
+                      className="h-11 w-full border border-border bg-background px-2 font-mono text-xs text-text outline-none focus:border-accent rounded-none"
                     >
                       {Object.entries(presetLabels).map(([value, label]) => (
                         <option key={value} value={value}>{label}</option>
@@ -220,36 +220,36 @@ export function AnalyticsWindowSelector() {
                   {state.preset === "custom" ? (
                     <div className="grid grid-cols-2 gap-3">
                       <label className="space-y-1.5">
-                        <span className="font-mono text-[10px] uppercase text-(--text-soft)">From</span>
+                        <span className="font-mono text-[10px] uppercase text-text-soft">From</span>
                         <input
                           type="date"
                           required
                           value={state.customFrom ?? ""}
                           max={state.customTo}
                           onChange={(event) => update("customFrom", event.target.value)}
-                          className="h-11 w-full border border-(--border) bg-(--background) px-2 font-mono text-xs text-(--text) outline-none focus:border-(--accent) rounded-none"
+                          className="h-11 w-full border border-border bg-background px-2 font-mono text-xs text-text outline-none focus:border-accent rounded-none"
                         />
                       </label>
                       <label className="space-y-1.5">
-                        <span className="font-mono text-[10px] uppercase text-(--text-soft)">To</span>
+                        <span className="font-mono text-[10px] uppercase text-text-soft">To</span>
                         <input
                           type="date"
                           required
                           value={state.customTo ?? ""}
                           min={state.customFrom}
                           onChange={(event) => update("customTo", event.target.value)}
-                          className="h-11 w-full border border-(--border) bg-(--background) px-2 font-mono text-xs text-(--text) outline-none focus:border-(--accent) rounded-none"
+                          className="h-11 w-full border border-border bg-background px-2 font-mono text-xs text-text outline-none focus:border-accent rounded-none"
                         />
                       </label>
                     </div>
                   ) : null}
 
                   <label className="block space-y-1.5">
-                    <span className="font-mono text-[10px] uppercase text-(--text-soft)">Compare</span>
+                    <span className="font-mono text-[10px] uppercase text-text-soft">Compare</span>
                     <select
                       value={state.comparison}
                       onChange={(event) => update("comparison", event.target.value as AnalyticsComparison)}
-                      className="h-11 w-full border border-(--border) bg-(--background) px-2 font-mono text-xs text-(--text) outline-none focus:border-(--accent) rounded-none"
+                      className="h-11 w-full border border-border bg-background px-2 font-mono text-xs text-text outline-none focus:border-accent rounded-none"
                     >
                       <option value="auto">Auto</option>
                       <option value="previous-period">Previous period</option>
@@ -260,12 +260,12 @@ export function AnalyticsWindowSelector() {
 
                   <button
                     type="submit"
-                    className="h-11 w-full bg-(--accent) px-3 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-(--accent-foreground) hover:bg-(--accent-strong)"
+                    className="h-11 w-full bg-accent px-3 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-accent-foreground hover:bg-accent-strong"
                   >
                     Apply window
                   </button>
 
-                  <div className="space-y-0.5 border border-(--border) bg-(--surface-muted) px-3 py-2 font-mono text-[10px] leading-4 text-(--text-soft)">
+                  <div className="space-y-0.5 border border-border bg-surface-muted px-3 py-2 font-mono text-[10px] leading-4 text-text-soft">
                     <p>Primary : {fmtDate(resolvedWindow.primary.from)} – {fmtDate(resolvedWindow.primary.to)}</p>
                     {resolvedWindow.comparison ? (
                       <p>Compare : {fmtDate(resolvedWindow.comparison.from)} – {fmtDate(resolvedWindow.comparison.to)}</p>
@@ -274,7 +274,7 @@ export function AnalyticsWindowSelector() {
                     )}
                   </div>
 
-                  <p className="font-mono text-[10px] leading-4 text-(--text-soft)">
+                  <p className="font-mono text-[10px] leading-4 text-text-soft">
                     Calendar boundaries use Europe/Amsterdam.
                   </p>
                 </form>

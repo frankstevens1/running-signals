@@ -75,10 +75,10 @@ const logos: TechLogoProps[] = [
 
 export function TechLogo({ label, description, icon, badge }: TechLogoProps) {
   return (
-    <div className="group border-r border-b border-(--border) px-4 py-4">
+    <div className="group border-r border-b border-border px-4 py-4">
       <div className="flex h-full flex-col">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-(--border) bg-(--surface-muted) text-(--accent) transition-colors group-hover:border-(--accent)">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-border bg-surface-muted text-accent transition-colors group-hover:border-accent">
             {icon ? (
               <svg
                 viewBox={icon.viewBox ?? "0 0 24 24"}
@@ -94,12 +94,12 @@ export function TechLogo({ label, description, icon, badge }: TechLogoProps) {
             )}
           </div>
 
-          <p className="min-w-0 font-mono text-xs uppercase tracking-[0.12em] text-(--text)">
+          <p className="min-w-0 font-mono text-xs uppercase tracking-[0.12em] text-text">
             {label}
           </p>
         </div>
 
-        <p className="mt-3 text-xs leading-5 text-(--text-soft)">
+        <p className="mt-3 text-xs leading-5 text-text-soft">
           {description}
         </p>
       </div>
@@ -109,7 +109,7 @@ export function TechLogo({ label, description, icon, badge }: TechLogoProps) {
 
 export function TechLogoGrid() {
   return (
-    <div className="grid auto-rows-fr border-l border-t border-(--border) sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid auto-rows-fr border-l border-t border-border sm:grid-cols-2 lg:grid-cols-4">
       {logos.map((logo) => (
         <TechLogo key={logo.label} {...logo} />
       ))}

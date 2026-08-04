@@ -409,6 +409,7 @@ EXPORTS: tuple[TableExport, ...] = (
             "city_name",
             "country_name",
             "country_code",
+            "country_iso3",
         ),
         statement=lambda config: f"""
             select
@@ -434,7 +435,8 @@ EXPORTS: tuple[TableExport, ...] = (
               route_start_longitude_deg,
               city_name,
               country_name,
-              country_code
+              country_code,
+              country_iso3
             from {gold_table(config, "mart_routes")}
         """,
     ),
@@ -1095,7 +1097,7 @@ def sync_supabase(
 ) -> None:
     changed: list[TableExport] = []
 
-    with psycopg.connect(supabase_db_url, autocommit=True) as connection:
+    with psycopg.connect(supabase_db_url, autocommit=True, prepare_threshold=None) as connection:
         connection.execute(
             "select set_config('statement_timeout', %s, false)",
             (POSTGRES_STATEMENT_TIMEOUT,),

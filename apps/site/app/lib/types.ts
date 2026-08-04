@@ -83,6 +83,7 @@ export type RouteSummary = {
   cityName: string | null;
   countryName: string | null;
   countryCode: string | null;
+  countryIso3: string | null;
 };
 
 export type MapProfileRecord = {

@@ -66,7 +66,7 @@ export function RunFiltersDialog({
         type="button"
         onClick={open}
         aria-label="Open filters"
-        className="inline-flex h-8 w-8 items-center justify-center border border-(--border) text-(--text) transition-colors hover:border-(--text-soft) hover:bg-(--surface-muted)"
+        className="inline-flex h-8 w-8 items-center justify-center border border-border text-text transition-colors hover:border-text-soft hover:bg-surface-muted"
       >
         <Filter className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
@@ -77,21 +77,21 @@ export function RunFiltersDialog({
         onClick={(event) => {
           if (event.target === event.currentTarget) close();
         }}
-        className="m-auto w-[min(48rem,calc(100%-2rem))] overscroll-contain border border-(--border-strong) bg-(--surface) p-0 text-(--text) shadow-[var(--shadow-dialog)] backdrop:bg-black/70 max-h-[calc(100vh-4rem)]"
+        className="m-auto w-[min(48rem,calc(100%-2rem))] overscroll-contain border border-border-strong bg-surface p-0 text-text shadow-(--shadow-dialog) backdrop:bg-black/70 max-h-[calc(100vh-4rem)]"
       >
-        <header className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 border-b border-(--border) px-4 py-3">
-          <p className="font-mono text-xs uppercase tracking-[0.12em] text-(--accent)">
+        <header className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 border-b border-border px-4 py-3">
+          <p className="font-mono text-xs uppercase tracking-[0.12em] text-accent">
             Query parameters
           </p>
           <button
             type="button"
             aria-label="Close filters"
             onClick={close}
-            className="col-start-2 row-span-2 row-start-1 inline-flex h-9 w-9 shrink-0 items-center justify-center border border-(--border) text-(--text-soft) transition-colors hover:bg-(--surface-muted) hover:text-(--text)"
+            className="col-start-2 row-span-2 row-start-1 inline-flex h-9 w-9 shrink-0 items-center justify-center border border-border text-text-soft transition-colors hover:bg-surface-muted hover:text-text"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
-          <p className="mt-1 text-sm text-(--text-soft)">
+          <p className="mt-1 text-sm text-text-soft">
             Filter sessions by date, distance, pace, heart rate, and route.
           </p>
         </header>

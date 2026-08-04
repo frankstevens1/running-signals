@@ -131,7 +131,7 @@ const boundaries = [
 
 function CodeLabel({ children }: { children: React.ReactNode }) {
   return (
-    <code className="break-words border border-(--border) bg-(--surface-muted) px-2 py-1 font-mono text-[10px] text-(--text)">
+    <code className="wrap-break-word border border-border bg-surface-muted px-2 py-1 font-mono text-[10px] text-text">
       {children}
     </code>
   );
@@ -148,19 +148,19 @@ export default function AgentInterfacePage() {
           icon={explorerPages.agentInterface.icon}
         />
 
-        <section className="grid border border-(--border) bg-(--surface) md:grid-cols-[15rem_1fr]">
-          <div className="border-b border-(--border) bg-(--surface-muted)/60 p-5 md:border-r md:border-b-0">
-            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-(--accent)">
+        <section className="grid border border-border bg-surface md:grid-cols-[15rem_1fr]">
+          <div className="border-b border-border bg-surface-muted/60 p-5 md:border-r md:border-b-0">
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
               interface_status
             </p>
-            <p className="mt-2 font-mono text-xs text-(--signal-ok)">
+            <p className="mt-2 font-mono text-xs text-signal-ok">
               contract_design: active
             </p>
-            <p className="mt-1 font-mono text-xs text-(--text-soft)">
+            <p className="mt-1 font-mono text-xs text-text-soft">
               production_endpoint: none
             </p>
           </div>
-          <p className="max-w-4xl p-5 text-sm leading-7 text-(--text-soft)">
+          <p className="max-w-4xl p-5 text-sm leading-7 text-text-soft">
             MCP tools and resource contracts are in active development. No production MCP server or
             endpoint is live. This page defines the intended read-only boundary and does not claim a
             deployed agent runtime, authentication layer, or multi-user serving model.
@@ -174,17 +174,17 @@ export default function AgentInterfacePage() {
             description="Each request follows an explicit path from natural-language intent to approved analytical data and application-owned presentation."
             level={2}
           />
-          <ol className="mt-8 grid border-l border-t border-(--border) sm:grid-cols-2 xl:grid-cols-3">
+          <ol className="mt-8 grid border-l border-t border-border sm:grid-cols-2 xl:grid-cols-3">
             {interfaceFlow.map((step, index) => (
               <li
                 key={step.title}
-                className="border-r border-b border-(--border) bg-(--surface)/50 p-5"
+                className="border-r border-b border-border bg-surface/50 p-5"
               >
-                <p className="font-mono text-[10px] text-(--accent)">
+                <p className="font-mono text-[10px] text-accent">
                   step::{String(index + 1).padStart(2, "0")}
                 </p>
-                <h3 className="mt-3 text-base font-medium text-(--text)">{step.title}</h3>
-                <p className="mt-3 text-sm leading-6 text-(--text-soft)">{step.copy}</p>
+                <h3 className="mt-3 text-base font-medium text-text">{step.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-text-soft">{step.copy}</p>
               </li>
             ))}
           </ol>
@@ -197,24 +197,24 @@ export default function AgentInterfacePage() {
             description="Bounded tools make common training questions reproducible while keeping metric definitions, time grains, and caveats visible."
             level={2}
           />
-          <div className="mt-8 grid border-l border-t border-(--border) md:grid-cols-2">
+          <div className="mt-8 grid border-l border-t border-border md:grid-cols-2">
             {queryExamples.map((example, index) => (
               <article
                 key={example.title}
-                className="border-r border-b border-(--border) bg-(--surface)/50 p-5 md:p-6"
+                className="border-r border-b border-border bg-surface/50 p-5 md:p-6"
               >
                 <div className="flex items-center justify-between gap-4">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-(--accent)">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-accent">
                     query::{String(index + 1).padStart(2, "0")}
                   </p>
-                  <span className="font-mono text-[10px] text-(--text-faint)">
+                  <span className="font-mono text-[10px] text-text-faint">
                     {example.title}
                   </span>
                 </div>
-                <h3 className="mt-4 text-lg font-medium leading-7 text-(--text)">
+                <h3 className="mt-4 text-lg font-medium leading-7 text-text">
                   “{example.query}”
                 </h3>
-                <p className="mt-3 text-sm leading-6 text-(--text-soft)">{example.output}</p>
+                <p className="mt-3 text-sm leading-6 text-text-soft">{example.output}</p>
               </article>
             ))}
           </div>
@@ -228,33 +228,33 @@ export default function AgentInterfacePage() {
             level={2}
           />
           <div className="mt-8 grid gap-6 lg:grid-cols-2">
-            <div className="border border-(--border) bg-(--surface)/50">
-              <div className="border-b border-(--border) bg-(--surface-muted)/60 px-5 py-3">
-                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-(--accent)">
+            <div className="border border-border bg-surface/50">
+              <div className="border-b border-border bg-surface-muted/60 px-5 py-3">
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
                   highlighted_tool_examples
                 </p>
               </div>
-              <div className="divide-y divide-(--border)">
+              <div className="divide-y divide-border">
                 {plannedTools.map((tool) => (
                   <article key={tool.name} className="p-5">
                     <CodeLabel>{tool.name}</CodeLabel>
-                    <p className="mt-3 text-sm leading-6 text-(--text-soft)">{tool.copy}</p>
+                    <p className="mt-3 text-sm leading-6 text-text-soft">{tool.copy}</p>
                   </article>
                 ))}
               </div>
             </div>
 
-            <div className="border border-(--border) bg-(--surface)/50">
-              <div className="border-b border-(--border) bg-(--surface-muted)/60 px-5 py-3">
-                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-(--accent)">
+            <div className="border border-border bg-surface/50">
+              <div className="border-b border-border bg-surface-muted/60 px-5 py-3">
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
                   highlighted_resource_examples
                 </p>
               </div>
-              <div className="divide-y divide-(--border)">
+              <div className="divide-y divide-border">
                 {plannedResources.map((resource) => (
                   <article key={resource.uri} className="p-5">
                     <CodeLabel>{resource.uri}</CodeLabel>
-                    <p className="mt-3 text-sm leading-6 text-(--text-soft)">{resource.copy}</p>
+                    <p className="mt-3 text-sm leading-6 text-text-soft">{resource.copy}</p>
                   </article>
                 ))}
               </div>
@@ -269,16 +269,16 @@ export default function AgentInterfacePage() {
             description="The MCP layer returns typed analytical data. The consuming mobile or web application remains responsible for rendering accessible charts, maps, tables, and written analysis."
             level={2}
           />
-          <dl className="mt-8 grid border-l border-t border-(--border) md:grid-cols-2 xl:grid-cols-3">
+          <dl className="mt-8 grid border-l border-t border-border md:grid-cols-2 xl:grid-cols-3">
             {responseFields.map((field) => (
               <div
                 key={field.name}
-                className="border-r border-b border-(--border) bg-(--surface)/50 p-5"
+                className="border-r border-b border-border bg-surface/50 p-5"
               >
                 <dt>
                   <CodeLabel>{field.name}</CodeLabel>
                 </dt>
-                <dd className="mt-3 text-sm leading-6 text-(--text-soft)">{field.copy}</dd>
+                <dd className="mt-3 text-sm leading-6 text-text-soft">{field.copy}</dd>
               </div>
             ))}
           </dl>
@@ -291,14 +291,14 @@ export default function AgentInterfacePage() {
             description="Gold models define the approved analytical surface. The contract excludes operations and interpretations that are unsafe, ungoverned, or outside this project’s scope."
             level={2}
           />
-          <div className="mt-8 grid border border-(--border) bg-(--surface)/50 lg:grid-cols-[1fr_18rem]">
-            <ul className="grid border-b border-(--border) sm:grid-cols-2 lg:border-r lg:border-b-0">
+          <div className="mt-8 grid border border-border bg-surface/50 lg:grid-cols-[1fr_18rem]">
+            <ul className="grid border-b border-border sm:grid-cols-2 lg:border-r lg:border-b-0">
               {boundaries.map((boundary) => (
                 <li
                   key={boundary}
-                  className="flex gap-3 border-b border-(--border) p-5 text-sm leading-6 text-(--text-soft) last:border-b-0 sm:[&:nth-last-child(-n+2)]:border-b-0"
+                  className="flex gap-3 border-b border-border p-5 text-sm leading-6 text-text-soft last:border-b-0 sm:nth-last-[-n+2]:border-b-0"
                 >
-                  <span className="font-mono text-(--accent)" aria-hidden="true">
+                  <span className="font-mono text-accent" aria-hidden="true">
                     —
                   </span>
                   <span>{boundary}</span>
@@ -306,16 +306,16 @@ export default function AgentInterfacePage() {
               ))}
             </ul>
             <div className="p-5">
-              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-(--accent)">
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
                 related_extension
               </p>
-              <p className="mt-3 text-sm leading-6 text-(--text-soft)">
+              <p className="mt-3 text-sm leading-6 text-text-soft">
                 Validated offline findings may improve future gold metrics and the context available
                 to these tools. Experimental outputs are never served directly.
               </p>
               <Link
                 href="/ml-readiness"
-                className="mt-5 inline-flex items-center gap-2 font-mono text-xs font-medium uppercase tracking-[0.08em] text-(--accent) hover:text-(--accent-strong)"
+                className="mt-5 inline-flex items-center gap-2 font-mono text-xs font-medium uppercase tracking-[0.08em] text-accent hover:text-accent-strong"
               >
                 Review ML readiness
                 <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />

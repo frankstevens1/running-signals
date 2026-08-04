@@ -7,7 +7,7 @@ function joinClasses(...classes: Array<string | undefined>) {
 export function ConsolePanel({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={joinClasses("border border-(--border) bg-(--surface)", className)}
+      className={joinClasses("border border-border bg-surface", className)}
       {...props}
     />
   );
@@ -23,7 +23,7 @@ export function ConsoleLabel({
   return (
     <p
       className={joinClasses(
-        "font-mono text-xs font-medium uppercase tracking-wider text-(--text-soft)",
+        "font-mono text-xs font-medium uppercase tracking-wider text-text-soft",
         className,
       )}
     >
@@ -35,9 +35,9 @@ export function ConsoleLabel({
 type ConsoleStatusTone = "neutral" | "active" | "warning" | "error";
 
 const statusToneClasses: Record<ConsoleStatusTone, string> = {
-  neutral: "bg-(--text-faint)",
-  active: "bg-(--signal-ok)",
-  warning: "bg-(--signal-warn)",
+  neutral: "bg-text-faint",
+  active: "bg-signal-ok",
+  warning: "bg-signal-warn",
   error: "bg-(--signal-error)",
 };
 
@@ -49,7 +49,7 @@ export function ConsoleStatusIndicator({
   tone?: ConsoleStatusTone;
 }) {
   return (
-    <span className="inline-flex items-center gap-2 font-mono text-xs uppercase tracking-wide text-(--text-soft)">
+    <span className="inline-flex items-center gap-2 font-mono text-xs uppercase tracking-wide text-text-soft">
       <span className={`h-1.5 w-1.5 shrink-0 ${statusToneClasses[tone]}`} aria-hidden="true" />
       {label}
     </span>
@@ -83,19 +83,19 @@ export function ConsoleStatusPanel({
       role={live ? "status" : undefined}
       aria-live={live ? "polite" : undefined}
     >
-      <div className="flex items-center justify-between gap-4 border-b border-(--border) bg-(--surface-muted) px-4 py-2.5">
+      <div className="flex items-center justify-between gap-4 border-b border-border bg-surface-muted px-4 py-2.5">
         <ConsoleLabel>{label}</ConsoleLabel>
         <ConsoleStatusIndicator label={statusLabel} tone={tone} />
       </div>
       <div className="flex items-start gap-3 p-4">
         {icon ? (
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center border border-(--border) text-(--accent)">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center border border-border text-accent">
             {icon}
           </div>
         ) : null}
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-(--text)">{title}</p>
-          <p className="mt-1 text-sm leading-6 text-(--text-soft)">{description}</p>
+          <p className="text-sm font-semibold text-text">{title}</p>
+          <p className="mt-1 text-sm leading-6 text-text-soft">{description}</p>
           {children}
         </div>
       </div>

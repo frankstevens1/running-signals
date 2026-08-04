@@ -236,13 +236,22 @@ function buildCountryNameIndex(
   return index;
 }
 
+function buildCountryIso3Index(boundaries: CountryBoundary[]): Map<string, CountryBoundary> {
+  const index = new Map<string, CountryBoundary>();
+  for (const boundary of boundaries) {
+    index.set(boundary.id.trim().toUpperCase(), boundary);
+  }
+  return index;
+}
+
 type CountryRouteEntry = { routeId: string; position: MapPosition };
 
 export function deriveRouteGeography(
   routes: RouteSummary[],
   countryBoundaries: CountryBoundary[],
 ): RouteGeography {
-  const countryIndex = buildCountryNameIndex(countryBoundaries);
+  const countryNameIndex = buildCountryNameIndex(countryBoundaries);
+  const countryIso3Index = buildCountryIso3Index(countryBoundaries);
   const routeCountryIds = new Map<string, string>();
   const countryRouteMap = new Map<string, CountryRouteEntry[]>();
   const unknownRoutes: CountryRouteEntry[] = [];
@@ -252,12 +261,13 @@ export function deriveRouteGeography(
     const position = routePosition(route);
     if (!position) continue;
 
-    if (!route.countryName) {
-      unknownRoutes.push({ routeId: route.routeId, position });
-      continue;
-    }
-
-    const boundary = countryIndex.get(route.countryName.toLowerCase());
+    const boundary =
+      (route.countryIso3
+        ? countryIso3Index.get(route.countryIso3.trim().toUpperCase())
+        : undefined)
+      ?? (route.countryName
+        ? countryNameIndex.get(route.countryName.trim().toLowerCase())
+        : undefined);
     if (!boundary) {
       unknownRoutes.push({ routeId: route.routeId, position });
       continue;

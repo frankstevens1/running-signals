@@ -1,8 +1,6 @@
 {{ config(
     materialized='view',
-    pre_hook=[
-        "create table if not exists `" ~ env_var('DATABRICKS_CATALOG') ~ "`.`" ~ env_var('DATABRICKS_GOLD_SCHEMA') ~ "`.`route_city_names` (route_id string not null, city_name string, country_name string, country_code string, route_start_latitude_deg double, route_start_longitude_deg double) using delta"
-    ]
+    pre_hook="{{ ensure_route_city_names_country_iso3() }}"
 ) }}
 
 {% set gold_catalog = env_var('DATABRICKS_CATALOG') %}
@@ -86,7 +84,8 @@ select
     starts.route_start_longitude_deg,
     cities.city_name,
     cities.country_name,
-    cities.country_code
+    cities.country_code,
+    cities.country_iso3
 from route_summaries as routes
 left join representative_route_centroids as centroids
     on routes.route_id = centroids.route_id

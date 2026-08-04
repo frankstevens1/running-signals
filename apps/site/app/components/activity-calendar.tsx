@@ -53,7 +53,7 @@ export function ActivityCalendar({
 }) {
   if (days.length === 0) {
     return (
-      <div className="border border-dashed border-(--border) bg-(--surface) p-8 font-mono text-sm text-(--text-soft)">
+      <div className="border border-dashed border-border bg-surface p-8 font-mono text-sm text-text-soft">
         No day rows returned from mart_days.
       </div>
     );
@@ -64,16 +64,16 @@ export function ActivityCalendar({
   const endPad = (7 - (totalCells % 7)) % 7;
 
   return (
-    <section className="overflow-hidden border border-(--border) bg-(--surface)">
-      <div className="flex items-start justify-between gap-3 border-b border-(--border) px-4 py-3">
+    <section className="overflow-hidden border border-border bg-surface">
+      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0">
-          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-(--accent)">
+          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-accent">
             analysis.output
           </p>
-          <h2 className="mt-1 text-base font-semibold text-(--text)">
+          <h2 className="mt-1 text-base font-semibold text-text">
             Daily activity calendar
           </h2>
-          <p className="mt-1 text-sm text-(--text-soft)">
+          <p className="mt-1 text-sm text-text-soft">
             Daily running distance intensity across the selected period.
           </p>
         </div>
@@ -97,7 +97,7 @@ export function ActivityCalendar({
                 title={label}
                 role="listitem"
                 aria-label={label}
-                className="size-4 border border-(--border)"
+                className="size-4 border border-border"
                 style={{ backgroundColor: calendarColors[intensityIndex(day)] }}
               />
             );
@@ -106,12 +106,12 @@ export function ActivityCalendar({
             <div key={`pad-end-${i}`} className="size-4" />
           ))}
         </div>
-        <div className="mt-4 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em] text-(--text-soft)">
+        <div className="mt-4 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em] text-text-soft">
           <span>Less</span>
           {calendarColors.map((color) => (
             <span
               key={color}
-              className="size-3 border border-(--border)"
+              className="size-3 border border-border"
               style={{ backgroundColor: color }}
               aria-hidden="true"
             />

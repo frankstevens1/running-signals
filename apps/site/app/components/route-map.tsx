@@ -703,25 +703,25 @@ export function RouteMap({
   }, [countryFeatures, onSelectCountry, ready]);
 
   return (
-    <div className="relative h-[520px] w-full lg:h-[620px]">
+    <div className="relative h-130 w-full lg:h-155">
       <div ref={containerRef} className="h-full w-full" />
       {selectedRouteId && isGeometryLoading ? (
-        <div className="pointer-events-none absolute inset-x-4 top-4 border border-(--border) bg-(--surface)/95 px-3 py-2 font-mono text-xs text-(--text-soft) shadow-sm">
+        <div className="pointer-events-none absolute inset-x-4 top-4 border border-border bg-surface/95 px-3 py-2 font-mono text-xs text-text-soft shadow-sm">
           Loading selected route geometry…
         </div>
       ) : null}
       {selectedRouteId && geometryError ? (
-        <div className="absolute inset-x-4 top-4 border border-dashed border-(--border) bg-(--surface)/95 px-3 py-2 font-mono text-xs text-(--text-soft)" role="status">
+        <div className="absolute inset-x-4 top-4 border border-dashed border-border bg-surface/95 px-3 py-2 font-mono text-xs text-text-soft" role="status">
           Route geometry could not be loaded: {geometryError}
         </div>
       ) : null}
       {selectedRouteId && !isGeometryLoading && !geometryError && records.length === 0 ? (
-        <div className="pointer-events-none absolute inset-x-4 top-4 border border-dashed border-(--border) bg-(--surface)/95 px-3 py-2 font-mono text-xs text-(--text-soft)">
+        <div className="pointer-events-none absolute inset-x-4 top-4 border border-dashed border-border bg-surface/95 px-3 py-2 font-mono text-xs text-text-soft">
           No sampled GPS records are available for this route.
         </div>
       ) : null}
       {centroidPositions.length === 0 && !selectedRouteId ? (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6 text-center font-mono text-sm text-(--text-soft)">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6 text-center font-mono text-sm text-text-soft">
           No route centroids are available for mapping.
         </div>
       ) : null}

@@ -26,7 +26,7 @@ export function RunTimelineSortDropdown({ paramsString }: { paramsString: string
 
   return (
     <div className="flex h-8 items-center gap-2">
-      <label className="inline-flex h-8 items-center gap-2 font-mono text-[10px] uppercase tracking-[0.08em] text-(--text-soft)">
+      <label className="inline-flex h-8 items-center gap-2 font-mono text-[10px] uppercase tracking-[0.08em] text-text-soft">
         <span>Sort</span>
         <select
           value={selectedSort}
@@ -36,7 +36,7 @@ export function RunTimelineSortDropdown({ paramsString }: { paramsString: string
             if (!option || option.sort === selectedSort) return;
             navigate(hrefWithRunSort(params, option.sort, option.defaultDirection));
           }}
-          className="h-8 border border-(--border) bg-(--background) px-2 font-mono text-[10px] uppercase tracking-[0.06em] text-(--text) outline-none focus:border-(--accent)"
+          className="h-8 border border-border bg-background px-2 font-mono text-[10px] uppercase tracking-[0.06em] text-text outline-none focus:border-accent"
         >
           {RUN_TABLE_SORT_OPTIONS.map((option) => (
             <option key={option.sort} value={option.sort}>{option.label}</option>
@@ -52,7 +52,7 @@ export function RunTimelineSortDropdown({ paramsString }: { paramsString: string
           selectedSort,
           direction === "asc" ? "desc" : "asc",
         ))}
-        className="inline-flex h-8 w-8 items-center justify-center border border-(--border) text-(--text-soft) transition-colors hover:border-(--text-soft) hover:bg-(--surface-muted) hover:text-(--text)"
+        className="inline-flex h-8 w-8 items-center justify-center border border-border text-text-soft transition-colors hover:border-text-soft hover:bg-surface-muted hover:text-text"
       >
         {direction === "asc"
           ? <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
@@ -112,7 +112,7 @@ export function RunTimelineSortDialog({ paramsString }: { paramsString: string }
         onClick={open}
         aria-label="Open timeline sort"
         aria-haspopup="dialog"
-        className="inline-flex h-8 w-8 items-center justify-center border border-(--border) text-(--text) transition-colors hover:border-(--text-soft) hover:bg-(--surface-muted)"
+        className="inline-flex h-8 w-8 items-center justify-center border border-border text-text transition-colors hover:border-text-soft hover:bg-surface-muted"
       >
         <ArrowDownUp className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
@@ -127,22 +127,22 @@ export function RunTimelineSortDialog({ paramsString }: { paramsString: string }
         onClick={(event) => {
           if (event.target === event.currentTarget) close();
         }}
-        className="m-auto w-[min(24rem,calc(100%-2rem))] overscroll-contain border border-(--border-strong) bg-(--surface) p-0 text-(--text) shadow-[var(--shadow-dialog)] backdrop:bg-black/70"
+        className="m-auto w-[min(24rem,calc(100%-2rem))] overscroll-contain border border-border-strong bg-surface p-0 text-text shadow-(--shadow-dialog) backdrop:bg-black/70"
       >
-        <header className="flex items-center justify-between gap-4 border-b border-(--border) px-4 py-3">
-          <p id="timeline-sort-title" className="font-mono text-xs uppercase tracking-[0.12em] text-(--accent)">
+        <header className="flex items-center justify-between gap-4 border-b border-border px-4 py-3">
+          <p id="timeline-sort-title" className="font-mono text-xs uppercase tracking-[0.12em] text-accent">
             Sort timeline
           </p>
           <button
             type="button"
             aria-label="Close timeline sort"
             onClick={close}
-            className="inline-flex h-9 w-9 items-center justify-center border border-(--border) text-(--text-soft) transition-colors hover:bg-(--surface-muted) hover:text-(--text)"
+            className="inline-flex h-9 w-9 items-center justify-center border border-border text-text-soft transition-colors hover:bg-surface-muted hover:text-text"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </header>
-        <div className="grid grid-cols-2 gap-1 border-b border-(--border) p-2" role="group" aria-label="Sort direction">
+        <div className="grid grid-cols-2 gap-1 border-b border-border p-2" role="group" aria-label="Sort direction">
           {(["desc", "asc"] as const).map((optionDirection) => (
             <button
               key={optionDirection}
@@ -154,8 +154,8 @@ export function RunTimelineSortDialog({ paramsString }: { paramsString: string }
               }}
               className={`h-8 border px-3 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors ${
                 direction === optionDirection
-                  ? "border-(--accent) bg-(--accent-soft) text-(--accent)"
-                  : "border-(--border) text-(--text-soft) hover:border-(--text-soft) hover:bg-(--surface-muted) hover:text-(--text)"
+                  ? "border-accent bg-accent-soft text-accent"
+                  : "border-border text-text-soft hover:border-text-soft hover:bg-surface-muted hover:text-text"
               }`}
             >
               {optionDirection === "desc" ? "Descending" : "Ascending"}
@@ -170,7 +170,7 @@ export function RunTimelineSortDialog({ paramsString }: { paramsString: string }
               <span
                 key={option.sort}
                 aria-current="true"
-                className="flex h-10 items-center justify-between border border-(--accent) bg-(--accent-soft) px-3 font-mono text-xs text-(--accent)"
+                className="flex h-10 items-center justify-between border border-accent bg-accent-soft px-3 font-mono text-xs text-accent"
               >
                 {option.label}
                 <span className="text-[10px] uppercase tracking-[0.08em]">{direction}</span>
@@ -181,7 +181,7 @@ export function RunTimelineSortDialog({ paramsString }: { paramsString: string }
                 href={hrefWithRunSort(params, option.sort, option.defaultDirection)}
                 scroll={false}
                 onClick={close}
-                className="flex h-10 items-center border border-transparent px-3 font-mono text-xs text-(--text-soft) transition-colors hover:border-(--border) hover:bg-(--surface-muted) hover:text-(--text)"
+                className="flex h-10 items-center border border-transparent px-3 font-mono text-xs text-text-soft transition-colors hover:border-border hover:bg-surface-muted hover:text-text"
               >
                 {option.label}
               </RunDataRefreshLink>

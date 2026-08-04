@@ -16,25 +16,25 @@ export function PageLoadingState({
         <span className="sr-only">{title}</span>
         <div className="max-w-3xl space-y-3">
           <div className="flex items-center gap-2">
-            <span className="h-px w-6 bg-(--accent)" aria-hidden="true" />
+            <span className="h-px w-6 bg-accent" aria-hidden="true" />
             <SkeletonBlock className="h-3 w-36" />
           </div>
           <SkeletonBlock className="h-10 w-80 max-w-full" />
           <SkeletonBlock className="h-5 w-full max-w-2xl" />
         </div>
         <ConsolePanel>
-          <div className="flex items-center justify-between gap-4 border-b border-(--border) bg-(--surface-muted) px-4 py-2.5">
+          <div className="flex items-center justify-between gap-4 border-b border-border bg-surface-muted px-4 py-2.5">
             <ConsoleLabel>request_status</ConsoleLabel>
-            <span className="inline-flex items-center gap-2 font-mono text-xs uppercase tracking-wide text-(--text-soft)">
+            <span className="inline-flex items-center gap-2 font-mono text-xs uppercase tracking-wide text-text-soft">
               <span
-                className="h-1.5 w-1.5 bg-(--accent) motion-safe:animate-pulse"
+                className="h-1.5 w-1.5 bg-accent motion-safe:animate-pulse"
                 aria-hidden="true"
               />
               Loading
             </span>
           </div>
           <div className="p-4">
-            <p className="font-mono text-sm font-medium text-(--text)">{title}</p>
+            <p className="font-mono text-sm font-medium text-text">{title}</p>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               <SkeletonBlock className="h-24" />
               <SkeletonBlock className="h-24" />
@@ -43,7 +43,7 @@ export function PageLoadingState({
           </div>
         </ConsolePanel>
         <ConsolePanel>
-          <div className="border-b border-(--border) px-4 py-2.5">
+          <div className="border-b border-border px-4 py-2.5">
             <ConsoleLabel>modeled_rows</ConsoleLabel>
           </div>
           <div className="space-y-2 p-4">

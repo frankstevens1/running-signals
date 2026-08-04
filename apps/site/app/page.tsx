@@ -43,17 +43,17 @@ export default function Home() {
   return (
     <AppShell>
       <div>
-        <section className="grid min-h-[calc(100svh-8rem)] gap-12 border-b border-(--border) pb-10 pt-[0.28224rem] lg:grid-cols-[minmax(0,1.12fr)_minmax(22rem,0.88fr)] lg:items-center lg:pb-16 lg:pt-[0.42336rem]">
+        <section className="grid min-h-[calc(100svh-8rem)] gap-12 border-b border-border pb-10 pt-[0.28224rem] lg:grid-cols-[minmax(0,1.12fr)_minmax(22rem,0.88fr)] lg:items-center lg:pb-16 lg:pt-[0.42336rem]">
           <div className="max-w-4xl">
-            <p className="mt-[0.28224rem] flex items-center gap-2 font-mono text-sm text-(--accent)">
+            <p className="mt-[0.28224rem] flex items-center gap-2 font-mono text-sm text-accent">
               <span aria-hidden="true">$</span>
               <span>inspect running_signals</span>
-              <span className="h-4 w-1.5 animate-pulse bg-(--accent) motion-reduce:hidden" aria-hidden="true" />
+              <span className="h-4 w-1.5 animate-pulse bg-accent motion-reduce:hidden" aria-hidden="true" />
             </p>
-            <h1 className="mt-5 max-w-4xl text-5xl font-medium leading-[1.02] tracking-[-0.045em] text-(--text) sm:text-6xl lg:text-7xl">
+            <h1 className="mt-5 max-w-4xl text-5xl font-medium leading-[1.02] tracking-[-0.045em] text-text sm:text-6xl lg:text-7xl">
               <TypedRevealText text="Running data, modeled into signals." characterDelayMs={18} />
             </h1>
-            <p className="mt-7 max-w-2xl text-base leading-8 text-(--text-soft) sm:text-lg">
+            <p className="mt-7 max-w-2xl text-base leading-8 text-text-soft sm:text-lg">
               Running Signals is an end-to-end lakehouse project that makes training patterns
               inspectable—from recoverable Garmin payloads to tested analytical marts and focused
               data explorers.
@@ -62,14 +62,14 @@ export default function Home() {
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <Link
                 href="#signal-families"
-                className="inline-flex h-11 items-center justify-center gap-2 bg-(--accent) px-5 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-(--accent-foreground) transition-colors hover:bg-(--accent-strong)"
+                className="inline-flex h-11 items-center justify-center gap-2 bg-accent px-5 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-accent-foreground transition-colors hover:bg-accent-strong"
               >
                 Explore signal families
                 <ArrowDown className="h-4 w-4" aria-hidden="true" />
               </Link>
               <Link
                 href="#methodology"
-                className="inline-flex h-11 items-center justify-center gap-2 border border-(--border) bg-(--surface) px-5 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-(--text) transition-colors hover:border-(--text-soft) hover:bg-(--surface-muted)"
+                className="inline-flex h-11 items-center justify-center gap-2 border border-border bg-surface px-5 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-text transition-colors hover:border-text-soft hover:bg-surface-muted"
               >
                 Trace the pipeline
                 <ArrowDown className="h-4 w-4" aria-hidden="true" />
@@ -88,7 +88,7 @@ export default function Home() {
               description="The experience stays descriptive. It surfaces evidence and definitions without turning observations into coaching or medical claims."
               level={2}
             />
-            <div className="mt-10 border-t border-(--border)">
+            <div className="mt-10 border-t border-border">
               {pillars.map((pillar, index) => {
                 const Icon = pillar.icon;
 
@@ -96,24 +96,24 @@ export default function Home() {
                   <ScrollReveal key={pillar.title} delayMs={index * 70}>
                     <Link
                       href={pillar.href}
-                      className="group grid gap-5 border-x border-b border-(--border) bg-(--surface)/40 px-5 py-7 transition-colors hover:bg-(--accent-soft) sm:grid-cols-[3rem_2fr_3fr_auto] sm:items-center sm:px-6"
+                      className="group grid gap-5 border-x border-b border-border bg-surface/40 px-5 py-7 transition-colors hover:bg-accent-soft sm:grid-cols-[3rem_2fr_3fr_auto] sm:items-center sm:px-6"
                     >
-                      <span className="font-mono text-[10px] text-(--text-soft)">
+                      <span className="font-mono text-[10px] text-text-soft">
                         {pillar.index}
                       </span>
                       <div>
-                        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-(--accent)">
+                        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-accent">
                           {pillar.command}
                         </p>
-                        <h3 className="mt-1 text-xl font-medium text-(--text)">{pillar.title}</h3>
+                        <h3 className="mt-1 text-xl font-medium text-text">{pillar.title}</h3>
                       </div>
                       <div>
-                        <p className="text-sm leading-6 text-(--text-soft)">{pillar.copy}</p>
-                        <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.1em] text-(--text-soft)">
+                        <p className="text-sm leading-6 text-text-soft">{pillar.copy}</p>
+                        <p className="mt-2 font-mono text-[9px] uppercase tracking-widest text-text-soft">
                           source: {pillar.source}
                         </p>
                       </div>
-                      <div className="flex h-10 w-10 items-center justify-center border border-(--border) text-(--accent) transition-transform group-hover:translate-x-1 group-hover:border-(--accent)">
+                      <div className="flex h-10 w-10 items-center justify-center border border-border text-accent transition-transform group-hover:translate-x-1 group-hover:border-accent">
                         <Icon className="h-4 w-4" aria-hidden="true" />
                       </div>
                     </Link>
@@ -144,8 +144,8 @@ export default function Home() {
                   description="Each tool has one explicit job. The architecture favors recoverability, readable transformations, testable definitions, and a deliberately lightweight presentation layer."
                   level={2}
                 />
-                <div className="mt-8 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.1em] text-(--text-soft)">
-                  <Database className="h-4 w-4 text-(--accent)" aria-hidden="true" />
+                <div className="mt-8 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-text-soft">
+                  <Database className="h-4 w-4 text-accent" aria-hidden="true" />
                   eight connected capabilities
                 </div>
               </div>
@@ -153,25 +153,25 @@ export default function Home() {
             </div>
           </section>
 
-          <section className="border border-(--border) bg-(--surface)">
+          <section className="border border-border bg-surface">
             <div className="grid gap-8 p-6 lg:grid-cols-[0.75fr_1.25fr] lg:p-10">
               <div>
-                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-(--accent)">
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
                   04 / Explore
                 </p>
-                <h2 className="mt-3 text-3xl font-medium tracking-[-0.025em] text-(--text)">
+                <h2 className="mt-3 text-3xl font-medium tracking-tight text-text">
                   Explore published running data.
                 </h2>
-                <p className="mt-4 max-w-xl text-sm leading-7 text-(--text-soft)">
+                <p className="mt-4 max-w-xl text-sm leading-7 text-text-soft">
                   Move from sessions and route geometry to consistency, volume, fitness, and the
                   planned read-only agent interface.
                 </p>
-                <p className="mt-6 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.1em] text-(--text-soft)">
-                  <Braces className="h-4 w-4 text-(--accent)" aria-hidden="true" />
+                <p className="mt-6 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-text-soft">
+                  <Braces className="h-4 w-4 text-accent" aria-hidden="true" />
                   tip: press cmd/ctrl + k
                 </p>
               </div>
-              <div className="grid border-l border-t border-(--border) sm:grid-cols-2">
+              <div className="grid border-l border-t border-border sm:grid-cols-2">
                 {explorerNavItems.map((item) => {
                   const Icon = item.icon;
 
@@ -179,16 +179,16 @@ export default function Home() {
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="group flex min-h-24 items-center justify-between gap-4 border-r border-b border-(--border) px-4 py-5 transition-colors hover:bg-(--accent-soft)"
+                      className="group flex min-h-24 items-center justify-between gap-4 border-r border-b border-border px-4 py-5 transition-colors hover:bg-accent-soft"
                     >
                       <div className="flex min-w-0 items-center gap-3">
-                        <Icon className="h-4 w-4 shrink-0 text-(--accent)" aria-hidden="true" />
-                        <span className="font-mono text-xs uppercase tracking-[0.08em] text-(--text)">
+                        <Icon className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+                        <span className="font-mono text-xs uppercase tracking-[0.08em] text-text">
                           {item.label}
                         </span>
                       </div>
                       <ArrowUpRight
-                        className="h-4 w-4 shrink-0 text-(--text-soft) transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-(--accent)"
+                        className="h-4 w-4 shrink-0 text-text-soft transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-accent"
                         aria-hidden="true"
                       />
                     </Link>

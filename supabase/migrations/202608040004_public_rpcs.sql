@@ -57,6 +57,7 @@ returns table (
     city_name text,
     country_name text,
     country_code text,
+    country_iso3 text,
     total_count bigint
 )
 language sql
@@ -90,7 +91,8 @@ as $$
             routes.representative_route_centroid_longitude_deg,
             routes.city_name,
             routes.country_name,
-            routes.country_code
+            routes.country_code,
+            routes.country_iso3
         from route_aggregates as aggregates
         inner join public.site_routes as routes using (route_id)
     )

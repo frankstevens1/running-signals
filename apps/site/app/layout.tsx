@@ -107,7 +107,7 @@ export default async function RootLayout({
       suppressHydrationWarning
       data-scroll-behavior="smooth"
     >
-      <body className="min-h-full bg-(--background) font-sans text-(--text)">
+      <body className="min-h-full bg-background font-sans text-text">
         <Script
           id="running-signals-theme"
           strategy="beforeInteractive"

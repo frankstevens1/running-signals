@@ -25,12 +25,12 @@ export function MetricCard({
   };
 }) {
   let TrendIcon = Minus;
-  let trendColor = "text-(--text-soft)";
+  let trendColor = "text-text-soft";
   if (trend && trend.direction !== "neutral") {
     const rawUp = trend.direction === "up";
     const favorable = trend.lowerIsBetter ? !rawUp : rawUp;
     TrendIcon = rawUp ? TrendingUp : TrendingDown;
-    trendColor = favorable ? "text-(--signal-ok)" : "text-(--signal-error)";
+    trendColor = favorable ? "text-signal-ok" : "text-signal-error";
   }
 
   return (
@@ -40,7 +40,7 @@ export function MetricCard({
           <dt>
             <ConsoleLabel>{label}</ConsoleLabel>
           </dt>
-          <dd className="mt-1 font-mono text-2xl font-semibold tabular-nums tracking-tight text-(--text)">
+          <dd className="mt-1 font-mono text-2xl font-semibold tabular-nums tracking-tight text-text">
             {value}
           </dd>
           {trend ? (
@@ -53,22 +53,22 @@ export function MetricCard({
           ) : null}
         </div>
         {Icon ? (
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center border border-(--border) bg-(--surface-muted) text-(--accent)">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center border border-border bg-surface-muted text-accent">
             <Icon className="h-5 w-5" aria-hidden="true" />
           </div>
         ) : null}
       </dl>
       {detail || source ? (
-        <div className="grid min-w-0 grid-cols-1 gap-1 border-t border-(--border) px-4 py-3 text-xs leading-5 text-(--text-soft)">
+        <div className="grid min-w-0 grid-cols-1 gap-1 border-t border-border px-4 py-3 text-xs leading-5 text-text-soft">
           {detail ? (
             <div className="min-w-0">
-              <span className="font-mono uppercase tracking-wide text-(--text)">Context</span>
+              <span className="font-mono uppercase tracking-wide text-text">Context</span>
               <MarqueeText text={detail} />
             </div>
           ) : null}
           {source ? (
             <div className="min-w-0">
-              <span className="font-mono uppercase tracking-wide text-(--text)">Source</span>
+              <span className="font-mono uppercase tracking-wide text-text">Source</span>
               <MarqueeText text={source} />
             </div>
           ) : null}

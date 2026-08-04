@@ -65,8 +65,13 @@ def test_main_rejects_partial_revalidation_config_before_sync(
     monkeypatch: MonkeyPatch,
 ) -> None:
     calls: list[str] = []
-    monkeypatch.setenv("SITE_REVALIDATE_URL", "https://example.test/revalidate")
-    monkeypatch.delenv("SITE_REVALIDATE_SECRET", raising=False)
+    monkeypatch.setattr(
+        sync_site_supabase,
+        "get_site_revalidate_config",
+        lambda: (_ for _ in ()).throw(
+            RuntimeError("SITE_REVALIDATE_URL and SITE_REVALIDATE_SECRET must both be set")
+        ),
+    )
     monkeypatch.setattr(sync_site_supabase, "get_databricks_config", databricks_config)
     monkeypatch.setattr(
         sync_site_supabase,
@@ -228,7 +233,7 @@ def test_site_routes_export_excludes_matching_internals() -> None:
         if table_export.table_name == "site_routes"
     )
 
-    assert export.columns[-7:] == (
+    assert export.columns[-8:] == (
         "representative_route_centroid_latitude_deg",
         "representative_route_centroid_longitude_deg",
         "route_start_latitude_deg",
@@ -236,6 +241,7 @@ def test_site_routes_export_excludes_matching_internals() -> None:
         "city_name",
         "country_name",
         "country_code",
+        "country_iso3",
     )
 
     statement = export.statement(databricks_config())
@@ -250,6 +256,7 @@ def test_site_routes_export_excludes_matching_internals() -> None:
     assert "route_start_latitude_deg" in statement
     assert "route_start_longitude_deg" in statement
     assert "city_name" in statement
+    assert "country_iso3" in statement
 
 
 def test_site_weeks_export_includes_avg_run_distance_km() -> None:
@@ -439,6 +446,7 @@ def test_supabase_bootstrap_core_includes_route_city_fields() -> None:
     assert "city_name text" in migration
     assert "country_name text" in migration
     assert "country_code text" in migration
+    assert "country_iso3 text" in migration
 
 
 def test_supabase_bootstrap_core_includes_week_average_distance() -> None:
@@ -757,7 +765,7 @@ def test_sync_supabase_stages_then_atomically_replaces_fit_exports(
     monkeypatch.setattr(
         psycopg,
         "connect",
-        lambda url, autocommit: connection,
+        lambda url, autocommit, **_: connection,
     )
 
     def fake_get_metadata_value(connection: object, key: str) -> dict[str, object]:
@@ -872,7 +880,7 @@ def test_sync_revalidates_after_committed_no_change_publish_connection_exits(
         secret="secret",
     )
 
-    monkeypatch.setattr(psycopg, "connect", lambda url, autocommit: connection)
+    monkeypatch.setattr(psycopg, "connect", lambda url, autocommit, **_: connection)
     monkeypatch.setattr(
         sync_site_supabase,
         "get_metadata_value",
@@ -917,7 +925,7 @@ def test_sync_dry_run_does_not_revalidate(monkeypatch: MonkeyPatch) -> None:
     connection = FakeSyncConnection()
     revalidation_calls: list[str] = []
 
-    monkeypatch.setattr(psycopg, "connect", lambda url, autocommit: connection)
+    monkeypatch.setattr(psycopg, "connect", lambda url, autocommit, **_: connection)
     monkeypatch.setattr(sync_site_supabase, "get_metadata_value", lambda connection, key: {})
     monkeypatch.setattr(
         sync_site_supabase,

@@ -49,9 +49,9 @@ export function RunMobilePaginationControls({
   const hasPrevious = safeOffset > 0;
   const hasNext = safeOffset + limit < total;
   const controlClass =
-    "inline-flex h-8 items-center gap-2 border border-(--border) px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-(--text) transition-colors hover:border-(--text-soft) hover:bg-(--surface-muted)";
+    "inline-flex h-8 items-center gap-2 border border-border px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-text transition-colors hover:border-text-soft hover:bg-surface-muted";
   const disabledClass =
-    "inline-flex h-8 items-center gap-2 border border-(--border) px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-(--text-soft) opacity-40";
+    "inline-flex h-8 items-center gap-2 border border-border px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-text-soft opacity-40";
 
   useEffect(() => {
     const anchor = anchorRef.current;
@@ -122,7 +122,7 @@ export function RunMobilePaginationControls({
               data-runs-mobile-controls
               role="navigation"
               aria-label="Run page controls"
-              className="fixed z-30 border border-(--border) bg-(--surface)/96 backdrop-blur-md lg:hidden"
+              className="fixed z-30 border border-border bg-surface/96 backdrop-blur-md lg:hidden"
               style={{ top: layout.top, left: layout.left, width: layout.width }}
             >
               <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-3 pt-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))]">
@@ -149,7 +149,7 @@ export function RunMobilePaginationControls({
                 <div
                   role="group"
                   aria-label="Rows per page"
-                  className="flex items-center gap-0.5 justify-self-center border border-(--border) bg-(--surface-muted) p-0.5"
+                  className="flex items-center gap-0.5 justify-self-center border border-border bg-surface-muted p-0.5"
                 >
                   {pageSizes.map((size) => (
                     <RunDataRefreshLink
@@ -159,8 +159,8 @@ export function RunMobilePaginationControls({
                       aria-label={`${size} rows per page`}
                       className={`inline-flex h-7 items-center px-2 font-mono text-[10px] font-semibold ${
                         limit === size
-                          ? "bg-(--accent) text-(--accent-foreground)"
-                          : "text-(--text-soft) hover:bg-(--surface) hover:text-(--text)"
+                          ? "bg-accent text-accent-foreground"
+                          : "text-text-soft hover:bg-surface hover:text-text"
                       }`}
                     >
                       {size}

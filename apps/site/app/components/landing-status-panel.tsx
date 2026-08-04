@@ -111,7 +111,7 @@ export function LandingStatusPanel() {
           tone: "neutral" as const,
           icon: (
             <LoaderCircle
-              className="h-4 w-4 text-(--text-faint) motion-safe:animate-spin"
+              className="h-4 w-4 text-text-faint motion-safe:animate-spin"
               aria-hidden="true"
             />
           ),
@@ -123,7 +123,7 @@ export function LandingStatusPanel() {
             label: "unavailable",
             tone: "warning" as const,
             icon: (
-              <AlertTriangle className="h-4 w-4 text-(--signal-warn)" aria-hidden="true" />
+              <AlertTriangle className="h-4 w-4 text-signal-warn" aria-hidden="true" />
             ),
             title: "Published data status unavailable",
             description: state.message,
@@ -133,7 +133,7 @@ export function LandingStatusPanel() {
               label: "no data",
               tone: "warning" as const,
               icon: (
-                <AlertTriangle className="h-4 w-4 text-(--signal-warn)" aria-hidden="true" />
+                <AlertTriangle className="h-4 w-4 text-signal-warn" aria-hidden="true" />
               ),
               title: "No published FIT data",
               description: "No completed day has been published yet.",
@@ -142,46 +142,46 @@ export function LandingStatusPanel() {
               label: formatSnapshotFreshness(state.data.lastSyncDate),
               tone: "active" as const,
               icon: (
-                <CheckCircle2 className="h-4 w-4 text-(--signal-ok)" aria-hidden="true" />
+                <CheckCircle2 className="h-4 w-4 text-signal-ok" aria-hidden="true" />
               ),
               title: state.data.statusLabel,
               description: `Snapshot: ${formatSyncDate(state.data.lastSyncDate)}.`,
             };
 
   return (
-    <aside className="border border-(--border) bg-(--surface)" aria-label="Published FIT data status">
-      <div className="flex items-center justify-between gap-4 border-b border-(--border) bg-(--surface-muted)/60 px-4 py-3">
+    <aside className="border border-border bg-surface" aria-label="Published FIT data status">
+      <div className="flex items-center justify-between gap-4 border-b border-border bg-surface-muted/60 px-4 py-3">
         <div className="flex items-center gap-2">
-          <Terminal className="h-4 w-4 text-(--accent)" aria-hidden="true" />
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-(--text)">
+          <Terminal className="h-4 w-4 text-accent" aria-hidden="true" />
+          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-text">
             published.status
           </p>
         </div>
         <ConsoleStatusIndicator label={status.label} tone={status.tone} />
       </div>
 
-      <div className="grid grid-cols-2 border-b border-(--border)">
+      <div className="grid grid-cols-2 border-b border-border">
         {pipelineFacts.map(([label, value]) => (
           <div
             key={label}
-            className="border-r border-b border-(--border) px-4 py-3 even:border-r-0 nth-[3]:border-b-0 nth-[4]:border-b-0"
+            className="border-r border-b border-border px-4 py-3 even:border-r-0 nth-[3]:border-b-0 nth-[4]:border-b-0"
           >
-            <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-(--text-soft)">
+            <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-text-soft">
               {label}
             </p>
-            <p className="mt-1 text-xs text-(--text)">{value}</p>
+            <p className="mt-1 text-xs text-text">{value}</p>
           </div>
         ))}
       </div>
 
       <div className="px-4 py-4" role="status" aria-live="polite" aria-atomic="true">
-        <p className="flex items-center gap-2 text-sm font-semibold text-(--text)">
+        <p className="flex items-center gap-2 text-sm font-semibold text-text">
           <span className="flex h-4 w-4 shrink-0 items-center justify-center">
             {status.icon}
           </span>
           <span>{status.title}</span>
         </p>
-        <p className="mt-1 pl-6 text-xs leading-5 text-(--text-soft)">{status.description}</p>
+        <p className="mt-1 pl-6 text-xs leading-5 text-text-soft">{status.description}</p>
       </div>
     </aside>
   );

@@ -57,7 +57,7 @@ const ROUTE_SELECT = [
   "avg_pace_min_per_km", "avg_heart_rate",
   "representative_route_centroid_latitude_deg",
   "representative_route_centroid_longitude_deg",
-  "city_name", "country_name", "country_code", "total_count",
+   "city_name", "country_name", "country_code", "country_iso3", "total_count",
 ].join(",");
 const MAP_RECORD_SELECT = [
   "record_index", "record_distance_km", "altitude_m", "pace_min_per_km",

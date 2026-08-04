@@ -112,7 +112,7 @@ export function RunDataRefreshRegion({
     <div className="relative mt-4" aria-busy={isPending || isLoadingVisible || undefined}>
       {children}
       {isLoadingVisible ? (
-        <div className="absolute inset-0 z-30 overflow-hidden bg-(--surface)/92 backdrop-blur-sm">
+        <div className="absolute inset-0 z-30 overflow-hidden bg-surface/92 backdrop-blur-sm">
           <RunResultsLoadingState view={pendingView} itemCount={itemCount} />
         </div>
       ) : null}

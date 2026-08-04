@@ -66,19 +66,19 @@ function TimelineRouteMap({ runId }: { runId: string }) {
       className="h-56 overflow-hidden lg:h-full lg:min-h-56"
     >
       {!isMapActive ? (
-        <div className="h-full bg-(--surface-muted)" />
+        <div className="h-full bg-surface-muted" />
       ) : error ? (
-        <div className="flex h-full items-center justify-center bg-(--surface-muted) px-4 text-center text-sm text-(--text-soft)">
+        <div className="flex h-full items-center justify-center bg-surface-muted px-4 text-center text-sm text-text-soft">
           {error}
         </div>
       ) : isLoading || !records ? (
-        <div className="h-full animate-pulse bg-(--surface-muted)" />
+        <div className="h-full animate-pulse bg-surface-muted" />
       ) : (
         <ActivityRouteMap
           records={records}
           interactive={false}
           compact
-          className="h-56 lg:h-full lg:min-h-56 bg-(--surface-muted)"
+          className="h-56 lg:h-full lg:min-h-56 bg-surface-muted"
           radiusClassName="rounded-none"
         />
       )}
@@ -99,11 +99,11 @@ function MetricItem({
 }) {
   return (
     <div className="min-w-0">
-      <dt className="whitespace-nowrap font-mono text-[9px] uppercase tracking-[0.12em] text-(--text-soft)">
+      <dt className="whitespace-nowrap font-mono text-[9px] uppercase tracking-[0.12em] text-text-soft">
         {label}
       </dt>
       <dd
-        className={`mt-1 truncate font-mono text-(--text) ${emphasis ? "text-sm" : "text-xs"} ${className ?? ""}`}
+        className={`mt-1 truncate font-mono text-text ${emphasis ? "text-sm" : "text-xs"} ${className ?? ""}`}
       >
         {value}
       </dd>
@@ -251,7 +251,7 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
 
   if (runs.length === 0) {
     return (
-      <div className="border border-dashed border-(--border) bg-(--surface) p-8 font-mono text-xs text-(--text-soft)">
+      <div className="border border-dashed border-border bg-surface p-8 font-mono text-xs text-text-soft">
         No runs match the current filters.
       </div>
     );
@@ -264,28 +264,28 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
           <article
             key={run.runId}
             data-run-timeline-item
-            className="group relative -mt-px overflow-hidden border border-(--border) bg-(--surface) transition-colors first:mt-0 hover:z-10 hover:border-(--text-soft)"
+            className="group relative -mt-px overflow-hidden border border-border bg-surface transition-colors first:mt-0 hover:z-10 hover:border-text-soft"
           >
             <div className="grid lg:grid-cols-[20rem_1fr]">
-              <div className="border-b border-(--border) lg:border-r lg:border-b-0">
+              <div className="border-b border-border lg:border-r lg:border-b-0">
                 <TimelineRouteMap runId={run.runId} />
               </div>
 
               <div className="min-w-0 lg:grid lg:grid-rows-[auto_minmax(0,1fr)]">
                 {/* Desktop: 3-column grid with Detail button as third column */}
-                <div className="hidden gap-4 border-b border-(--border) p-4 lg:grid md:grid-cols-[12rem_minmax(0,1fr)_auto] md:items-start xl:grid-cols-[14rem_minmax(0,1fr)_auto]">
+                <div className="hidden gap-4 border-b border-border p-4 lg:grid md:grid-cols-[12rem_minmax(0,1fr)_auto] md:items-start xl:grid-cols-[14rem_minmax(0,1fr)_auto]">
                   <div className="min-w-0">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-(--text-soft)">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-soft">
                       row::{String(index + 1).padStart(2, "0")} · {formatDate(run.activityDate)}
                     </p>
-                    <h3 className="mt-1 font-mono text-2xl leading-tight text-(--text)">
+                    <h3 className="mt-1 font-mono text-2xl leading-tight text-text">
                       {formatDistance(run.distanceKm, unit)}
                     </h3>
-                    <div className="mt-2 text-sm text-(--text-soft)">
+                    <div className="mt-2 text-sm text-text-soft">
                       {run.routeId ? (
                         <Link
                           href={`/routes?routeId=${encodeURIComponent(run.routeId)}`}
-                          className="font-mono text-(--accent) hover:underline"
+                          className="font-mono text-accent hover:underline"
                         >
                           route {formatRouteId(run.routeId)}
                         </Link>
@@ -309,7 +309,7 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
                   <button
                     type="button"
                     onClick={() => setSelectedRun(run)}
-                    className="inline-flex h-9 shrink-0 items-center gap-2 justify-self-start border border-(--border) px-3 font-mono text-[10px] uppercase tracking-[0.08em] text-(--text) transition-colors hover:border-(--accent) hover:bg-(--accent-soft) md:justify-self-end"
+                    className="inline-flex h-9 shrink-0 items-center gap-2 justify-self-start border border-border px-3 font-mono text-[10px] uppercase tracking-[0.08em] text-text transition-colors hover:border-accent hover:bg-accent-soft md:justify-self-end"
                   >
                     Detail
                     <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -317,20 +317,20 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
                 </div>
 
                 {/* Mobile: stacked layout with Detail button inline next to date */}
-                <div className="border-b border-(--border) p-4 lg:hidden">
+                <div className="border-b border-border p-4 lg:hidden">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-(--text-soft)">
+                      <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-soft">
                         row::{String(index + 1).padStart(2, "0")} · {formatDate(run.activityDate)}
                       </p>
-                      <h3 className="mt-1 font-mono text-2xl leading-tight text-(--text)">
+                      <h3 className="mt-1 font-mono text-2xl leading-tight text-text">
                         {formatDistance(run.distanceKm, unit)}
                       </h3>
-                      <div className="mt-2 text-sm text-(--text-soft)">
+                      <div className="mt-2 text-sm text-text-soft">
                         {run.routeId ? (
                           <Link
                             href={`/routes?routeId=${encodeURIComponent(run.routeId)}`}
-                            className="font-mono text-(--accent) hover:underline"
+                            className="font-mono text-accent hover:underline"
                           >
                             route {formatRouteId(run.routeId)}
                           </Link>
@@ -342,7 +342,7 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
                     <button
                       type="button"
                       onClick={() => setSelectedRun(run)}
-                      className="inline-flex h-9 shrink-0 items-center gap-2 border border-(--border) px-3 font-mono text-[10px] uppercase tracking-[0.08em] text-(--text) transition-colors hover:border-(--accent) hover:bg-(--accent-soft)"
+                      className="inline-flex h-9 shrink-0 items-center gap-2 border border-border px-3 font-mono text-[10px] uppercase tracking-[0.08em] text-text transition-colors hover:border-accent hover:bg-accent-soft"
                     >
                       Detail
                       <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -381,10 +381,10 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
                       className={
                         run.personalEfficiencyScore != null
                           ? run.personalEfficiencyScore > 100
-                            ? "text-(--signal-ok)"
+                            ? "text-signal-ok"
                             : run.personalEfficiencyScore < 100
-                              ? "text-(--signal-error)"
-                              : "text-(--text-soft)"
+                              ? "text-signal-error"
+                              : "text-text-soft"
                           : ""
                       }
                     />

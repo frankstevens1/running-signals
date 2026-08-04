@@ -62,7 +62,7 @@ function SortLink({
       href={hrefWithRunSort(params, sort, nextDirection)}
       scroll={false}
       tabIndex={tabIndex}
-      className="inline-flex h-7 items-center gap-1.5 whitespace-nowrap px-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-(--text-soft) hover:bg-(--surface) hover:text-(--text)"
+      className="inline-flex h-7 items-center gap-1.5 whitespace-nowrap px-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-text-soft hover:bg-surface hover:text-text"
     >
       <span>{label}</span>
       <SortIcon active={active} direction={direction} />
@@ -203,7 +203,7 @@ export function RunTable({
 
   if (runs.length === 0) {
     return (
-      <div className="border border-dashed border-(--border) bg-(--surface) p-8 font-mono text-xs text-(--text-soft)">
+      <div className="border border-dashed border-border bg-surface p-8 font-mono text-xs text-text-soft">
         No runs match the current filters.
       </div>
     );
@@ -213,13 +213,13 @@ export function RunTable({
     <>
       <div
         ref={wrapperRef}
-        className="overflow-x-auto border border-(--border) bg-(--surface)"
+        className="overflow-x-auto border border-border bg-surface"
       >
-        <table ref={tableRef} className="min-w-full divide-y divide-(--border) text-sm">
+        <table ref={tableRef} className="min-w-full divide-y divide-border text-sm">
           <thead
             ref={headerRef}
             aria-hidden={stickyHeader ? true : undefined}
-            className={`border-b border-(--border) bg-(--surface-muted) text-left text-(--text-soft) ${
+            className={`border-b border-border bg-surface-muted text-left text-text-soft ${
               stickyHeader ? "invisible" : ""
             }`}
           >
@@ -235,17 +235,17 @@ export function RunTable({
                     defaultDirection={column.defaultDirection}
                   />
                 ) : (
-                  <th key={column.label} className="whitespace-nowrap px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-(--text-soft) font-normal">
+                  <th key={column.label} className="whitespace-nowrap px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-text-soft font-normal">
                     {column.label}
                   </th>
                 ),
               )}
             </tr>
           </thead>
-          <tbody className="divide-y divide-(--border)">
+          <tbody className="divide-y divide-border">
             {runs.map((run) => (
-              <tr key={run.runId} className="font-mono text-xs transition-colors hover:bg-(--accent-soft)">
-                <td className="whitespace-nowrap px-4 py-3 text-(--text)">
+              <tr key={run.runId} className="font-mono text-xs transition-colors hover:bg-accent-soft">
+                <td className="whitespace-nowrap px-4 py-3 text-text">
                   {formatDate(run.activityDate)}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3">{formatDistance(run.distanceKm, unit)}</td>
@@ -268,10 +268,10 @@ export function RunTable({
                 <td className={`whitespace-nowrap px-4 py-3 ${
                   run.personalEfficiencyScore != null
                     ? run.personalEfficiencyScore > 100
-                      ? "text-(--signal-ok)"
+                      ? "text-signal-ok"
                       : run.personalEfficiencyScore < 100
-                        ? "text-(--signal-error)"
-                        : "text-(--text-soft)"
+                        ? "text-signal-error"
+                        : "text-text-soft"
                     : ""
                 }`}>
                   {run.personalEfficiencyScore != null
@@ -282,7 +282,7 @@ export function RunTable({
                   {run.routeId ? (
                     <Link
                       href={`/routes?routeId=${encodeURIComponent(run.routeId)}`}
-                      className="font-mono text-(--accent) hover:underline"
+                      className="font-mono text-accent hover:underline"
                     >
                       {formatRouteId(run.routeId)}
                     </Link>
@@ -295,7 +295,7 @@ export function RunTable({
                     type="button"
                     onClick={() => setSelectedRun(run)}
                     aria-label={`View details for ${formatDate(run.activityDate)}`}
-                    className="font-mono text-(--accent) hover:underline"
+                    className="font-mono text-accent hover:underline"
                   >
                     View
                   </button>
@@ -311,7 +311,7 @@ export function RunTable({
             <div
               role="table"
               aria-label="Runs table sticky header"
-              className="fixed z-[25] overflow-hidden border-x border-b border-(--border) bg-(--surface-muted) shadow-[var(--shadow-header)]"
+              className="fixed z-25 overflow-hidden border-x border-b border-border bg-surface-muted shadow-(--shadow-header)"
               style={{
                 top: stickyHeader.top,
                 left: stickyHeader.left,
@@ -321,7 +321,7 @@ export function RunTable({
               <div role="rowgroup">
                 <div
                   role="row"
-                  className="flex text-left text-(--text-soft)"
+                  className="flex text-left text-text-soft"
                   style={{
                     width: stickyHeader.tableWidth,
                     transform: `translateX(${-stickyHeader.scrollLeft}px)`,
@@ -357,7 +357,7 @@ export function RunTable({
                       <div
                         key={column.label}
                         role="columnheader"
-                        className="shrink-0 whitespace-nowrap px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-(--text-soft) font-normal"
+                        className="shrink-0 whitespace-nowrap px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-text-soft font-normal"
                         style={{ width: stickyHeader.columnWidths[index] }}
                       >
                         {column.label}

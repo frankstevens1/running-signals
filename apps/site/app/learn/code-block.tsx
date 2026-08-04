@@ -8,7 +8,7 @@ export async function CodeBlock({ code, lang = "sql" }: { code: string; lang?: s
 
   return (
     <div
-      className="overflow-auto border border-(--border) bg-[#1E1E1E] [&_pre]:p-5 [&_pre]:text-[13px] [&_pre]:leading-relaxed [&_code]:font-mono [&_.line]:min-h-[1.375rem]"
+      className="overflow-auto border border-border bg-[#1E1E1E] [&_pre]:p-5 [&_pre]:text-[13px] [&_pre]:leading-relaxed [&_code]:font-mono [&_.line]:min-h-5.5"
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );

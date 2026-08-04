@@ -14,6 +14,7 @@ function routeSummary(
   longitude: number | null,
   countryName: string | null = null,
   cityName: string | null = null,
+  countryIso3: string | null = null,
 ): RouteSummary {
   return {
     routeId,
@@ -26,6 +27,7 @@ function routeSummary(
     representativeRouteCentroidLongitudeDeg: longitude,
     countryName,
     countryCode: null,
+    countryIso3,
     cityName,
   };
 }
@@ -63,6 +65,23 @@ const countryBoundaries = countryBoundariesFromGeoJson({
             [15, 15],
             [10, 15],
             [10, 10],
+          ],
+        ],
+      },
+    },
+    {
+      type: "Feature",
+      id: "USA",
+      properties: { name: "United States of America" },
+      geometry: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [20, 20],
+            [25, 20],
+            [25, 25],
+            [20, 25],
+            [20, 20],
           ],
         ],
       },
@@ -105,7 +124,29 @@ describe("route geography", () => {
       new Set(["route-south"]),
     );
 
-    expect(features.features.map((feature) => feature.properties.routeCount)).toEqual([0, 1]);
+    expect(features.features.map((feature) => feature.properties.routeCount)).toEqual([0, 1, 0]);
+  });
+
+  it("uses ISO-3 identity before country display names", () => {
+    const geography = deriveRouteGeography(
+      [routeSummary("route-us", 21, 21, "United States", "Somewhere", "USA")],
+      countryBoundaries,
+    );
+
+    expect(geography.routeCountryIds.get("route-us")).toBe("USA");
+    expect(geography.countries).toContainEqual(expect.objectContaining({
+      id: "USA",
+      name: "United States of America",
+    }));
+  });
+
+  it("trims country names for pre-ISO-3 route data", () => {
+    const geography = deriveRouteGeography(
+      [routeSummary("route-north", 1, 1, " Northland ")],
+      countryBoundaries,
+    );
+
+    expect(geography.routeCountryIds.get("route-north")).toBe("north");
   });
 
   it("creates one country label for a multi-polygon country", () => {

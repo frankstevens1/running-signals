@@ -24,18 +24,18 @@ export default async function LearnPage() {
             icon={BookOpen}
           />
 
-          <section className="grid border border-(--border) bg-(--surface) md:grid-cols-[15rem_1fr]">
-            <div className="border-b border-(--border) bg-(--surface-muted)/60 p-5 md:border-r md:border-b-0">
-              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-(--accent)">
+          <section className="grid border border-border bg-surface md:grid-cols-[15rem_1fr]">
+            <div className="border-b border-border bg-surface-muted/60 p-5 md:border-r md:border-b-0">
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
                 Curriculum
               </p>
-              <p className="mt-2 font-mono text-xs text-(--text)">
+              <p className="mt-2 font-mono text-xs text-text">
                 {totalSteps} steps
               </p>
-              <p className="mt-1 font-mono text-xs text-(--text-faint)">7 modules</p>
-              <p className="mt-1 font-mono text-xs text-(--text-faint)">24 models</p>
+              <p className="mt-1 font-mono text-xs text-text-faint">7 modules</p>
+              <p className="mt-1 font-mono text-xs text-text-faint">24 models</p>
             </div>
-            <p className="max-w-4xl p-5 text-sm leading-7 text-(--text-soft)">
+            <p className="max-w-4xl p-5 text-sm leading-7 text-text-soft">
               Each step pairs the actual SQL from the dbt model with a narrative
               explanation covering what the model does, key SQL patterns it
               demonstrates, and where it fits in the overall data lineage.

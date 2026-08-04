@@ -114,7 +114,8 @@ create table public.site_routes (
     route_start_longitude_deg double precision,
     city_name text,
     country_name text,
-    country_code text
+    country_code text,
+    country_iso3 text
 );
 
 create table public.site_route_segments (

@@ -66,7 +66,7 @@ function statItems(run: RunSession, unit: DistanceUnit) {
         ? (
           <Link
             href={`/routes?routeId=${encodeURIComponent(run.routeId)}`}
-            className="font-mono text-(--accent) hover:underline"
+            className="font-mono text-accent hover:underline"
           >
             {formatRouteId(run.routeId)}
           </Link>
@@ -220,33 +220,33 @@ function ElevationTooltip({
   if (!point) return null;
 
   return (
-    <div className="pointer-events-none w-52 border border-(--border-strong) bg-(--surface) text-(--text) shadow-[var(--shadow-header)]">
-      <p className="px-3 pt-2 font-mono text-[9px] uppercase tracking-[0.12em] text-(--accent)">
+    <div className="pointer-events-none w-52 border border-border-strong bg-surface text-text shadow-(--shadow-header)">
+      <p className="px-3 pt-2 font-mono text-[9px] uppercase tracking-[0.12em] text-accent">
         Altitude - grade
       </p>
       <div className="grid grid-cols-2 gap-3 px-3 pb-2 pt-1 font-mono text-sm">
         <span>{formatElevation(point.altitudeM)}</span>
         <span className="text-right">{formatGrade(point.grade)}</span>
       </div>
-      <div className="grid grid-cols-2 divide-x divide-(--border) border-y border-(--border)">
+      <div className="grid grid-cols-2 divide-x divide-border border-y border-border">
         <div className="px-3 py-2">
-          <p className="font-mono text-[8px] uppercase tracking-[0.1em] text-(--text-faint)">
+          <p className="font-mono text-[8px] uppercase tracking-widest text-text-faint">
             Pace
           </p>
-          <p className="mt-0.5 whitespace-nowrap font-mono text-[11px] text-(--text)">
+          <p className="mt-0.5 whitespace-nowrap font-mono text-[11px] text-text">
             {formatPace(point.paceMinPerKm, unit)}
           </p>
         </div>
         <div className="px-3 py-2">
-          <p className="font-mono text-[8px] uppercase tracking-[0.1em] text-(--text-faint)">
+          <p className="font-mono text-[8px] uppercase tracking-widest text-text-faint">
             Heart rate
           </p>
-          <p className="mt-0.5 whitespace-nowrap font-mono text-[11px] text-(--text)">
+          <p className="mt-0.5 whitespace-nowrap font-mono text-[11px] text-text">
             {formatHeartRate(point.heartRate)}
           </p>
         </div>
       </div>
-      <p className="px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.08em] text-(--text-faint)">
+      <p className="px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.08em] text-text-faint">
         Distance {point.distance.toFixed(2)} {unit}
       </p>
     </div>
@@ -420,21 +420,21 @@ export function RunDetailDialog({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
-        className="max-h-[calc(100vh-2rem)] w-full max-w-6xl overflow-y-auto border border-(--border) bg-(--surface) shadow-2xl sm:max-h-[calc(100vh-3rem)]"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-6xl overflow-y-auto border border-border bg-surface shadow-2xl sm:max-h-[calc(100vh-3rem)]"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div
           ref={headerRef}
-          className="sticky top-0 z-20 flex items-start justify-between gap-4 border-b border-(--border) bg-(--surface) px-5 py-4"
+          className="sticky top-0 z-20 flex items-start justify-between gap-4 border-b border-border bg-surface px-5 py-4"
         >
           <div className="min-w-0">
-            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-(--accent)">
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
               inspect::run_session
             </p>
-            <h2 id={titleId} className="mt-1 font-mono text-xl text-(--text)">
+            <h2 id={titleId} className="mt-1 font-mono text-xl text-text">
               {formatDate(run.activityDate)}
             </h2>
-            <p id={descriptionId} className="mt-1 text-sm text-(--text-soft)">
+            <p id={descriptionId} className="mt-1 text-sm text-text-soft">
               {formatDistance(run.distanceKm, unit)} in {formatDuration(run.durationSeconds)} at{" "}
               {formatPace(run.avgPaceMinPerKm, unit)}.
             </p>
@@ -442,7 +442,7 @@ export function RunDetailDialog({
           <button
             type="button"
             aria-label="Close run detail"
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center border border-(--border) text-(--text-soft) transition hover:border-(--text-soft) hover:bg-(--surface-muted) hover:text-(--text)"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center border border-border text-text-soft transition hover:border-text-soft hover:bg-surface-muted hover:text-text"
             onClick={onClose}
           >
             <X className="h-4 w-4" aria-hidden="true" />
@@ -453,33 +453,33 @@ export function RunDetailDialog({
           <section className="space-y-4">
             <div>
               {recordState.isLoading ? (
-                <div className="h-80 animate-pulse border border-(--border) bg-(--surface-muted)" />
+                <div className="h-80 animate-pulse border border-border bg-surface-muted" />
               ) : recordState.error ? (
-                <div className="flex h-80 items-center justify-center border border-dashed border-(--border) bg-(--surface-muted) px-4 font-mono text-xs text-(--text-soft)">
+                <div className="flex h-80 items-center justify-center border border-dashed border-border bg-surface-muted px-4 font-mono text-xs text-text-soft">
                   {recordState.error}
                 </div>
               ) : (
                 <ActivityRouteMap
                   records={recordState.records ?? []}
-                  className="h-80 border border-(--border) bg-(--surface-muted)"
+                  className="h-80 border border-border bg-surface-muted"
                 />
               )}
             </div>
 
             <div className="space-y-3">
-              <h3 className="font-mono text-xs uppercase tracking-[0.12em] text-(--text)">
+              <h3 className="font-mono text-xs uppercase tracking-[0.12em] text-text">
                 session_summary
               </h3>
-              <dl className="grid border-l border-t border-(--border) grid-cols-3 lg:grid-cols-4">
+              <dl className="grid border-l border-t border-border grid-cols-3 lg:grid-cols-4">
                 {statItems(run, unit).map(([label, value]) => (
                   <div
                     key={label}
-                    className={`${label === "Route" ? "hidden lg:block " : ""}border-r border-b border-(--border) bg-(--surface-muted)/60 px-3 py-3`}
+                    className={`${label === "Route" ? "hidden lg:block " : ""}border-r border-b border-border bg-surface-muted/60 px-3 py-3`}
                   >
-                    <dt className="font-mono text-[10px] uppercase tracking-[0.1em] text-(--text-soft)">
+                    <dt className="font-mono text-[10px] uppercase tracking-widest text-text-soft">
                       <SummaryLabel label={label} />
                     </dt>
-                    <dd className="mt-1 font-mono text-sm text-(--text)">
+                    <dd className="mt-1 font-mono text-sm text-text">
                       <SummaryValue value={value} />
                     </dd>
                   </div>
@@ -490,19 +490,19 @@ export function RunDetailDialog({
 
           <section className="space-y-3">
             <div>
-              <h3 className="font-mono text-xs uppercase tracking-[0.12em] text-(--text)">
+              <h3 className="font-mono text-xs uppercase tracking-[0.12em] text-text">
                 elevation_profile
               </h3>
-              <p className="mt-1 text-xs text-(--text-soft)">
+              <p className="mt-1 text-xs text-text-soft">
                 Built from ordered activity-record distance and altitude fields.
               </p>
             </div>
             {elevationPoints.length === 0 ? (
-              <div className="border border-dashed border-(--border) bg-(--surface-muted) p-6 font-mono text-xs text-(--text-soft)">
+              <div className="border border-dashed border-border bg-surface-muted p-6 font-mono text-xs text-text-soft">
                 No elevation profile is available for this run.
               </div>
             ) : (
-              <div className="h-64 border border-(--border) bg-(--surface-muted)">
+              <div className="h-64 border border-border bg-surface-muted">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart
                     data={elevationPoints}
@@ -553,17 +553,17 @@ export function RunDetailDialog({
 
           <section className="space-y-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h3 className="font-mono text-xs uppercase tracking-[0.12em] text-(--text)">
+              <h3 className="font-mono text-xs uppercase tracking-[0.12em] text-text">
                 segment_splits::{resolutionLabel(resolution, unit).toLowerCase().replace(" ", "_")}
               </h3>
-              <p className="text-xs text-(--text-soft)">
-                Ordered analytical rows from <code className="font-mono text-(--text)">mart_run_segments</code>.
+              <p className="text-xs text-text-soft">
+                Ordered analytical rows from <code className="font-mono text-text">mart_run_segments</code>.
               </p>
             </div>
             <div
               ref={splitSelectorRef}
-              className={`sticky z-10 -mx-5 flex justify-center border-b bg-(--surface) px-4 py-2 transition-colors duration-150 ${
-                isSplitSelectorStuck ? "border-(--border)" : "border-transparent"
+              className={`sticky z-10 -mx-5 flex justify-center border-b bg-surface px-4 py-2 transition-colors duration-150 ${
+                isSplitSelectorStuck ? "border-border" : "border-transparent"
               }`}
               style={{ top: headerHeight }}
             >
@@ -576,8 +576,8 @@ export function RunDetailDialog({
                     onClick={() => setResolution(option)}
                     className={`h-7 border px-2.5 font-mono text-[9px] uppercase tracking-[0.06em] transition-colors ${
                       resolution === option
-                        ? "border-(--accent) bg-(--accent-soft) text-(--accent)"
-                        : "border-(--border) text-(--text-soft) hover:border-(--text-soft) hover:text-(--text)"
+                        ? "border-accent bg-accent-soft text-accent"
+                        : "border-border text-text-soft hover:border-text-soft hover:text-text"
                     }`}
                   >
                     {resolutionLabel(option, unit)}
@@ -586,22 +586,22 @@ export function RunDetailDialog({
               </div>
             </div>
             {segmentState.isLoading ? (
-              <div className="border border-(--border) bg-(--surface-muted) p-6 font-mono text-xs text-(--text-soft)">
+              <div className="border border-border bg-surface-muted p-6 font-mono text-xs text-text-soft">
                 Loading segment splits...
               </div>
             ) : segmentState.error ? (
-              <div className="border border-dashed border-(--border) bg-(--surface-muted) p-6 font-mono text-xs text-(--text-soft)">
+              <div className="border border-dashed border-border bg-surface-muted p-6 font-mono text-xs text-text-soft">
                 {segmentState.error}
               </div>
             ) : !segmentState.segments || segmentState.segments.length === 0 ? (
-              <div className="border border-dashed border-(--border) bg-(--surface-muted) p-6 font-mono text-xs text-(--text-soft)">
+              <div className="border border-dashed border-border bg-surface-muted p-6 font-mono text-xs text-text-soft">
                 No segment details are available for this run.
               </div>
             ) : (
-              <div className="overflow-hidden border border-(--border)">
+              <div className="overflow-hidden border border-border">
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-(--border) font-mono text-xs">
-                    <thead className="bg-(--surface-muted) text-left text-(--text-soft)">
+                  <table className="min-w-full divide-y divide-border font-mono text-xs">
+                    <thead className="bg-surface-muted text-left text-text-soft">
                       <tr>
                         <th className="px-3 py-3 font-medium">Split</th>
                         {!hideSegmentDuration ? (
@@ -615,13 +615,13 @@ export function RunDetailDialog({
                         <th className="px-3 py-3 font-medium">Cadence</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-(--border) bg-(--surface)">
+                    <tbody className="divide-y divide-border bg-surface">
                       {segmentState.segments.map((segment) => (
                         <tr
                           key={`${segment.runId}-${segment.unitSystem}-${segment.segmentLengthValue}-${segment.segmentIndex}`}
-                          className="transition-colors hover:bg-(--accent-soft)"
+                          className="transition-colors hover:bg-accent-soft"
                         >
-                          <td className="whitespace-nowrap px-4 py-3 font-medium text-(--text)">
+                          <td className="whitespace-nowrap px-4 py-3 font-medium text-text">
                             {splitDistance(segment, unit)}
                           </td>
                           {!hideSegmentDuration ? (

@@ -88,7 +88,7 @@ const analyticalValueSteps = [
 
 function CodeLabel({ children }: { children: React.ReactNode }) {
   return (
-    <code className="border border-(--border) bg-(--surface-muted) px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em] text-(--text)">
+    <code className="border border-border bg-surface-muted px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em] text-text">
       {children}
     </code>
   );
@@ -105,19 +105,19 @@ export default function MlReadinessPage() {
           icon={explorerPages.mlReadiness.icon}
         />
 
-        <section className="grid border border-(--border) bg-(--surface) md:grid-cols-[15rem_1fr]">
-          <div className="border-b border-(--border) bg-(--surface-muted)/60 p-5 md:border-r md:border-b-0">
-            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-(--accent)">
+        <section className="grid border border-border bg-surface md:grid-cols-[15rem_1fr]">
+          <div className="border-b border-border bg-surface-muted/60 p-5 md:border-r md:border-b-0">
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
               experiment_status
             </p>
-            <p className="mt-2 font-mono text-xs text-(--signal-ok)">
+            <p className="mt-2 font-mono text-xs text-signal-ok">
               offline_baselines: active
             </p>
-            <p className="mt-1 font-mono text-xs text-(--text-soft)">
+            <p className="mt-1 font-mono text-xs text-text-soft">
               production_inference: none
             </p>
           </div>
-          <p className="max-w-4xl p-5 text-sm leading-7 text-(--text-soft)">
+          <p className="max-w-4xl p-5 text-sm leading-7 text-text-soft">
             The active work compares simple offline baselines and validates modeling assumptions.
             Inputs, labels, lineage, and missing-data behavior remain inspectable, but this site does
             not train or serve models, claim performance, or convert experimental outputs into
@@ -132,25 +132,25 @@ export default function MlReadinessPage() {
             description="Active baseline and validation work uses explicit grains, sources, and labels without presenting experimental results as live intelligence."
             level={2}
           />
-          <div className="mt-8 border-t border-(--border)">
+          <div className="mt-8 border-t border-border">
             {featureGroups.map((group, index) => (
               <article
                 key={group.title}
-                className="grid gap-5 border-x border-b border-(--border) bg-(--surface)/50 p-5 md:grid-cols-[2rem_minmax(12rem,0.75fr)_minmax(0,1.25fr)] md:p-6"
+                className="grid gap-5 border-x border-b border-border bg-surface/50 p-5 md:grid-cols-[2rem_minmax(12rem,0.75fr)_minmax(0,1.25fr)] md:p-6"
               >
-                <span className="font-mono text-[10px] text-(--text-soft)">
+                <span className="font-mono text-[10px] text-text-soft">
                   {String(index + 1).padStart(2, "0")}
                 </span>
                 <div>
-                  <h3 className="text-lg font-medium text-(--text)">{group.title}</h3>
+                  <h3 className="text-lg font-medium text-text">{group.title}</h3>
                   <div className="mt-3">
                     <CodeLabel>{group.source}</CodeLabel>
                   </div>
                 </div>
-                <ul className="space-y-3 text-sm leading-6 text-(--text-soft)">
+                <ul className="space-y-3 text-sm leading-6 text-text-soft">
                   {group.items.map((item) => (
                     <li key={item} className="flex gap-3">
-                      <span className="mt-0.5 font-mono text-(--accent)" aria-hidden="true">
+                      <span className="mt-0.5 font-mono text-accent" aria-hidden="true">
                         +
                       </span>
                       <span>{item}</span>
@@ -169,17 +169,17 @@ export default function MlReadinessPage() {
             description="These use cases are being explored against versioned feature and label marts. No model performance, published finding, production prediction, or athlete guidance is claimed."
             level={2}
           />
-          <div className="mt-8 grid border-l border-t border-(--border) md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-8 grid border-l border-t border-border md:grid-cols-2 xl:grid-cols-4">
             {useCases.map((useCase, index) => (
               <article
                 key={useCase.title}
-                className="border-r border-b border-(--border) bg-(--surface)/50 p-5"
+                className="border-r border-b border-border bg-surface/50 p-5"
               >
-                <p className="font-mono text-[10px] text-(--accent)">
+                <p className="font-mono text-[10px] text-accent">
                   experiment::{String(index + 1).padStart(2, "0")}
                 </p>
-                <h3 className="mt-3 text-base font-medium text-(--text)">{useCase.title}</h3>
-                <p className="mt-3 text-sm leading-6 text-(--text-soft)">{useCase.copy}</p>
+                <h3 className="mt-3 text-base font-medium text-text">{useCase.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-text-soft">{useCase.copy}</p>
               </article>
             ))}
           </div>
@@ -192,32 +192,32 @@ export default function MlReadinessPage() {
             description="The useful outcome is not automatically a deployed model. Careful analysis can expose better definitions, missing context, and data-quality work."
             level={2}
           />
-          <div className="mt-8 grid border border-(--border) bg-(--surface)/50 lg:grid-cols-[1fr_18rem]">
-            <ol className="grid border-b border-(--border) md:grid-cols-3 lg:border-r lg:border-b-0">
+          <div className="mt-8 grid border border-border bg-surface/50 lg:grid-cols-[1fr_18rem]">
+            <ol className="grid border-b border-border md:grid-cols-3 lg:border-r lg:border-b-0">
               {analyticalValueSteps.map((step, index) => (
                 <li
                   key={step.title}
-                  className="border-b border-(--border) p-5 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0"
+                  className="border-b border-border p-5 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0"
                 >
-                  <p className="font-mono text-[10px] text-(--accent)">
+                  <p className="font-mono text-[10px] text-accent">
                     review::{String(index + 1).padStart(2, "0")}
                   </p>
-                  <h3 className="mt-3 text-base font-medium text-(--text)">{step.title}</h3>
-                  <p className="mt-3 text-sm leading-6 text-(--text-soft)">{step.copy}</p>
+                  <h3 className="mt-3 text-base font-medium text-text">{step.title}</h3>
+                  <p className="mt-3 text-sm leading-6 text-text-soft">{step.copy}</p>
                 </li>
               ))}
             </ol>
             <div className="p-5">
-              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-(--accent)">
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
                 serving_boundary
               </p>
-              <p className="mt-3 text-sm leading-6 text-(--text-soft)">
+              <p className="mt-3 text-sm leading-6 text-text-soft">
                 Only deliberately promoted gold outputs can become context for the planned
                 read-only MCP interface. Experimental predictions are not passed through directly.
               </p>
               <Link
                 href="/agent-interface"
-                className="mt-5 inline-flex items-center gap-2 font-mono text-xs font-medium uppercase tracking-[0.08em] text-(--accent) hover:text-(--accent-strong)"
+                className="mt-5 inline-flex items-center gap-2 font-mono text-xs font-medium uppercase tracking-[0.08em] text-accent hover:text-accent-strong"
               >
                 Review Agent Interface
                 <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />

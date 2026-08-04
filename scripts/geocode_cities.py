@@ -141,9 +141,23 @@ def table_row_count(catalog: str, schema: str, table_name: str) -> int:
         rows = query_databricks(
             f"select count(*) as cnt from {gold_table(catalog, schema, table_name)}"
         )
-        return int(rows[0]["cnt"]) if rows else 0
+        return int(cast(Any, rows[0]["cnt"])) if rows else 0
     except Exception:
         return 0
+
+
+def table_has_column(catalog: str, schema: str, table_name: str, column_name: str) -> bool:
+    rows = query_databricks(
+        f"""
+        select 1
+        from {quote_identifier(catalog)}.information_schema.columns
+        where table_schema = {escape_sql_string(schema)}
+          and table_name = {escape_sql_string(table_name)}
+          and column_name = {escape_sql_string(column_name)}
+        limit 1
+        """
+    )
+    return bool(rows)
 
 
 def download_file(url: str, dest: Path) -> None:
@@ -164,11 +178,11 @@ def download_file(url: str, dest: Path) -> None:
     tmp.rename(dest)
 
 
-def load_country_names(cache_dir: Path) -> dict[str, str]:
+def load_country_info(cache_dir: Path) -> dict[str, tuple[str | None, str]]:
     path = cache_dir / "countryInfo.txt"
     download_file(GEONAMES_COUNTRIES_URL, path)
 
-    mapping: dict[str, str] = {}
+    mapping: dict[str, tuple[str | None, str]] = {}
     with open(path, encoding="utf-8") as fh:
         for line in fh:
             if line.startswith("#"):
@@ -176,9 +190,10 @@ def load_country_names(cache_dir: Path) -> dict[str, str]:
             fields = line.strip().split("\t")
             if len(fields) >= 5:
                 iso_code = fields[0].strip().upper()
+                iso3_code = fields[1].strip().upper() or None
                 name = fields[4].strip()
                 if iso_code and name:
-                    mapping[iso_code] = name
+                    mapping[iso_code] = (iso3_code, name)
     return mapping
 
 
@@ -186,7 +201,7 @@ def parse_cities_zip(cache_dir: Path) -> list[tuple[str, float, float, str, str,
     path = cache_dir / "cities1000.zip"
     download_file(GEONAMES_CITIES_URL, path)
 
-    country_names = load_country_names(cache_dir)
+    country_info = load_country_info(cache_dir)
     cities: list[tuple[str, float, float, str, str, int]] = []
 
     with zipfile.ZipFile(path, "r") as zf:
@@ -207,7 +222,7 @@ def parse_cities_zip(cache_dir: Path) -> list[tuple[str, float, float, str, str,
                 if not name or not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
                     continue
 
-                country_name = country_names.get(country_code, country_code)
+                country_name = country_info.get(country_code, (None, country_code))[1]
                 cities.append((name, lat, lon, country_code, country_name, population))
 
     return cities
@@ -294,12 +309,22 @@ def ensure_route_city_names_table(catalog: str, schema: str) -> None:
                 city_name string,
                 country_name string,
                 country_code string,
+                country_iso3 string,
                 route_start_latitude_deg double,
                 route_start_longitude_deg double
             )
             using delta
             """,
         )
+    finally:
+        connection.close()
+
+    if table_has_column(catalog, schema, "route_city_names", "country_iso3"):
+        return
+
+    connection = connect_databricks()
+    try:
+        execute_databricks(connection, f"alter table {table} add column country_iso3 string")
     finally:
         connection.close()
 
@@ -354,10 +379,11 @@ def fetch_routes_needing_geocode(
         from route_start_positions as rsp
         left join {cities_table} as c on rsp.route_id = c.route_id
         where c.route_id is null
-           or (
-               c.route_start_latitude_deg is distinct from rsp.route_start_latitude_deg
-               or c.route_start_longitude_deg is distinct from rsp.route_start_longitude_deg
-           )
+            or (
+                c.route_start_latitude_deg is distinct from rsp.route_start_latitude_deg
+                or c.route_start_longitude_deg is distinct from rsp.route_start_longitude_deg
+                or c.country_iso3 is null
+            )
         """
     )
 
@@ -367,17 +393,62 @@ def fetch_routes_needing_geocode(
         lat = row["route_start_latitude_deg"]
         lon = row["route_start_longitude_deg"]
         if lat is not None and lon is not None:
-            lat_f = float(lat)
-            lon_f = float(lon)
+            lat_f = float(cast(Any, lat))
+            lon_f = float(cast(Any, lon))
             if -90 <= lat_f <= 90 and -180 <= lon_f <= 180:
                 result.append((route_id, lat_f, lon_f))
 
     return result
 
 
+def backfill_route_country_iso3(
+    catalog: str,
+    schema: str,
+    country_info: dict[str, tuple[str | None, str]],
+) -> int:
+    table = gold_table(catalog, schema, "route_city_names")
+    rows = query_databricks(
+        f"""
+        select distinct country_code
+        from {table}
+        where country_iso3 is null
+          and country_code is not null
+        """
+    )
+    updates = sorted({
+        (str(row["country_code"]).upper(), country_info.get(str(row["country_code"]).upper(), (None, ""))[0])
+        for row in rows
+        if row.get("country_code") is not None
+    })
+    resolved = [(country_code, iso3) for country_code, iso3 in updates if iso3 is not None]
+    if not resolved:
+        return 0
+
+    connection = connect_databricks()
+    try:
+        for country_code, country_iso3 in resolved:
+            execute_databricks(
+                connection,
+                f"""
+                update {table}
+                set country_iso3 = {escape_sql_string(country_iso3)}
+                where country_iso3 is null
+                  and country_code = {escape_sql_string(country_code)}
+                """,
+            )
+    finally:
+        connection.close()
+
+    return len(resolved)
+
+
 def find_nearest_city(
-    catalog: str, schema: str, lat: float, lon: float
-) -> tuple[str, str, str] | None:
+    catalog: str,
+    schema: str,
+    lat: float,
+    lon: float,
+    country_info: dict[str, tuple[str | None, str]],
+) -> tuple[str, str, str, str | None] | None:
     geonames_table = gold_table(catalog, schema, "city_geonames")
 
     rows = query_databricks(
@@ -394,15 +465,15 @@ def find_nearest_city(
     if not rows:
         return None
 
-    best: tuple[str, str, str] | None = None
+    best: tuple[str, str, str, str | None] | None = None
     best_dist = float("inf")
     best_pop = -1
 
     for row in rows:
-        city_lat = float(row["latitude"])
-        city_lon = float(row["longitude"])
+        city_lat = float(cast(Any, row["latitude"]))
+        city_lon = float(cast(Any, row["longitude"]))
         dist = haversine_km(lat, lon, city_lat, city_lon)
-        pop = int(row["population"] or 0)
+        pop = int(cast(Any, row["population"]) or 0)
 
         if dist < best_dist or (abs(dist - best_dist) < 0.001 and pop > best_pop):
             best_dist = dist
@@ -410,7 +481,8 @@ def find_nearest_city(
             city_name = str(row["city_name"])
             country_name = str(row["country_name"])
             country_code = str(row["country_code"])
-            best = (city_name, country_name, country_code)
+            country_iso3 = country_info.get(country_code, (None, ""))[0]
+            best = (city_name, country_name, country_code, country_iso3)
 
     return best
 
@@ -418,7 +490,7 @@ def find_nearest_city(
 def upsert_route_city_names(
     catalog: str,
     schema: str,
-    rows: list[tuple[str, str, str, str, float, float]],
+    rows: list[tuple[str, str, str, str, str | None, float, float]],
 ) -> None:
     if not rows:
         return
@@ -426,7 +498,10 @@ def upsert_route_city_names(
     table = gold_table(catalog, schema, "route_city_names")
     connection = connect_databricks()
     try:
-        for (route_id, city_name, country_name, country_code, lat, lon) in rows:
+        for (route_id, city_name, country_name, country_code, country_iso3, lat, lon) in rows:
+            country_iso3_sql = (
+                "null" if country_iso3 is None else escape_sql_string(country_iso3)
+            )
             execute_databricks(
                 connection,
                 f"""
@@ -437,6 +512,7 @@ def upsert_route_city_names(
                         {escape_sql_string(city_name)} as city_name,
                         {escape_sql_string(country_name)} as country_name,
                         {escape_sql_string(country_code)} as country_code,
+                        {country_iso3_sql} as country_iso3,
                         {lat} as route_start_latitude_deg,
                         {lon} as route_start_longitude_deg
                 ) as source
@@ -452,6 +528,10 @@ def upsert_route_city_names(
 def geocode(catalog: str, schema: str) -> int:
     load_geonames_to_databricks(catalog, schema)
     ensure_route_city_names_table(catalog, schema)
+    country_info = load_country_info(get_cache_dir())
+    backfilled = backfill_route_country_iso3(catalog, schema, country_info)
+    if backfilled:
+        print(f"  backfilled ISO-3 country codes for {backfilled} country codes")
 
     print("Finding routes that need geocoding ...")
     pending = fetch_routes_needing_geocode(catalog, schema)
@@ -462,13 +542,26 @@ def geocode(catalog: str, schema: str) -> int:
         return 0
 
     print(f"Geocoding {len(pending)} routes ...")
-    resolved: list[tuple[str, str, str, str, float, float]] = []
+    resolved: list[tuple[str, str, str, str, str | None, float, float]] = []
     for route_id, lat, lon in pending:
-        result = find_nearest_city(catalog, schema, lat, lon)
+        result = find_nearest_city(catalog, schema, lat, lon, country_info)
         if result is not None:
-            city_name, country_name, country_code = result
-            resolved.append((route_id, city_name, country_name, country_code, lat, lon))
-            print(f"  {route_id[:8]} → {city_name}, {country_name} ({country_code})")
+            city_name, country_name, country_code, country_iso3 = result
+            resolved.append(
+                (
+                    route_id,
+                    city_name,
+                    country_name,
+                    country_code,
+                    country_iso3,
+                    lat,
+                    lon,
+                )
+            )
+            print(
+                f"  {route_id[:8]} → {city_name}, {country_name} "
+                f"({country_code}/{country_iso3 or 'unknown'})"
+            )
         else:
             print(f"  {route_id[:8]} → no city found within bounding box")
 

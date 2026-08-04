@@ -87,7 +87,7 @@ export function MetricInfoDialog({ content, label }: MetricInfoDialogProps) {
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         title={dialogLabel}
-        className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-(--border) text-(--text-soft) transition-colors hover:border-(--accent) hover:bg-(--surface-muted) hover:text-(--text) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--accent)"
+        className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-border text-text-soft transition-colors hover:border-accent hover:bg-surface-muted hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         onClick={() => setIsOpen(true)}
       >
         <Info className="h-4 w-4" aria-hidden="true" />
@@ -96,7 +96,7 @@ export function MetricInfoDialog({ content, label }: MetricInfoDialogProps) {
       {isOpen
         ? createPortal(
             <div
-              className="fixed inset-x-0 top-0 z-[100] flex h-dvh items-center justify-center bg-black/60 px-4 py-6 backdrop-blur-sm"
+              className="fixed inset-x-0 top-0 z-100 flex h-dvh items-center justify-center bg-black/60 px-4 py-6 backdrop-blur-sm"
               onClick={(event) => {
                 if (event.target === event.currentTarget) setIsOpen(false);
               }}
@@ -108,12 +108,12 @@ export function MetricInfoDialog({ content, label }: MetricInfoDialogProps) {
                 aria-labelledby={titleId}
                 aria-describedby={descriptionId}
                 tabIndex={-1}
-                className="max-h-[calc(100dvh-3rem)] w-full max-w-xl overflow-y-auto border border-(--border) bg-(--surface) text-(--text) shadow-(--shadow-dialog) outline-none"
+                className="max-h-[calc(100dvh-3rem)] w-full max-w-xl overflow-y-auto border border-border bg-surface text-text shadow-(--shadow-dialog) outline-none"
               >
-                <div className="sticky top-0 flex items-start justify-between gap-4 border-b border-(--border) bg-(--surface-muted) px-5 py-4">
+                <div className="sticky top-0 flex items-start justify-between gap-4 border-b border-border bg-surface-muted px-5 py-4">
                   <div className="min-w-0">
                     <ConsoleLabel>metric_notes</ConsoleLabel>
-                    <h2 id={titleId} className="mt-2 text-lg font-semibold text-(--text)">
+                    <h2 id={titleId} className="mt-2 text-lg font-semibold text-text">
                       {content.title}
                     </h2>
                   </div>
@@ -121,34 +121,34 @@ export function MetricInfoDialog({ content, label }: MetricInfoDialogProps) {
                     ref={closeButtonRef}
                     type="button"
                     aria-label="Close metric notes"
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-(--border) text-(--text-soft) transition-colors hover:border-(--accent) hover:bg-(--surface) hover:text-(--text) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--accent)"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-border text-text-soft transition-colors hover:border-accent hover:bg-surface hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                     onClick={() => setIsOpen(false)}
                   >
                     <X className="h-4 w-4" aria-hidden="true" />
                   </button>
                 </div>
 
-                <div className="space-y-6 p-5 text-sm leading-6 text-(--text-soft)">
-                  <section className="border border-(--border)">
-                    <div className="border-b border-(--border) bg-(--surface-muted) px-4 py-2.5">
-                      <ConsoleLabel className="text-(--text)">definition</ConsoleLabel>
+                <div className="space-y-6 p-5 text-sm leading-6 text-text-soft">
+                  <section className="border border-border">
+                    <div className="border-b border-border bg-surface-muted px-4 py-2.5">
+                      <ConsoleLabel className="text-text">definition</ConsoleLabel>
                     </div>
                     <p id={descriptionId} className="px-4 pt-4">
                       {content.definition}
                     </p>
-                    <dl className="m-4 grid grid-cols-[auto_1fr] gap-3 border-t border-(--border) pt-3 font-mono text-xs">
-                      <dt className="uppercase tracking-wide text-(--text-soft)">Source</dt>
-                      <dd className="text-(--text)">{content.source}</dd>
+                    <dl className="m-4 grid grid-cols-[auto_1fr] gap-3 border-t border-border pt-3 font-mono text-xs">
+                      <dt className="uppercase tracking-wide text-text-soft">Source</dt>
+                      <dd className="text-text">{content.source}</dd>
                     </dl>
                   </section>
 
                   <section>
-                    <ConsoleLabel className="text-(--text)">how_to_read</ConsoleLabel>
-                    <ul className="mt-3 divide-y divide-(--border) border-y border-(--border)">
+                    <ConsoleLabel className="text-text">how_to_read</ConsoleLabel>
+                    <ul className="mt-3 divide-y divide-border border-y border-border">
                       {content.interpretation.map((note, index) => (
                         <li key={note} className="flex gap-2">
                           <span
-                            className="py-3 font-mono text-xs text-(--accent)"
+                            className="py-3 font-mono text-xs text-accent"
                             aria-hidden="true"
                           >
                             {String(index + 1).padStart(2, "0")}
@@ -160,14 +160,14 @@ export function MetricInfoDialog({ content, label }: MetricInfoDialogProps) {
                   </section>
 
                   {content.caveats && content.caveats.length > 0 ? (
-                    <section className="border-l-2 border-(--signal-warn) pl-4">
-                      <ConsoleLabel className="text-(--text)">
+                    <section className="border-l-2 border-signal-warn pl-4">
+                      <ConsoleLabel className="text-text">
                         interpretation_notes
                       </ConsoleLabel>
                       <ul className="mt-3 space-y-2">
                         {content.caveats.map((note) => (
                           <li key={note} className="flex gap-2">
-                            <span className="font-mono text-(--signal-warn)" aria-hidden="true">
+                            <span className="font-mono text-signal-warn" aria-hidden="true">
                               !
                             </span>
                             <span>{note}</span>

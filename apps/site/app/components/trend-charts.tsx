@@ -160,7 +160,7 @@ const tooltipStyle = {
 const legendProps = {
   iconSize: 8,
   formatter: (value: string) => (
-    <span className="font-mono text-(--text-soft)">{value}</span>
+    <span className="font-mono text-text-soft">{value}</span>
   ),
   wrapperStyle: {
     color: "var(--text-soft)",
@@ -320,8 +320,8 @@ function heartRateBandButtonClass(isSelected: boolean) {
     "comparable-filter-button inline-flex h-[21px] shrink-0 items-center justify-center gap-1 whitespace-nowrap border px-[5px] font-mono font-medium leading-none transition-colors sm:px-[6px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--surface)";
 
   return isSelected
-    ? `${base} border-(--accent) bg-(--accent-soft) text-(--accent-strong)`
-    : `${base} border-(--border) bg-(--surface) text-(--text-soft) hover:border-(--accent) hover:text-(--text)`;
+    ? `${base} border-accent bg-accent-soft text-accent-strong`
+    : `${base} border-border bg-surface text-text-soft hover:border-accent hover:text-text`;
 }
 
 function FitnessLineLegend({
@@ -332,7 +332,7 @@ function FitnessLineLegend({
   rollingLabel: string;
 }) {
   return (
-    <div className="flex min-w-0 max-w-full flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-1 font-mono text-[11px] leading-4 text-(--text-soft)">
+    <div className="flex min-w-0 max-w-full flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-1 font-mono text-[11px] leading-4 text-text-soft">
       <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
         <span
           className="w-5 shrink-0"
@@ -363,7 +363,7 @@ function RecoveryLegend({
     : recoveryClassificationColor(latestClassification);
 
   return (
-    <div className="flex min-w-0 max-w-full flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-1 font-mono text-[11px] leading-4 text-(--text-soft)">
+    <div className="flex min-w-0 max-w-full flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-1 font-mono text-[11px] leading-4 text-text-soft">
       <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
         <span
           className="size-2 shrink-0"
@@ -816,18 +816,18 @@ function ChartFrame({
   children: ReactNode;
 }) {
   return (
-    <section className="flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden border border-(--border) bg-(--surface)">
-      <div className="flex items-start justify-between gap-3 border-b border-(--border) px-4 py-3">
+    <section className="flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden border border-border bg-surface">
+      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0">
-          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-(--accent)">
+          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-accent">
             analysis.output
           </p>
-          <h2 className="mt-1 text-base font-semibold text-(--text)">{title}</h2>
-          {description ? <p className={`mt-1 max-w-2xl text-sm text-(--text-soft) ${descriptionClassName ?? ""}`}>{description}</p> : null}
+          <h2 className="mt-1 text-base font-semibold text-text">{title}</h2>
+          {description ? <p className={`mt-1 max-w-2xl text-sm text-text-soft ${descriptionClassName ?? ""}`}>{description}</p> : null}
         </div>
         <MetricInfoDialog content={info} />
       </div>
-      {controls ? <div className="min-w-0 max-w-full border-b border-(--border) px-4 py-3">{controls}</div> : null}
+      {controls ? <div className="min-w-0 max-w-full border-b border-border px-4 py-3">{controls}</div> : null}
       <div className={`${contentClassName ?? "h-80 min-h-80"} w-full min-w-0 max-w-full flex-1 overflow-hidden px-2 pt-4 pb-3 sm:px-4`}>{children}</div>
     </section>
   );
@@ -1119,20 +1119,20 @@ function aerobicDecouplingClassification(value: number) {
     return {
       label: "Low decoupling",
       color: SIGNAL_OK_COLOR,
-      textClassName: "text-(--signal-ok)",
+      textClassName: "text-signal-ok",
     };
   }
   if (value <= 0.1) {
     return {
       label: "Moderate decoupling",
       color: "var(--signal-warn)",
-      textClassName: "text-(--signal-warn)",
+      textClassName: "text-signal-warn",
     };
   }
   return {
     label: "High decoupling",
     color: SIGNAL_ERROR_COLOR,
-    textClassName: "text-(--signal-error)",
+    textClassName: "text-signal-error",
   };
 }
 
@@ -1212,7 +1212,7 @@ function AerobicDecouplingComparison({
   }
 
   return (
-    <div className="flex h-full flex-col border border-(--border) bg-(--surface-muted)">
+    <div className="flex h-full flex-col border border-border bg-surface-muted">
       <AerobicDecouplingSummary point={point} unit={unit} heading={heading} showMeaning={false} />
       <AerobicDecouplingHalfDetails point={point} unit={unit} className="flex-1" />
       <AerobicDecouplingOutcome point={point} unit={unit} />
@@ -1228,7 +1228,7 @@ function AerobicDecouplingUnavailableReason({
   className?: string;
 }) {
   return (
-    <div className={`border border-dashed border-(--border) bg-(--surface-muted) px-4 py-3 font-mono text-xs leading-5 text-(--text-soft) ${className ?? ""}`}>
+    <div className={`border border-dashed border-border bg-surface-muted px-4 py-3 font-mono text-xs leading-5 text-text-soft ${className ?? ""}`}>
       {unavailableReasonLabel(reason)}
     </div>
   );
@@ -1250,18 +1250,18 @@ function AerobicDecouplingSummary({
   const classification = aerobicDecouplingClassification(point.aerobicDecouplingPct);
 
   return (
-    <div className={`grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-4 py-3 ${showDivider ? "border-b border-(--border)" : ""}`}>
+    <div className={`grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-4 py-3 ${showDivider ? "border-b border-border" : ""}`}>
       <div>
-        <p className="whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.12em] text-(--accent)">
+        <p className="whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.12em] text-accent">
           {heading}
         </p>
-        <p className="mt-0.5 text-sm text-(--text-soft)">
+        <p className="mt-0.5 text-sm text-text-soft">
           {formatDate(point.activityDate)} · {formatDistance(point.distanceKm, unit)}
         </p>
       </div>
       <div className="text-right">
         <p className={`font-mono text-lg ${classification.textClassName}`}>{formatSignedPercent(point.aerobicDecouplingPct)}</p>
-        {showMeaning ? <p className="text-xs text-(--text-soft)">{aerobicDecouplingCallout(point.aerobicDecouplingPct)}</p> : null}
+        {showMeaning ? <p className="text-xs text-text-soft">{aerobicDecouplingCallout(point.aerobicDecouplingPct)}</p> : null}
       </div>
     </div>
   );
@@ -1277,7 +1277,7 @@ function AerobicDecouplingHalfDetails({
   className?: string;
 }) {
   return (
-    <div className={`grid grid-cols-2 divide-x divide-(--border) ${className ?? ""}`}>
+    <div className={`grid grid-cols-2 divide-x divide-border ${className ?? ""}`}>
       <AerobicDecouplingHalf
         label="First half"
         speedKmh={point.firstHalfSpeedKmh}
@@ -1311,20 +1311,20 @@ function AerobicDecouplingHalf({
 }) {
   return (
     <div className="h-full px-4 py-3">
-      <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-(--text-soft)">{label}</p>
-      <p className="mt-1 font-mono text-sm text-(--text)">{formatPace(60 / speedKmh, unit)}</p>
-      <dl className="mt-3 space-y-1.5 font-mono text-[10px] leading-4 text-(--text-soft)">
+      <p className="font-mono text-[10px] uppercase tracking-widest text-text-soft">{label}</p>
+      <p className="mt-1 font-mono text-sm text-text">{formatPace(60 / speedKmh, unit)}</p>
+      <dl className="mt-3 space-y-1.5 font-mono text-[10px] leading-4 text-text-soft">
         <div>
           <dt>Speed</dt>
-          <dd className="text-xs text-(--text)">{speedFromKmh(speedKmh, unit).toFixed(1)} {unit}/h</dd>
+          <dd className="text-xs text-text">{speedFromKmh(speedKmh, unit).toFixed(1)} {unit}/h</dd>
         </div>
         <div>
           <dt>Avg HR</dt>
-          <dd className="text-xs text-(--text)">{Math.round(avgHeartRate)} bpm</dd>
+          <dd className="text-xs text-text">{Math.round(avgHeartRate)} bpm</dd>
         </div>
         <div>
           <dt>Efficiency</dt>
-          <dd className="text-[10px] leading-4 text-(--text)">{formatHalfEfficiency(efficiencyRatio, unit)}</dd>
+          <dd className="text-[10px] leading-4 text-text">{formatHalfEfficiency(efficiencyRatio, unit)}</dd>
         </div>
       </dl>
     </div>
@@ -1348,16 +1348,16 @@ function AerobicDecouplingOutcome({
   const classification = aerobicDecouplingClassification(point.aerobicDecouplingPct);
 
   return (
-    <div className="space-y-3 border-t border-(--border) px-4 py-3">
+    <div className="space-y-3 border-t border-border px-4 py-3">
       <div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-(--text-soft)">Efficiency reading</p>
+        <p className="font-mono text-[10px] uppercase tracking-widest text-text-soft">Efficiency reading</p>
         <p className={`mt-0.5 pl-2 whitespace-nowrap text-xs leading-4 ${classification.textClassName}`}>
           {aerobicDecouplingCallout(point.aerobicDecouplingPct)}
         </p>
       </div>
       <div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-(--text-soft)">Pace shift</p>
-        <p className="mt-0.5 pl-2 text-xs leading-4 text-(--text)">{formatHalfPaceDifference(point, unit)}</p>
+        <p className="font-mono text-[10px] uppercase tracking-widest text-text-soft">Pace shift</p>
+        <p className="mt-0.5 pl-2 text-xs leading-4 text-text">{formatHalfPaceDifference(point, unit)}</p>
       </div>
     </div>
   );
@@ -1373,8 +1373,8 @@ function AerobicDecouplingMobileEvidence({
   if (!point) return null;
 
   return (
-    <details className="border border-(--border) bg-(--surface-muted) xl:hidden">
-      <summary className="cursor-pointer px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-(--text-soft)">
+    <details className="border border-border bg-surface-muted xl:hidden">
+      <summary className="cursor-pointer px-4 py-2.5 font-mono text-[10px] uppercase tracking-widest text-text-soft">
         First and second-half evidence
       </summary>
       <AerobicDecouplingHalfDetails point={point} unit={unit} />
@@ -1468,7 +1468,7 @@ export function AerobicDecouplingChart({ points }: { points: FitnessPoint[] }) {
         ))}
       </div>
       {heartRateBands.length > 1 ? (
-        <div className="flex flex-wrap items-center justify-start gap-1.5 border-t border-(--border) pt-3 xl:flex-nowrap xl:border-t-0 xl:border-l xl:pt-0 xl:pl-3" role="group" aria-label="Average heart rate range">
+        <div className="flex flex-wrap items-center justify-start gap-1.5 border-t border-border pt-3 xl:flex-nowrap xl:border-t-0 xl:border-l xl:pt-0 xl:pl-3" role="group" aria-label="Average heart rate range">
           <button
             type="button"
             aria-pressed={!hasSelectedHeartRateBands}
@@ -1514,7 +1514,7 @@ export function AerobicDecouplingChart({ points }: { points: FitnessPoint[] }) {
         <div className="flex min-h-0 min-w-0 flex-col gap-3">
           <div className="xl:hidden">
             {evidencePoint ? (
-              <div className="border border-(--border) bg-(--surface-muted)">
+              <div className="border border-border bg-surface-muted">
                 <AerobicDecouplingSummary
                   point={evidencePoint}
                   unit={unit}
@@ -1524,7 +1524,7 @@ export function AerobicDecouplingChart({ points }: { points: FitnessPoint[] }) {
               </div>
             ) : <AerobicDecouplingUnavailableReason reason={latestIneligibleReason} />}
           </div>
-          <div className="flex flex-col items-start gap-0.5 px-1 font-mono text-[10px] leading-4 text-(--text-soft) xl:flex-row xl:items-center xl:justify-between xl:gap-4">
+          <div className="flex flex-col items-start gap-0.5 px-1 font-mono text-[10px] leading-4 text-text-soft xl:flex-row xl:items-center xl:justify-between xl:gap-4">
             <span className="xl:whitespace-nowrap">{visibleData.length} eligible comparable {visibleData.length === 1 ? "run" : "runs"}: {comparableRunLabel}</span>
             {priorMedian !== null
               ? <span className="xl:whitespace-nowrap">Prior 90 days: median {formatSignedPercent(priorMedian)} from {priorBaselineValues.length} runs</span>
@@ -1579,7 +1579,7 @@ export function AerobicDecouplingChart({ points }: { points: FitnessPoint[] }) {
                 </ComposedChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex h-full items-center justify-center border border-dashed border-(--border) bg-(--surface-muted) px-4 text-center font-mono text-xs text-(--text-soft)">
+              <div className="flex h-full items-center justify-center border border-dashed border-border bg-surface-muted px-4 text-center font-mono text-xs text-text-soft">
                 No eligible runs match the selected comparable-run filters.
               </div>
             )}
@@ -1752,7 +1752,7 @@ export function FitnessEfficiencyChart({ points }: { points: FitnessPoint[] }) {
         ))}
       </div>
       {heartRateBands.length > 1 ? (
-        <div className="flex flex-wrap items-center justify-start gap-1.5 border-t border-(--border) pt-3" role="group" aria-label="Average heart rate range">
+        <div className="flex flex-wrap items-center justify-start gap-1.5 border-t border-border pt-3" role="group" aria-label="Average heart rate range">
           <button
             type="button"
             aria-pressed={!hasSelectedHeartRateBands}
@@ -1790,7 +1790,7 @@ export function FitnessEfficiencyChart({ points }: { points: FitnessPoint[] }) {
       controls={controls}
     >
       <div className="flex h-full min-h-0 min-w-0 flex-col">
-        <div className="flex flex-col items-start gap-0.5 px-1 pb-2 font-mono text-[10px] leading-4 text-(--text-soft)">
+        <div className="flex flex-col items-start gap-0.5 px-1 pb-2 font-mono text-[10px] leading-4 text-text-soft">
           <span>{displayPoints.length} comparable {displayPoints.length === 1 ? "run" : "runs"}: {comparableRunLabel}</span>
           {latestPoint ? (
             <span>
@@ -1852,7 +1852,7 @@ export function FitnessEfficiencyChart({ points }: { points: FitnessPoint[] }) {
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex h-full items-center justify-center border border-dashed border-(--border) bg-(--surface-muted) px-4 text-center font-mono text-xs text-(--text-soft)">
+            <div className="flex h-full items-center justify-center border border-dashed border-border bg-surface-muted px-4 text-center font-mono text-xs text-text-soft">
               No runs match the selected comparable-run filters.
             </div>
           )}
@@ -1969,8 +1969,8 @@ function RecoveryBaselineComparison({ point }: { point: RecoveryTrendPoint | und
   ) {
     const observedCount = point?.recoveryPrior90dCount ?? 0;
     return (
-      <div className="min-w-0 border border-(--border) bg-(--surface-muted) px-4 py-3 font-mono text-xs leading-5 text-(--text-soft)">
-        <strong className="text-(--text)">Baseline unavailable.</strong>{" "}
+      <div className="min-w-0 border border-border bg-surface-muted px-4 py-3 font-mono text-xs leading-5 text-text-soft">
+        <strong className="text-text">Baseline unavailable.</strong>{" "}
         {observedCount} of {RECOVERY_BASELINE_MIN_OBSERVATIONS} comparable recovery readings are
         available in the prior 90 days.
       </div>
@@ -1993,66 +1993,66 @@ function RecoveryBaselineComparison({ point }: { point: RecoveryTrendPoint | und
       : "below the prior baseline";
 
   return (
-    <div className="min-w-0 overflow-hidden border border-(--border) bg-(--surface-muted) px-4 py-3">
+    <div className="min-w-0 overflow-hidden border border-border bg-surface-muted px-4 py-3">
       <div className="grid min-w-0 grid-cols-1 items-baseline gap-x-3 gap-y-1 font-mono text-xs leading-5 sm:grid-cols-3">
-        <span className="text-(--text-soft)">Prior 90-day comparable response</span>
-        <span className="text-(--text-soft) sm:text-center">
-          Latest: <strong className="text-(--text)">{Math.round(point.garminRecoveryHr)} bpm</strong>{" "}
+        <span className="text-text-soft">Prior 90-day comparable response</span>
+        <span className="text-text-soft sm:text-center">
+          Latest: <strong className="text-text">{Math.round(point.garminRecoveryHr)} bpm</strong>{" "}
           ({status})
         </span>
-        <span className="text-(--text-soft) sm:text-right">{point.recoveryPrior90dCount} runs</span>
+        <span className="text-text-soft sm:text-right">{point.recoveryPrior90dCount} runs</span>
       </div>
       <div
         className="relative mt-5 h-14"
         role="img"
         aria-label={`Latest recovery ${Math.round(point.garminRecoveryHr)} bpm; prior range ${Math.round(minimum)}-${Math.round(maximum)} bpm; first quartile ${Math.round(q1)} bpm; median ${Math.round(median)} bpm; third quartile ${Math.round(q3)} bpm`}
       >
-        <div className="absolute top-4 h-px bg-(--border)" style={{ left: "8%", right: "8%" }} />
+        <div className="absolute top-4 h-px bg-border" style={{ left: "8%", right: "8%" }} />
         <div
-          className="absolute top-4 h-px bg-(--text-faint)"
+          className="absolute top-4 h-px bg-text-faint"
           style={{ left: position(minimum), width: `calc(${position(maximum)} - ${position(minimum)})` }}
         />
         <div
-          className="absolute top-4 h-3 -translate-y-1/2 bg-(--accent-soft)"
+          className="absolute top-4 h-3 -translate-y-1/2 bg-accent-soft"
           style={{ left: position(q1), width: `calc(${position(q3)} - ${position(q1)})` }}
         />
         <div
-          className="absolute top-2 h-4 w-px -translate-x-1/2 bg-(--text-soft)"
+          className="absolute top-2 h-4 w-px -translate-x-1/2 bg-text-soft"
           style={{ left: position(minimum) }}
         />
         <div
-          className="absolute top-1 h-6 w-px -translate-x-1/2 bg-(--text-soft)"
+          className="absolute top-1 h-6 w-px -translate-x-1/2 bg-text-soft"
           style={{ left: position(q1) }}
         />
         <div
-          className="absolute top-0 h-8 w-px -translate-x-1/2 bg-(--text)"
+          className="absolute top-0 h-8 w-px -translate-x-1/2 bg-text"
           style={{ left: position(median) }}
         />
         <div
-          className="absolute top-1 h-6 w-px -translate-x-1/2 bg-(--text-soft)"
+          className="absolute top-1 h-6 w-px -translate-x-1/2 bg-text-soft"
           style={{ left: position(q3) }}
         />
         <div
-          className="absolute top-2 h-4 w-px -translate-x-1/2 bg-(--text-soft)"
+          className="absolute top-2 h-4 w-px -translate-x-1/2 bg-text-soft"
           style={{ left: position(maximum) }}
         />
         <div
-          className="absolute top-4 size-3 -translate-x-1/2 -translate-y-1/2 border-2 border-(--surface)"
+          className="absolute top-4 size-3 -translate-x-1/2 -translate-y-1/2 border-2 border-surface"
           style={{ left: position(point.garminRecoveryHr), backgroundColor: recoveryClassificationColor(point.recoveryClassification) }}
         />
-        <span className="absolute top-8 hidden -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-(--text-soft) sm:block" style={{ left: position(q1) }}>
+        <span className="absolute top-8 hidden -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-text-soft sm:block" style={{ left: position(q1) }}>
           Q1 {Math.round(q1)}
         </span>
-        <span className="absolute top-8 -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-(--text)" style={{ left: position(median) }}>
+        <span className="absolute top-8 -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-text" style={{ left: position(median) }}>
           Median {Math.round(median)}
         </span>
-        <span className="absolute top-8 hidden -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-(--text-soft) sm:block" style={{ left: position(q3) }}>
+        <span className="absolute top-8 hidden -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-text-soft sm:block" style={{ left: position(q3) }}>
           Q3 {Math.round(q3)}
         </span>
-        <span className="absolute top-8 -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-(--text-soft)" style={{ left: position(minimum) }}>
+        <span className="absolute top-8 -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-text-soft" style={{ left: position(minimum) }}>
           Min {Math.round(minimum)}
         </span>
-        <span className="absolute top-8 -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-(--text-soft)" style={{ left: position(maximum) }}>
+        <span className="absolute top-8 -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-text-soft" style={{ left: position(maximum) }}>
           Max {Math.round(maximum)}
         </span>
       </div>
@@ -2130,7 +2130,7 @@ export function RecoveryHeartRateChart({ points }: { points: FitnessPoint[] }) {
     >
       <div className="flex h-full min-h-0 min-w-0 flex-col">
         <RecoveryBaselineComparison point={latestRecoveryPoint} />
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-1 pt-3 font-mono text-[11px] leading-4 text-(--text-soft)">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-1 pt-3 font-mono text-[11px] leading-4 text-text-soft">
           {recoverySummary.daysSinceLastComparableRun !== null
             && recoverySummary.daysSinceLastComparableRun > 0 && (
               <span>Last comparable run: {recoverySummary.daysSinceLastComparableRun} days ago</span>
@@ -2309,7 +2309,7 @@ export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
         ))}
       </div>
       {heartRateBands.length > 1 ? (
-        <div className="flex flex-wrap items-center justify-start gap-1.5 border-t border-(--border) pt-3" role="group" aria-label="Average heart rate range">
+        <div className="flex flex-wrap items-center justify-start gap-1.5 border-t border-border pt-3" role="group" aria-label="Average heart rate range">
           <button
             type="button"
             aria-pressed={!hasSelectedHeartRateBands}
@@ -2350,7 +2350,7 @@ export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
       controls={controls}
     >
       <div className="flex h-full min-h-0 min-w-0 flex-col">
-        <div className="flex flex-col items-start gap-0.5 px-1 pb-2 font-mono text-[10px] leading-4 text-(--text-soft)">
+        <div className="flex flex-col items-start gap-0.5 px-1 pb-2 font-mono text-[10px] leading-4 text-text-soft">
           <span>{visibleData.length} comparable {visibleData.length === 1 ? "run" : "runs"}: {comparableRunLabel}</span>
           {latestPoint ? (
             <span>
@@ -2436,21 +2436,21 @@ export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
               </ScatterChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex h-full items-center justify-center border border-dashed border-(--border) bg-(--surface-muted) px-4 text-center font-mono text-xs text-(--text-soft)">
+            <div className="flex h-full items-center justify-center border border-dashed border-border bg-surface-muted px-4 text-center font-mono text-xs text-text-soft">
               No runs match the selected comparable-run filters.
             </div>
           )}
         </div>
         {trendData.length > 0 ? (
-          <div className="mt-1 flex items-center justify-center gap-1.5 text-[11px] leading-4 text-(--text-soft)">
+          <div className="mt-1 flex items-center justify-center gap-1.5 text-[11px] leading-4 text-text-soft">
             <span
-              className="h-0.5 w-5 bg-(--text-soft)"
+              className="h-0.5 w-5 bg-text-soft"
               aria-hidden="true"
             />
             <span>Trend</span>
           </div>
         ) : !hasSelectedHeartRateBands && visibleData.length > 1 ? (
-          <p className="mt-1 text-center text-[10px] leading-4 text-(--text-soft)">
+          <p className="mt-1 text-center text-[10px] leading-4 text-text-soft">
             Select an HR bucket or contiguous range to show a pace trend.
           </p>
         ) : null}

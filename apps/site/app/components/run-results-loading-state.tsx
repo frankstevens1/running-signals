@@ -6,9 +6,9 @@ const TABLE_COLUMNS = ["w-16", "w-14", "w-14", "w-12", "w-20", "w-16", "w-20", "
 
 function RunTableLoadingState({ itemCount }: { itemCount: number }) {
   return (
-    <div className="overflow-x-auto border border-(--border) bg-(--surface)">
-      <table className="min-w-full divide-y divide-(--border)" aria-hidden="true">
-        <thead className="border-b border-(--border) bg-(--surface-muted)">
+    <div className="overflow-x-auto border border-border bg-surface">
+      <table className="min-w-full divide-y divide-border" aria-hidden="true">
+        <thead className="border-b border-border bg-surface-muted">
           <tr>
             {TABLE_COLUMNS.map((width, index) => (
               <th key={index} className="px-3 py-2.5">
@@ -17,7 +17,7 @@ function RunTableLoadingState({ itemCount }: { itemCount: number }) {
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-(--border)">
+        <tbody className="divide-y divide-border">
           {Array.from({ length: Math.max(itemCount, 8) }).map((_, rowIndex) => (
             <tr key={rowIndex}>
               {TABLE_COLUMNS.map((width, columnIndex) => (
@@ -39,12 +39,12 @@ function RunTimelineLoadingState({ itemCount }: { itemCount: number }) {
       {Array.from({ length: Math.max(itemCount, 3) }).map((_, index) => (
         <article
           key={index}
-          className="-mt-px overflow-hidden border border-(--border) bg-(--surface) first:mt-0"
+          className="-mt-px overflow-hidden border border-border bg-surface first:mt-0"
         >
           <div className="grid lg:grid-cols-[20rem_1fr]">
             <SkeletonBlock className="h-56 border-0 border-b lg:h-full lg:min-h-56 lg:border-r lg:border-b-0" />
             <div className="min-w-0">
-              <div className="hidden gap-4 border-b border-(--border) p-4 lg:grid md:grid-cols-[12rem_minmax(0,1fr)_auto] xl:grid-cols-[14rem_minmax(0,1fr)_auto]">
+              <div className="hidden gap-4 border-b border-border p-4 lg:grid md:grid-cols-[12rem_minmax(0,1fr)_auto] xl:grid-cols-[14rem_minmax(0,1fr)_auto]">
                 <div className="space-y-3">
                   <SkeletonBlock className="h-2.5 w-24" />
                   <SkeletonBlock className="h-7 w-20" />
@@ -60,7 +60,7 @@ function RunTimelineLoadingState({ itemCount }: { itemCount: number }) {
                 </div>
                 <SkeletonBlock className="h-9 w-16" />
               </div>
-              <div className="border-b border-(--border) p-4 lg:hidden">
+              <div className="border-b border-border p-4 lg:hidden">
                 <div className="flex justify-between gap-3">
                   <div className="space-y-3">
                     <SkeletonBlock className="h-2.5 w-24" />

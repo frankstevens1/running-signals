@@ -26,18 +26,18 @@ export function DataState<T>({
       description={result.message}
       className="max-w-3xl"
     >
-      <div className="mt-4 border-t border-(--border) pt-4">
-        <p className="font-mono text-xs uppercase tracking-wide text-(--text-soft)">
+      <div className="mt-4 border-t border-border pt-4">
+        <p className="font-mono text-xs uppercase tracking-wide text-text-soft">
           Recovery path
         </p>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-(--text-soft)">
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-text-soft">
           The presentation layer still builds without credentials. Configure the server-side
-          variables from <code className="font-mono text-(--text)">.env.example</code> to load live
+          variables from <code className="font-mono text-text">.env.example</code> to load live
           gold marts.
         </p>
         <Link
           href="/#methodology"
-          className="mt-3 inline-flex h-9 items-center border border-(--border) px-3 font-mono text-xs font-medium uppercase tracking-wide text-(--text) transition-colors hover:border-(--accent) hover:bg-(--surface-muted) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--accent)"
+          className="mt-3 inline-flex h-9 items-center border border-border px-3 font-mono text-xs font-medium uppercase tracking-wide text-text transition-colors hover:border-accent hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           View methodology
         </Link>

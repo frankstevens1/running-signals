@@ -99,6 +99,7 @@ export function mapRoute(row: Record<string, unknown>): RouteSummary {
     cityName: stringValue(row, "city_name"),
     countryName: stringValue(row, "country_name"),
     countryCode: stringValue(row, "country_code"),
+    countryIso3: stringValue(row, "country_iso3"),
   };
 }
 

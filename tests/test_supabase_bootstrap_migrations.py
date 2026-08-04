@@ -10,6 +10,7 @@ MIGRATION_NAMES = [
     "202608040005_rls_grants.sql",
     "202608040006_postgrest_reload.sql",
     "202608040007_sqlearn_reader.sql",
+    "202608040008_route_country_iso3.sql",
 ]
 
 
@@ -42,6 +43,7 @@ def test_core_tables_match_the_final_serving_contract() -> None:
     assert "site_activity_records" not in core
     assert "site_health_days" not in core
     assert "primary key (run_id, unit_system, segment_length_value, segment_index)" in core
+    assert "country_iso3 text" in core
 
 
 def test_views_rpcs_and_access_controls_follow_dependency_order() -> None:
@@ -58,6 +60,15 @@ def test_views_rpcs_and_access_controls_follow_dependency_order() -> None:
     assert rpcs.count("set search_path = public") == 4
     assert "grant usage on schema public to anon, authenticated" in access
     assert "public.site_map_profile_records(text, text)" in access
+
+
+def test_route_country_iso3_migration_updates_the_rpc_contract() -> None:
+    migration_sql = migration("202608040008_route_country_iso3.sql")
+
+    assert "add column if not exists country_iso3 text" in migration_sql
+    assert "drop function if exists public.site_route_summaries" in migration_sql
+    assert "country_iso3 text" in migration_sql
+    assert "routes.country_iso3" in migration_sql
 
 
 def test_sqlearn_reader_is_limited_to_dedicated_security_barrier_views() -> None:

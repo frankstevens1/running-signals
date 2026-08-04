@@ -28,7 +28,7 @@ function renderCode(text: string): ReactNode {
   return parts.map((part, i) => {
     if (part.startsWith("`") && part.endsWith("`")) {
       return (
-        <code key={i} className="rounded bg-(--surface-muted) px-1 py-0.5 font-mono text-[0.9em] text-(--text)">
+        <code key={i} className="rounded bg-surface-muted px-1 py-0.5 font-mono text-[0.9em] text-text">
           {part.slice(1, -1)}
         </code>
       );
@@ -160,18 +160,18 @@ export function LearnClient({
   return (
     <div className="px-4  sm:px-6 lg:px-8">
       {/* Progress bar */}
-      <div className="sticky top-[3.5rem] z-30 -mx-4 bg-(--background) px-4 pt-1 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div className="sticky top-14 z-30 -mx-4 bg-background px-4 pt-1 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className="flex items-center gap-3 py-1.5">
-          <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.14em] text-(--text-faint)">
+          <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.14em] text-text-faint">
             Step {current + 1} of {totalSteps}
           </span>
-          <div className="h-1 flex-1 rounded-full bg-(--surface-muted)">
+          <div className="h-1 flex-1 rounded-full bg-surface-muted">
             <div
-              className="h-full rounded-full bg-(--accent) transition-all duration-300"
+              className="h-full rounded-full bg-accent transition-all duration-300"
               style={{ width: `${progressPct}%` }}
             />
           </div>
-          <span className="shrink-0 font-mono text-[10px] tabular-nums text-(--text-faint)">
+          <span className="shrink-0 font-mono text-[10px] tabular-nums text-text-faint">
             {Math.round(progressPct)}%
           </span>
         </div>
@@ -185,16 +185,16 @@ export function LearnClient({
             onClick={openSidebar}
             aria-haspopup="dialog"
             aria-expanded={sidebarOpen}
-            className="inline-flex shrink-0 items-center gap-1.5 border border-(--border) bg-(--surface) px-3 py-2 font-mono text-[10px] uppercase tracking-[0.08em] text-(--text-soft) transition-colors hover:bg-(--surface-muted) hover:text-(--text)"
+            className="inline-flex shrink-0 items-center gap-1.5 border border-border bg-surface px-3 py-2 font-mono text-[10px] uppercase tracking-[0.08em] text-text-soft transition-colors hover:bg-surface-muted hover:text-text"
           >
             <Menu className="h-3.5 w-3.5" aria-hidden="true" />
             Modules
           </button>
           <div className="min-w-0 text-right">
-            <p className="truncate font-mono text-[10px] uppercase tracking-[0.12em] text-(--text-faint)">
+            <p className="truncate font-mono text-[10px] uppercase tracking-[0.12em] text-text-faint">
               {currentModule?.label}
             </p>
-            <p className="mt-0.5 truncate text-sm font-medium text-(--text)">{step.title}</p>
+            <p className="mt-0.5 truncate text-sm font-medium text-text">{step.title}</p>
           </div>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2">
@@ -202,7 +202,7 @@ export function LearnClient({
             type="button"
             onClick={goPrev}
             disabled={current === 0}
-            className="inline-flex items-center justify-center gap-1.5 border border-(--border) bg-(--surface) px-3 py-2 font-mono text-[11px] uppercase tracking-[0.08em] text-(--text-soft) transition-colors hover:bg-(--surface-muted) hover:text-(--text) disabled:cursor-not-allowed disabled:opacity-30"
+            className="inline-flex items-center justify-center gap-1.5 border border-border bg-surface px-3 py-2 font-mono text-[11px] uppercase tracking-[0.08em] text-text-soft transition-colors hover:bg-surface-muted hover:text-text disabled:cursor-not-allowed disabled:opacity-30"
           >
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
             Previous
@@ -211,7 +211,7 @@ export function LearnClient({
             type="button"
             onClick={goNext}
             disabled={current === totalSteps - 1}
-            className="inline-flex items-center justify-center gap-1.5 border border-(--border) bg-(--surface) px-3 py-2 font-mono text-[11px] uppercase tracking-[0.08em] text-(--text-soft) transition-colors hover:bg-(--surface-muted) hover:text-(--text) disabled:cursor-not-allowed disabled:opacity-30"
+            className="inline-flex items-center justify-center gap-1.5 border border-border bg-surface px-3 py-2 font-mono text-[11px] uppercase tracking-[0.08em] text-text-soft transition-colors hover:bg-surface-muted hover:text-text disabled:cursor-not-allowed disabled:opacity-30"
           >
             Next
             <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -224,23 +224,23 @@ export function LearnClient({
         <button
           onClick={goPrev}
           disabled={current === 0}
-          className="justify-self-start inline-flex shrink-0 items-center gap-1.5 border border-(--border) bg-(--surface) px-3 py-2 font-mono text-[11px] uppercase tracking-[0.08em] text-(--text-soft) transition-colors hover:bg-(--surface-muted) hover:text-(--text) disabled:cursor-not-allowed disabled:opacity-30"
+          className="justify-self-start inline-flex shrink-0 items-center gap-1.5 border border-border bg-surface px-3 py-2 font-mono text-[11px] uppercase tracking-[0.08em] text-text-soft transition-colors hover:bg-surface-muted hover:text-text disabled:cursor-not-allowed disabled:opacity-30"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           Previous
         </button>
 
         <div className="text-center">
-          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-(--text-faint)">
+          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-faint">
             {currentModule?.label}
           </p>
-          <p className="mt-0.5 text-sm font-medium text-(--text)">{step.title}</p>
+          <p className="mt-0.5 text-sm font-medium text-text">{step.title}</p>
         </div>
 
         <button
           onClick={goNext}
           disabled={current === totalSteps - 1}
-          className="justify-self-end inline-flex shrink-0 items-center gap-1.5 border border-(--border) bg-(--surface) px-3 py-2 font-mono text-[11px] uppercase tracking-[0.08em] text-(--text-soft) transition-colors hover:bg-(--surface-muted) hover:text-(--text) disabled:cursor-not-allowed disabled:opacity-30"
+          className="justify-self-end inline-flex shrink-0 items-center gap-1.5 border border-border bg-surface px-3 py-2 font-mono text-[11px] uppercase tracking-[0.08em] text-text-soft transition-colors hover:bg-surface-muted hover:text-text disabled:cursor-not-allowed disabled:opacity-30"
         >
           Next
           <ArrowRight className="h-3.5 w-3.5" />
@@ -254,17 +254,17 @@ export function LearnClient({
         onClick={(event) => {
           if (event.target === event.currentTarget) closeSidebar();
         }}
-        className="m-auto max-h-[calc(100dvh-2rem)] w-[min(24rem,calc(100%-2rem))] overflow-y-auto border border-(--border-strong) bg-(--surface) p-0 text-(--text) shadow-[var(--shadow-dialog)] backdrop:bg-black/70 lg:hidden"
+        className="m-auto max-h-[calc(100dvh-2rem)] w-[min(24rem,calc(100%-2rem))] overflow-y-auto border border-border-strong bg-surface p-0 text-text shadow-(--shadow-dialog) backdrop:bg-black/70 lg:hidden"
       >
-        <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-(--border) bg-(--surface-muted) px-4 py-3">
-          <p id="learn-module-dialog-title" className="font-mono text-xs uppercase tracking-[0.12em] text-(--accent)">
+        <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-surface-muted px-4 py-3">
+          <p id="learn-module-dialog-title" className="font-mono text-xs uppercase tracking-[0.12em] text-accent">
             Module progress
           </p>
           <button
             type="button"
             aria-label="Close modules"
             onClick={closeSidebar}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-(--border) text-(--text-soft) transition-colors hover:bg-(--surface) hover:text-(--text)"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-border text-text-soft transition-colors hover:bg-surface hover:text-text"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -291,7 +291,7 @@ export function LearnClient({
       <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
         {/* Desktop sidebar */}
         <aside className="hidden w-56 shrink-0 lg:block">
-          <div className="sticky top-[7.5rem]">
+          <div className="sticky top-30">
             <ModuleProgress
               modules={modules}
               moduleStatus={moduleStatus}
@@ -309,13 +309,13 @@ export function LearnClient({
         {/* Content area */}
         <div className="min-w-0 flex-1">
           {/* Description / Code toggle */}
-          <div className="mb-4 flex border border-(--border)">
+            <div className="mb-4 flex w-full border border-border">
             <button
               onClick={() => setShowDescription(true)}
-              className={`inline-flex items-center gap-1.5 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.1em] transition-colors ${
+              className={`flex-1 justify-center inline-flex items-center gap-1.5 px-4 py-2 font-mono text-[10px] uppercase tracking-widest transition-colors ${
                 showDescription
-                  ? "bg-(--accent-soft) text-(--accent)"
-                  : "text-(--text-faint) hover:text-(--text-soft)"
+                  ? "bg-accent-soft text-accent"
+                  : "text-text-faint hover:text-text-soft"
               }`}
             >
               <FileText className="h-3.5 w-3.5" />
@@ -323,10 +323,10 @@ export function LearnClient({
             </button>
             <button
               onClick={() => setShowDescription(false)}
-              className={`inline-flex items-center gap-1.5 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.1em] transition-colors ${
+              className={`flex-1 justify-center inline-flex items-center gap-1.5 px-4 py-2 font-mono text-[10px] uppercase tracking-widest transition-colors ${
                 !showDescription
-                  ? "bg-(--accent-soft) text-(--accent)"
-                  : "text-(--text-faint) hover:text-(--text-soft)"
+                  ? "bg-accent-soft text-accent"
+                  : "text-text-faint hover:text-text-soft"
               }`}
             >
               <Code className="h-3.5 w-3.5" />
@@ -335,30 +335,30 @@ export function LearnClient({
           </div>
 
           {showDescription ? (
-            <div className="border border-(--border) bg-(--surface) p-5 lg:p-6">
+            <div className="border border-border bg-surface p-5 lg:p-6">
               {step.lineageContext && (
-                <div className="mb-4 border-l-2 border-(--accent) bg-(--surface-muted) px-3 py-2">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-(--accent)">
+                <div className="mb-4 border-l-2 border-accent bg-surface-muted px-3 py-2">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-accent">
                     Lineage
                   </p>
-                  <p className="mt-1 text-xs leading-relaxed text-(--text-soft)">
+                  <p className="mt-1 text-xs leading-relaxed text-text-soft">
                     {renderCode(step.lineageContext)}
                   </p>
                 </div>
               )}
 
-              <div className="text-sm leading-7 text-(--text-soft) [&_p]:mb-3">
+              <div className="text-sm leading-7 text-text-soft [&_p]:mb-3">
                 {step.context.split("\n\n").map((paragraph, i) => (
                   <p key={i}>{renderCode(paragraph)}</p>
                 ))}
               </div>
 
               {step.keyTechnique && (
-                <div className="mt-5 border border-(--border) bg-(--background) px-4 py-3">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-(--text-faint)">
+                <div className="mt-5 border border-border bg-background px-4 py-3">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-faint">
                     Key Technique
                   </p>
-                  <p className="mt-1 text-xs leading-relaxed text-(--text)">
+                  <p className="mt-1 text-xs leading-relaxed text-text">
                     {renderCode(step.keyTechnique)}
                   </p>
                 </div>
@@ -366,11 +366,11 @@ export function LearnClient({
             </div>
           ) : (
             <div className="min-w-0">
-              <div className="flex items-center justify-between border border-(--border) border-b-0 bg-(--surface-muted) px-4 py-2.5">
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-(--text-faint)">
+              <div className="flex items-center justify-between border border-border border-b-0 bg-surface-muted px-4 py-2.5">
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-faint">
                   {step.codeLang === "yml" ? "YAML" : "SQL"}
                 </span>
-                <span className="font-mono text-[10px] text-(--text-faint)">
+                <span className="font-mono text-[10px] text-text-faint">
                   {step.sql.split("\n").length} lines
                 </span>
               </div>
@@ -385,27 +385,27 @@ export function LearnClient({
         <button
           onClick={goPrev}
           disabled={current === 0}
-          className="justify-self-start inline-flex shrink-0 items-center gap-1.5 border border-(--border) bg-(--surface) px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.08em] text-(--text-soft) transition-colors hover:bg-(--surface-muted) hover:text-(--text) disabled:cursor-not-allowed disabled:opacity-30"
+          className="justify-self-start inline-flex shrink-0 items-center gap-1.5 border border-border bg-surface px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.08em] text-text-soft transition-colors hover:bg-surface-muted hover:text-text disabled:cursor-not-allowed disabled:opacity-30"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           Previous
         </button>
 
-        <span className="text-center font-mono text-[10px] text-(--text-faint)">
+        <span className="text-center font-mono text-[10px] text-text-faint">
           {current + 1} / {totalSteps}
         </span>
 
         <button
           onClick={goNext}
           disabled={current === totalSteps - 1}
-          className="justify-self-end inline-flex shrink-0 items-center gap-1.5 border border-(--border) bg-(--surface) px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.08em] text-(--text-soft) transition-colors hover:bg-(--surface-muted) hover:text-(--text) disabled:cursor-not-allowed disabled:opacity-30"
+          className="justify-self-end inline-flex shrink-0 items-center gap-1.5 border border-border bg-surface px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.08em] text-text-soft transition-colors hover:bg-surface-muted hover:text-text disabled:cursor-not-allowed disabled:opacity-30"
         >
           Next
           <ArrowRight className="h-3.5 w-3.5" />
         </button>
       </div>
 
-      <p className="mt-4 text-center font-mono text-[10px] text-(--text-faint)">
+      <p className="mt-4 text-center font-mono text-[10px] text-text-faint">
         Tip: Use ← and → arrow keys to navigate between steps.
       </p>
     </div>
@@ -436,12 +436,12 @@ function ModuleProgress({
   return (
     <div>
       <div className="flex items-center justify-between">
-        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-(--text-faint)">
+        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-faint">
           Module Progress
         </p>
         <button
           onClick={reset}
-          className="inline-flex items-center gap-1 font-mono uppercase tracking-[0.08em] text-(--text-faint) transition-colors hover:text-(--text-soft)"
+          className="inline-flex items-center gap-1 font-mono uppercase tracking-[0.08em] text-text-faint transition-colors hover:text-text-soft"
           style={{ fontSize: "9px" }}
         >
           <RotateCcw className="h-3 w-3" />
@@ -458,33 +458,33 @@ function ModuleProgress({
             <div key={mod.id}>
               <button
                 onClick={() => toggleModule(mod.id)}
-                className="flex w-full items-center gap-2 py-2 text-left transition-colors hover:text-(--text)"
+                className="flex w-full items-center gap-2 py-2 text-left transition-colors hover:text-text"
               >
                 <span className="shrink-0 font-mono text-xs">
                   {status === "completed" ? (
-                    <span className="text-(--signal-ok)">✓</span>
+                    <span className="text-signal-ok">✓</span>
                   ) : status === "active" ? (
-                    <span className="text-(--accent)">●</span>
+                    <span className="text-accent">●</span>
                   ) : (
-                    <span className="text-(--text-faint)">○</span>
+                    <span className="text-text-faint">○</span>
                   )}
                 </span>
                 <span
                   className={`font-mono text-[10px] uppercase tracking-[0.06em] leading-tight ${
                     status === "active"
-                      ? "font-medium text-(--text)"
-                      : "text-(--text-soft)"
+                      ? "font-medium text-text"
+                      : "text-text-soft"
                   }`}
                 >
                   {mod.label}
                 </span>
                 <ChevronDown
-                  className={`ml-auto h-3 w-3 shrink-0 text-(--text-faint) transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                  className={`ml-auto h-3 w-3 shrink-0 text-text-faint transition-transform ${isExpanded ? "rotate-180" : ""}`}
                 />
               </button>
 
               {isExpanded && (
-                <div className="ml-5 mt-1 space-y-0.5 border-l border-(--border) pl-3">
+                <div className="ml-5 mt-1 space-y-0.5 border-l border-border pl-3">
                   {(stepModuleIndices[mod.id] ?? []).map((stepIdx) => {
                     const s = steps[stepIdx];
                     const isCurrent = stepIdx === current;
@@ -496,10 +496,10 @@ function ModuleProgress({
                         onClick={() => goTo(stepIdx)}
                         className={`block w-full truncate py-0.5 text-left font-mono transition-colors ${
                             isCurrent
-                              ? "font-medium text-(--accent)"
+                              ? "font-medium text-accent"
                               : isPast
-                                ? "text-(--text-soft) hover:text-(--text)"
-                                : "text-(--text-faint) hover:text-(--text-soft)"
+                                ? "text-text-soft hover:text-text"
+                                : "text-text-faint hover:text-text-soft"
                         }`}
                         style={{ fontSize: "12px", lineHeight: "1.3" }}
                       >
