@@ -16,22 +16,15 @@ import {
   formatRouteId,
 } from "@/app/lib/format";
 import type { RunSort, SortDirection } from "@/app/lib/query";
+import { RUN_TABLE_SORT_OPTIONS, getRunSortState, hrefWithRunSort, type RunSortOption } from "@/app/lib/run-sort";
 import type { RunSession } from "@/app/lib/types";
 
-const sortableColumns: Array<{
-  sort?: RunSort;
-  label: string;
-  defaultDirection: SortDirection;
-}> = [
-  { sort: "activity_date", label: "Date", defaultDirection: "desc" },
-  { sort: "distance_km", label: "Distance", defaultDirection: "desc" },
-  { sort: "avg_pace_min_per_km", label: "Pace", defaultDirection: "asc" },
-  { sort: "avg_heart_rate", label: "Avg HR", defaultDirection: "desc" },
-  { sort: "total_ascent", label: "Ascent/Descent", defaultDirection: "desc" },
-  { sort: "prior_7d_distance_km", label: "Prior 7d", defaultDirection: "desc" },
-  { sort: "distance_economy_m_per_beat", label: "Dist Economy", defaultDirection: "desc" },
-  { sort: "personal_efficiency_score", label: "Score", defaultDirection: "desc" },
-  { sort: "route_id", label: "Route", defaultDirection: "asc" },
+import { RunDataRefreshLink } from "./run-data-refresh";
+import { RunDetailDialog } from "./run-detail-dialog";
+
+const sortableColumns: Array<RunSortOption | { label: string; sort?: undefined }> = [
+  ...RUN_TABLE_SORT_OPTIONS,
+  { label: "Detail" },
 ];
 
 type StickyHeaderLayout = {
@@ -43,34 +36,10 @@ type StickyHeaderLayout = {
   columnWidths: number[];
 };
 
-function sortHref(params: URLSearchParams, sort: RunSort, nextDirection: SortDirection): string {
-  const nextParams = new URLSearchParams(params);
-  nextParams.set("sort", sort);
-  nextParams.set("direction", nextDirection);
-  nextParams.delete("offset");
-  return `/runs?${nextParams.toString()}`;
-}
-
 function SortIcon({ active, direction }: { active: boolean; direction: SortDirection }) {
   if (!active) return <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />;
   if (direction === "asc") return <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />;
   return <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />;
-}
-
-function sortState(
-  params: URLSearchParams,
-  sort: RunSort,
-  defaultDirection: SortDirection,
-) {
-  const active = params.get("sort") === sort || (!params.get("sort") && sort === "activity_date");
-  const direction = params.get("direction") === "asc" ? "asc" : "desc";
-
-  return {
-    active,
-    direction,
-    nextDirection: active && direction === "desc" ? "asc" : defaultDirection,
-    ariaSort: active ? (direction === "asc" ? "ascending" : "descending") : "none",
-  } as const;
 }
 
 function SortLink({
@@ -86,18 +55,18 @@ function SortLink({
   defaultDirection: SortDirection;
   tabIndex?: number;
 }) {
-  const { active, direction, nextDirection } = sortState(params, sort, defaultDirection);
+  const { active, direction, nextDirection } = getRunSortState(params, sort, defaultDirection);
 
   return (
-    <Link
-      href={sortHref(params, sort, nextDirection)}
+    <RunDataRefreshLink
+      href={hrefWithRunSort(params, sort, nextDirection)}
       scroll={false}
       tabIndex={tabIndex}
       className="inline-flex h-7 items-center gap-1.5 whitespace-nowrap px-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-(--text-soft) hover:bg-(--surface) hover:text-(--text)"
     >
       <span>{label}</span>
       <SortIcon active={active} direction={direction} />
-    </Link>
+    </RunDataRefreshLink>
   );
 }
 
@@ -114,7 +83,7 @@ function SortableHeader({
   defaultDirection: SortDirection;
   tabIndex?: number;
 }) {
-  const { ariaSort } = sortState(params, sort, defaultDirection);
+  const { ariaSort } = getRunSortState(params, sort, defaultDirection);
 
   return (
     <th className="whitespace-nowrap px-3 py-2.5 font-normal" aria-sort={ariaSort}>
@@ -143,6 +112,7 @@ export function RunTable({
   const tableRef = useRef<HTMLTableElement>(null);
   const headerRef = useRef<HTMLTableSectionElement>(null);
   const [stickyHeader, setStickyHeader] = useState<StickyHeaderLayout | null>(null);
+  const [selectedRun, setSelectedRun] = useState<RunSession | null>(null);
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -320,6 +290,16 @@ export function RunTable({
                     "n/a"
                   )}
                 </td>
+                <td className="whitespace-nowrap px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRun(run)}
+                    aria-label={`View details for ${formatDate(run.activityDate)}`}
+                    className="font-mono text-(--accent) hover:underline"
+                  >
+                    View
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -349,7 +329,7 @@ export function RunTable({
                 >
                   {sortableColumns.map((column, index) => {
                     if (column.sort) {
-                      const { ariaSort } = sortState(
+                       const { ariaSort } = getRunSortState(
                         params,
                         column.sort,
                         column.defaultDirection,
@@ -390,6 +370,12 @@ export function RunTable({
             document.body,
           )
         : null}
+
+      <RunDetailDialog
+        run={selectedRun}
+        open={selectedRun !== null}
+        onClose={() => setSelectedRun(null)}
+      />
     </>
   );
 }

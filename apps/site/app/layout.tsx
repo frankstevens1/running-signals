@@ -19,6 +19,9 @@ export const metadata: Metadata = {
   description:
     "An analytics engineering project that models personal Garmin data into explainable consistency, volume, and fitness signals.",
   keywords: ["analytics engineering", "Databricks", "dbt", "Garmin", "running data"],
+  icons: {
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 const themeStorageKey = "running-signals-theme";

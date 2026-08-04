@@ -128,7 +128,7 @@ def escape_sql_string(value: str) -> str:
 
 def table_exists(catalog: str, schema: str, table_name: str) -> bool:
     try:
-        result = query_databricks(
+        query_databricks(
             f"select count(*) as cnt from {gold_table(catalog, schema, table_name)} limit 1"
         )
         return True
@@ -326,11 +326,13 @@ def fetch_routes_needing_geocode(
             from {routes_table}
             where route_representative_run_id is not null
         ),
-        run_start_points as (
+        valid_run_start_points as (
             select
                 records.run_id,
                 min(records.record_index) as start_index
             from {profiles_table} as records
+            where records.position_lat_deg between -90 and 90
+              and records.position_long_deg between -180 and 180
             group by records.run_id
         ),
         route_start_positions as (
@@ -339,13 +341,11 @@ def fetch_routes_needing_geocode(
                 records.position_lat_deg as route_start_latitude_deg,
                 records.position_long_deg as route_start_longitude_deg
             from route_run_mapping as mapping
-            inner join run_start_points as starts
+            inner join valid_run_start_points as starts
                 on starts.run_id = mapping.route_representative_run_id
             inner join {profiles_table} as records
                 on records.run_id = starts.run_id
                 and records.record_index = starts.start_index
-            where records.position_lat_deg between -90 and 90
-              and records.position_long_deg between -180 and 180
         )
         select
             rsp.route_id,

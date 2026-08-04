@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import type { RunView } from "@/app/lib/query";
@@ -6,6 +5,8 @@ import type { RouteSummary, RunFilterBounds } from "@/app/lib/types";
 import type { DistanceUnit } from "@/app/lib/distance-unit";
 
 import { RunFiltersDialog } from "./run-filters-dialog";
+import { RunDataRefreshLink } from "./run-data-refresh";
+import { RunTimelineSortDialog, RunTimelineSortDropdown } from "./run-timeline-sort";
 
 const pageSizes = [25, 50, 100];
 const views: RunView[] = ["timeline", "table"];
@@ -72,7 +73,7 @@ export function RunPagination({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="inline-flex w-fit items-center border border-(--border) bg-(--surface-muted) p-0.5">
             {views.map((option) => (
-              <Link
+              <RunDataRefreshLink
                 key={option}
                 href={hrefWith(params, { view: option, offset: 0 })}
                 scroll={false}
@@ -83,7 +84,23 @@ export function RunPagination({
                 }`}
               >
                 {option}
-              </Link>
+              </RunDataRefreshLink>
+            ))}
+          </div>
+          <div className="flex items-center gap-0.5 border border-(--border) bg-(--surface-muted) p-0.5">
+            {pageSizes.map((size) => (
+              <RunDataRefreshLink
+                key={size}
+                href={hrefWith(params, { limit: size, offset: 0 })}
+                scroll={false}
+                className={`inline-flex h-7 items-center px-2 font-mono text-[10px] font-semibold ${
+                  limit === size
+                    ? "bg-(--accent) text-(--accent-foreground)"
+                    : "text-(--text-soft) hover:bg-(--surface) hover:text-(--text)"
+                }`}
+              >
+                {size}
+              </RunDataRefreshLink>
             ))}
           </div>
           <p className="font-mono text-[11px] text-(--text-soft)">
@@ -102,31 +119,16 @@ export function RunPagination({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-0.5 border border-(--border) bg-(--surface-muted) p-0.5">
-            {pageSizes.map((size) => (
-              <Link
-                key={size}
-                href={hrefWith(params, { limit: size, offset: 0 })}
-                scroll={false}
-                className={`inline-flex h-7 items-center px-2 font-mono text-[10px] font-semibold ${
-                  limit === size
-                    ? "bg-(--accent) text-(--accent-foreground)"
-                    : "text-(--text-soft) hover:bg-(--surface) hover:text-(--text)"
-                }`}
-              >
-                {size}
-              </Link>
-            ))}
-          </div>
+          {view === "timeline" ? <RunTimelineSortDropdown paramsString={paramsString} /> : null}
           {hasPrevious ? (
-            <Link
+            <RunDataRefreshLink
               href={hrefWith(params, { offset: previousOffset })}
               scroll={false}
               className={controlClass}
             >
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
               Previous
-            </Link>
+            </RunDataRefreshLink>
           ) : (
             <span className={disabledClass}>
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -134,14 +136,14 @@ export function RunPagination({
             </span>
           )}
           {hasNext ? (
-            <Link
+            <RunDataRefreshLink
               href={hrefWith(params, { offset: nextOffset })}
               scroll={false}
               className={controlClass}
             >
               Next
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            </Link>
+            </RunDataRefreshLink>
           ) : (
             <span className={disabledClass}>
               Next
@@ -155,7 +157,7 @@ export function RunPagination({
         <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1 lg:hidden">
           <div className="inline-flex w-fit items-center justify-self-start border border-(--border) bg-(--surface-muted) p-0.5">
             {views.map((option) => (
-              <Link
+              <RunDataRefreshLink
                 key={option}
                 href={hrefWith(params, { view: option, offset: 0 })}
                 scroll={false}
@@ -166,7 +168,7 @@ export function RunPagination({
                 }`}
               >
                 {option}
-              </Link>
+              </RunDataRefreshLink>
             ))}
           </div>
 
@@ -179,7 +181,8 @@ export function RunPagination({
             </p>
           </div>
 
-          <div className="justify-self-end">
+          <div className="flex items-center gap-1 justify-self-end">
+            {view === "timeline" ? <RunTimelineSortDialog paramsString={paramsString} /> : null}
             <RunFiltersDialog
               paramsString={paramsString}
               routes={routes}

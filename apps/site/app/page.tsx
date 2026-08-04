@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowDown, ArrowRight, ArrowUpRight, Braces, Database } from "lucide-react";
+import { ArrowDown, ArrowUpRight, Braces, Database } from "lucide-react";
 
 import { AppShell } from "@/app/components/app-shell";
 import { LandingStatusPanel } from "@/app/components/landing-status-panel";
@@ -43,21 +43,9 @@ export default function Home() {
   return (
     <AppShell>
       <div>
-        <section className="grid min-h-[calc(100svh-8rem)] gap-12 border-b border-(--border) py-10 lg:grid-cols-[minmax(0,1.12fr)_minmax(22rem,0.88fr)] lg:items-center lg:py-16">
+        <section className="grid min-h-[calc(100svh-8rem)] gap-12 border-b border-(--border) pb-10 pt-[0.28224rem] lg:grid-cols-[minmax(0,1.12fr)_minmax(22rem,0.88fr)] lg:items-center lg:pb-16 lg:pt-[0.42336rem]">
           <div className="max-w-4xl">
-            <div className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.14em] text-(--text-soft)">
-              <span className="inline-flex items-center gap-2 text-(--signal-ok)">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-(--signal-ok) opacity-50 motion-reduce:hidden" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-(--signal-ok)" />
-                </span>
-                live
-              </span>
-              <span aria-hidden="true">/</span>
-              <span>analytics engineering system</span>
-            </div>
-
-            <p className="mt-10 flex items-center gap-2 font-mono text-sm text-(--accent)">
+            <p className="mt-[0.28224rem] flex items-center gap-2 font-mono text-sm text-(--accent)">
               <span aria-hidden="true">$</span>
               <span>inspect running_signals</span>
               <span className="h-4 w-1.5 animate-pulse bg-(--accent) motion-reduce:hidden" aria-hidden="true" />
@@ -73,14 +61,14 @@ export default function Home() {
 
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <Link
-                href="/runs"
+                href="#signal-families"
                 className="inline-flex h-11 items-center justify-center gap-2 bg-(--accent) px-5 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-(--accent-foreground) transition-colors hover:bg-(--accent-strong)"
               >
-                Explore the data
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                Explore signal families
+                <ArrowDown className="h-4 w-4" aria-hidden="true" />
               </Link>
               <Link
-                href="#signal-families"
+                href="#methodology"
                 className="inline-flex h-11 items-center justify-center gap-2 border border-(--border) bg-(--surface) px-5 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-(--text) transition-colors hover:border-(--text-soft) hover:bg-(--surface-muted)"
               >
                 Trace the pipeline
@@ -92,7 +80,7 @@ export default function Home() {
           <LandingStatusPanel />
         </section>
 
-        <div className="space-y-28 py-24 sm:space-y-32 sm:py-28 lg:space-y-40 lg:py-36">
+        <div className="space-y-28 pb-0 pt-24 sm:space-y-32 sm:pt-28 lg:space-y-40 lg:pt-36">
           <section id="signal-families" className="scroll-mt-28">
             <SectionHeading
               eyebrow="01 / Signal families"
@@ -152,7 +140,7 @@ export default function Home() {
               <div>
                 <SectionHeading
                   eyebrow="03 / System stack"
-                  title="A production-shaped analytics workflow."
+                  title="An inspectable analytics workflow."
                   description="Each tool has one explicit job. The architecture favors recoverability, readable transformations, testable definitions, and a deliberately lightweight presentation layer."
                   level={2}
                 />
@@ -172,11 +160,11 @@ export default function Home() {
                   04 / Explore
                 </p>
                 <h2 className="mt-3 text-3xl font-medium tracking-[-0.025em] text-(--text)">
-                  Query the finished system.
+                  Explore published running data.
                 </h2>
                 <p className="mt-4 max-w-xl text-sm leading-7 text-(--text-soft)">
-                  Move from individual sessions and route geometry to consistency, volume, fitness,
-                  active offline ML experiments, and the planned read-only agent interface.
+                  Move from sessions and route geometry to consistency, volume, fitness, and the
+                  planned read-only agent interface.
                 </p>
                 <p className="mt-6 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.1em] text-(--text-soft)">
                   <Braces className="h-4 w-4 text-(--accent)" aria-hidden="true" />

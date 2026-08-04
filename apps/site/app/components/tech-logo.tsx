@@ -4,7 +4,7 @@ import {
   siNextdotjs,
   siPython,
   siPostgresql,
-  siVercel,
+  siTerraform,
 } from "simple-icons";
 
 type TechIcon = {
@@ -32,8 +32,13 @@ const dbtIcon: TechIcon = {
 
 const logos: TechLogoProps[] = [
   {
+    label: "Terraform",
+    description: "Bootstraps governed cloud data foundation.",
+    icon: siTerraform,
+  },
+  {
     label: "Garmin",
-    description: "Supplies activity and route telemetry source data.",
+    description: "Supplies FIT activity and route telemetry.",
     icon: siGarmin,
   },
   {
@@ -48,7 +53,7 @@ const logos: TechLogoProps[] = [
   },
   {
     label: "Databricks",
-    description: "Job orchestration and lakehouse management.",
+    description: "Parses FIT files and hosts lakehouse models.",
     icon: siDatabricks,
   },
   {
@@ -65,11 +70,6 @@ const logos: TechLogoProps[] = [
     label: "Next.js",
     description: "Builds and renders the presentation application.",
     icon: siNextdotjs,
-  },
-  {
-    label: "Vercel",
-    description: "Deploys and serves the presentation application.",
-    icon: siVercel,
   },
 ];
 

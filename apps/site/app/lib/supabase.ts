@@ -1,5 +1,9 @@
 import "server-only";
 
+import { SITE_DATA_CACHE_TAG } from "./site-data-cache";
+
+export { SITE_DATA_CACHE_TAG } from "./site-data-cache";
+
 type SupabaseConfig = {
   url: string;
   anonKey: string;
@@ -70,10 +74,11 @@ function getConfig(): SupabaseConfig {
 }
 
 function getRevalidateSeconds(): number {
-  const configured = Number(process.env.SITE_DATA_REVALIDATE_SECONDS ?? "900");
+  const defaultSeconds = process.env.NODE_ENV === "production" ? 900 : 0;
+  const configured = Number(process.env.SITE_DATA_REVALIDATE_SECONDS ?? defaultSeconds);
 
   if (!Number.isFinite(configured) || configured < 0) {
-    return 900;
+    return defaultSeconds;
   }
 
   return Math.floor(configured);
@@ -81,14 +86,17 @@ function getRevalidateSeconds(): number {
 
 function fetchCacheOptions():
   | { cache: "no-store" }
-  | { next: { revalidate: number } } {
+  | { cache: "force-cache"; next: { revalidate: number; tags: string[] } } {
   const revalidate = getRevalidateSeconds();
 
   if (revalidate === 0) {
     return { cache: "no-store" };
   }
 
-  return { next: { revalidate } };
+  return {
+    cache: "force-cache",
+    next: { revalidate, tags: [SITE_DATA_CACHE_TAG] },
+  };
 }
 
 function supabaseValue(value: SupabaseScalar): string {

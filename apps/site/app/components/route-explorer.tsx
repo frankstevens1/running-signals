@@ -550,7 +550,7 @@ export function RouteExplorer({
             <button
               type="button"
               onClick={clearExplorerContext}
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-sm border border-(--border) px-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-(--text) transition-colors hover:border-(--accent) hover:bg-(--accent-soft) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-none border border-(--border) px-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-(--text) transition-colors hover:border-(--accent) hover:bg-(--accent-soft) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
             >
               <X className="size-3.5" aria-hidden="true" />
               Clear
@@ -639,7 +639,7 @@ export function RouteExplorer({
                 setRouteOffset(0);
                 replaceRoutePagination(0, nextLimit);
               }}
-              className="h-7 border border-(--border) bg-(--background) px-1 text-(--text)"
+              className="h-7 border border-(--border) bg-(--background) pl-2 pr-1 text-(--text)"
             >
               {[10, 25, 50, 100].map((value) => <option key={value} value={value}>{value}</option>)}
             </select>

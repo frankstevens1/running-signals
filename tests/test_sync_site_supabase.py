@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import time
+import urllib.error
+import urllib.request
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -42,6 +44,135 @@ def test_connect_databricks_enables_compressed_parallel_cloud_fetch(
     assert captured["enable_query_result_lz4_compression"] is True
     assert captured["max_download_threads"] == 4
     assert captured["http_path"] == "/sql/1.0/warehouses/warehouse"
+
+
+def test_site_revalidate_config_requires_both_values(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.delenv("SITE_REVALIDATE_URL", raising=False)
+    monkeypatch.delenv("SITE_REVALIDATE_SECRET", raising=False)
+    assert sync_site_supabase.get_site_revalidate_config() is None
+
+    monkeypatch.setenv("SITE_REVALIDATE_URL", "https://example.test/revalidate")
+    with pytest.raises(RuntimeError, match="SITE_REVALIDATE_URL and SITE_REVALIDATE_SECRET"):
+        sync_site_supabase.get_site_revalidate_config()
+
+    monkeypatch.delenv("SITE_REVALIDATE_URL")
+    monkeypatch.setenv("SITE_REVALIDATE_SECRET", "secret")
+    with pytest.raises(RuntimeError, match="SITE_REVALIDATE_URL and SITE_REVALIDATE_SECRET"):
+        sync_site_supabase.get_site_revalidate_config()
+
+
+def test_main_rejects_partial_revalidation_config_before_sync(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setenv("SITE_REVALIDATE_URL", "https://example.test/revalidate")
+    monkeypatch.delenv("SITE_REVALIDATE_SECRET", raising=False)
+    monkeypatch.setattr(sync_site_supabase, "get_databricks_config", databricks_config)
+    monkeypatch.setattr(
+        sync_site_supabase,
+        "fetch_fingerprints",
+        lambda config, progress: calls.append("fingerprint"),
+    )
+
+    with pytest.raises(RuntimeError, match="SITE_REVALIDATE_URL and SITE_REVALIDATE_SECRET"):
+        sync_site_supabase.main(["--no-progress"])
+
+    assert calls == []
+
+
+def test_post_site_revalidation_sends_authorized_json_without_redirects(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeResponse:
+        def __enter__(self) -> FakeResponse:
+            return self
+
+        def __exit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc: BaseException | None,
+            traceback: TracebackType | None,
+        ) -> Literal[False]:
+            return False
+
+        def getcode(self) -> int:
+            return 204
+
+    class FakeOpener:
+        def open(self, request: object, timeout: float) -> FakeResponse:
+            captured["request"] = request
+            captured["timeout"] = timeout
+            return FakeResponse()
+
+    def fake_build_opener(*handlers: object) -> FakeOpener:
+        captured["handlers"] = handlers
+        return FakeOpener()
+
+    monkeypatch.setattr(urllib.request, "build_opener", fake_build_opener)
+
+    assert (
+        sync_site_supabase.post_site_revalidation(
+            "https://example.test/revalidate", "secret"
+        )
+        == 204
+    )
+    request = captured["request"]
+    assert isinstance(request, urllib.request.Request)
+    assert request.data == b"{}"
+    assert request.get_header("Authorization") == "Bearer secret"
+    assert request.get_header("Content-type") == "application/json"
+    assert captured["handlers"] == (sync_site_supabase.NoRedirectHandler,)
+    assert captured["timeout"] == sync_site_supabase.SITE_REVALIDATE_TIMEOUT_SECONDS
+
+
+def test_revalidate_site_retries_retryable_responses_with_exponential_backoff() -> None:
+    statuses = iter([429, 503, 204])
+    delays: list[float] = []
+
+    sync_site_supabase.revalidate_site(
+        sync_site_supabase.SiteRevalidateConfig(
+            url="https://example.test/revalidate",
+            secret="secret",
+        ),
+        sync_site_supabase.ProgressReporter(use_tty=False),
+        request_sender=lambda url, secret: next(statuses),
+        sleep=delays.append,
+    )
+
+    assert delays == [1.0, 2.0]
+    assert all(
+        sync_site_supabase.retryable_revalidation_status(status)
+        for status in (408, 425, 429, 500, 599)
+    )
+    assert not sync_site_supabase.retryable_revalidation_status(400)
+    assert not sync_site_supabase.retryable_revalidation_status(302)
+
+
+def test_revalidate_site_warns_and_succeeds_after_transport_failures(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    secret = "do-not-log-this"
+
+    def fail_request(url: str, request_secret: str) -> int:
+        assert request_secret == secret
+        raise urllib.error.URLError("network unavailable")
+
+    sync_site_supabase.revalidate_site(
+        sync_site_supabase.SiteRevalidateConfig(
+            url="https://example.test/revalidate",
+            secret=secret,
+        ),
+        sync_site_supabase.ProgressReporter(use_tty=False),
+        request_sender=fail_request,
+        sleep=lambda seconds: None,
+    )
+
+    output = capsys.readouterr().out
+    assert "warning: Site revalidation failed with transport error" in output
+    assert "continuing without revalidation" in output
+    assert secret not in output
 
 
 def test_query_databricks_retries_whole_query(monkeypatch: MonkeyPatch) -> None:
@@ -453,8 +584,9 @@ class FakeConnection:
 
 
 class FakeSyncConnection:
-    def __init__(self) -> None:
+    def __init__(self, lifecycle: list[str] | None = None) -> None:
         self.executed: list[tuple[str, object]] = []
+        self.lifecycle = lifecycle
 
     def __enter__(self) -> FakeSyncConnection:
         return self
@@ -465,6 +597,8 @@ class FakeSyncConnection:
         exc: BaseException | None,
         traceback: TracebackType | None,
     ) -> Literal[False]:
+        if self.lifecycle is not None:
+            self.lifecycle.append("connection exit")
         return False
 
     def execute(self, query: str, params: object = None) -> FakeSyncConnection:
@@ -686,6 +820,7 @@ def test_sync_supabase_stages_then_atomically_replaces_fit_exports(
         force_full=False,
         dry_run=False,
         progress=sync_site_supabase.ProgressReporter(use_tty=False),
+        revalidate_config=None,
     )
 
     assert connection.executed[0] == (
@@ -718,6 +853,94 @@ def test_sync_supabase_stages_then_atomically_replaces_fit_exports(
     assert "site_health_days" not in replaced
 
 
+def test_sync_revalidates_after_committed_no_change_publish_connection_exits(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    lifecycle: list[str] = []
+    connection = FakeSyncConnection(lifecycle)
+    fingerprints: dict[str, sync_site_supabase.Fingerprint | None] = {
+        export.table_name: {"row_count": 1, "hash_sum": export.table_name}
+        for export in sync_site_supabase.EXPORTS
+    }
+    stored = {
+        sync_site_supabase.metadata_table_name(export.table_name): fingerprint
+        for export in sync_site_supabase.EXPORTS
+        if (fingerprint := fingerprints[export.table_name]) is not None
+    }
+    revalidate_config = sync_site_supabase.SiteRevalidateConfig(
+        url="https://example.test/revalidate",
+        secret="secret",
+    )
+
+    monkeypatch.setattr(psycopg, "connect", lambda url, autocommit: connection)
+    monkeypatch.setattr(
+        sync_site_supabase,
+        "get_metadata_value",
+        lambda connection, key: stored,
+    )
+    monkeypatch.setattr(sync_site_supabase, "upsert_metadata", lambda connection, key, value: None)
+    monkeypatch.setattr(
+        sync_site_supabase,
+        "acquire_publish_lock",
+        lambda connection: lifecycle.append("lock acquired"),
+    )
+    monkeypatch.setattr(
+        sync_site_supabase,
+        "release_publish_lock",
+        lambda connection: lifecycle.append("lock released"),
+    )
+    monkeypatch.setattr(
+        sync_site_supabase,
+        "query_databricks",
+        lambda config, statement: [{"latest_completed_date": "2026-07-22"}],
+    )
+    monkeypatch.setattr(
+        sync_site_supabase,
+        "revalidate_site",
+        lambda config, progress: lifecycle.append("revalidated"),
+    )
+
+    sync_site_supabase.sync_supabase(
+        "postgresql://example",
+        databricks_config(),
+        fingerprints,
+        force_full=False,
+        dry_run=False,
+        progress=sync_site_supabase.ProgressReporter(use_tty=False),
+        revalidate_config=revalidate_config,
+    )
+
+    assert lifecycle[-3:] == ["lock released", "connection exit", "revalidated"]
+
+
+def test_sync_dry_run_does_not_revalidate(monkeypatch: MonkeyPatch) -> None:
+    connection = FakeSyncConnection()
+    revalidation_calls: list[str] = []
+
+    monkeypatch.setattr(psycopg, "connect", lambda url, autocommit: connection)
+    monkeypatch.setattr(sync_site_supabase, "get_metadata_value", lambda connection, key: {})
+    monkeypatch.setattr(
+        sync_site_supabase,
+        "revalidate_site",
+        lambda config, progress: revalidation_calls.append("called"),
+    )
+
+    sync_site_supabase.sync_supabase(
+        "postgresql://example",
+        databricks_config(),
+        {},
+        force_full=False,
+        dry_run=True,
+        progress=sync_site_supabase.ProgressReporter(use_tty=False),
+        revalidate_config=sync_site_supabase.SiteRevalidateConfig(
+            url="https://example.test/revalidate",
+            secret="secret",
+        ),
+    )
+
+    assert revalidation_calls == []
+
+
 def test_parse_args_rejects_group() -> None:
     assert not hasattr(sync_site_supabase.parse_args([]), "group")
 
@@ -744,6 +967,7 @@ def test_main_runs_fit_publisher(monkeypatch: MonkeyPatch) -> None:
         force_full: bool,
         dry_run: bool,
         progress: sync_site_supabase.ProgressReporter,
+        revalidate_config: sync_site_supabase.SiteRevalidateConfig | None,
     ) -> None:
         calls.append("sync")
 

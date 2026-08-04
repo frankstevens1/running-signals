@@ -101,10 +101,16 @@ const SUMMARY_UNIT_PART = /^(\/km|\/mi|km\/h|mph|m\/beat|bpm|spm|km|mi|m|h)$/;
 function SummaryValue({ value }: { value: ReactNode }) {
   if (typeof value !== "string") return value;
 
-  return value.split(SUMMARY_UNIT_PATTERN).map((part, index) =>
+  const parts = value.split(SUMMARY_UNIT_PATTERN);
+
+  return parts.map((part, index) =>
     SUMMARY_UNIT_PART.test(part) ? (
       <span key={index} className="text-[0.7em] sm:text-[1em]">
         {part}
+      </span>
+    ) : part.endsWith(" ") && SUMMARY_UNIT_PART.test(parts[index + 1] ?? "") ? (
+      <span key={index}>
+        {part.trimEnd()}<span className="hidden sm:inline"> </span>
       </span>
     ) : (
       part
@@ -272,6 +278,7 @@ export function RunDetailDialog({
     resolution,
     open && run !== null,
   );
+  const hideSegmentDuration = resolution === 1;
   const elevationPoints = recordState.records ? profilePoints(recordState.records, unit) : [];
   const elevationAltitudes = elevationPoints.map((p) => p.altitudeM);
   const elevationMin = elevationAltitudes.length > 0 ? Math.min(...elevationAltitudes) : 0;
@@ -597,7 +604,9 @@ export function RunDetailDialog({
                     <thead className="bg-(--surface-muted) text-left text-(--text-soft)">
                       <tr>
                         <th className="px-3 py-3 font-medium">Split</th>
-                        <th className="px-3 py-3 font-medium">Duration</th>
+                        {!hideSegmentDuration ? (
+                          <th className="px-3 py-3 font-medium">Duration</th>
+                        ) : null}
                         <th className="px-3 py-3 font-medium">Pace</th>
                         <th className="px-3 py-3 font-medium">Avg HR</th>
                         <th className="px-3 py-3 font-medium">Max HR</th>
@@ -615,9 +624,11 @@ export function RunDetailDialog({
                           <td className="whitespace-nowrap px-4 py-3 font-medium text-(--text)">
                             {splitDistance(segment, unit)}
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3">
-                            {formatSegmentTime(segment.segmentDurationSeconds)}
-                          </td>
+                          {!hideSegmentDuration ? (
+                            <td className="whitespace-nowrap px-4 py-3">
+                              {formatSegmentTime(segment.segmentDurationSeconds)}
+                            </td>
+                          ) : null}
                           <td className="whitespace-nowrap px-4 py-3">
                             {formatSegmentPace(segment.segmentPaceMinPerKm, unit)}
                           </td>

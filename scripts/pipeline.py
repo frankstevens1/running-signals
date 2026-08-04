@@ -9,7 +9,7 @@ import subprocess
 import sys
 import time
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Callable, Literal, TextIO, TypeVar, cast
 from urllib.parse import urlparse
@@ -24,6 +24,7 @@ from scripts.pipeline_state import (
     RefreshLockHeldError,
     RunManifest,
     get_state_dir,
+    load_latest_manifest,
     load_manifest,
     write_manifest,
 )
@@ -130,35 +131,53 @@ def build_parser() -> argparse.ArgumentParser:
     )
     commands = parser.add_subparsers(dest="command", required=True)
 
-    preflight = commands.add_parser("preflight", help="Validate refresh configuration without writes.")
-    preflight.add_argument("--source", choices=["fit", "health"], default="fit")
-    preflight.add_argument("--databricks-target", default="dev")
+    preflight = commands.add_parser("preflight", help="Validate a command's local configuration.")
+    preflight.add_argument("stage", choices=["raw", "bronze", "dbt", "geocode", "publish", "refresh"])
+    preflight.add_argument("source", choices=["fit", "health", "all"], nargs="?")
     preflight.add_argument("--tokenstore", default=default_tokenstore())
     preflight.add_argument("--no-input", action="store_true")
     preflight.add_argument("--json", action="store_true", dest="json_output")
 
-    refresh = commands.add_parser("refresh", help="Refresh raw, bronze, dbt, and serving data.")
-    refresh_commands = refresh.add_subparsers(dest="refresh_command", required=True)
-    incremental = refresh_commands.add_parser(
-        "incremental",
-        help="Run a source-isolated incremental refresh; defaults to FIT.",
-    )
-    add_refresh_arguments(incremental)
+    refresh = commands.add_parser("refresh", help="Run a complete source refresh.")
+    refresh.add_argument("source", choices=["fit", "health"])
+    refresh.add_argument("--mode", choices=["incremental", "full"], default="incremental")
+    refresh.add_argument("--confirm", action="store_true")
+    add_refresh_arguments(refresh)
+
+    raw = commands.add_parser("raw", help="Land one source in S3 without derived stages.")
+    raw_commands = raw.add_subparsers(dest="source", required=True)
+    add_raw_arguments(raw_commands.add_parser("fit", help="Land Garmin FIT files in S3."), "fit")
+    add_raw_arguments(raw_commands.add_parser("health", help="Land Garmin health payloads in S3."), "health")
 
     bronze = commands.add_parser("bronze", help="Run one or both bronze jobs.")
-    bronze.add_argument("--source", choices=["fit", "health", "all"], default="all")
-    bronze.add_argument("--full-refresh", action="store_true")
+    bronze.add_argument("source", choices=["fit", "health", "all"])
+    bronze.add_argument("--mode", choices=["incremental", "full"], default="incremental")
     bronze.add_argument("--confirm", action="store_true")
+    bronze.add_argument("--dry-run", action="store_true")
     bronze.add_argument("--databricks-target", default="dev")
     bronze.add_argument("--json", action="store_true", dest="json_output")
 
+    dbt = commands.add_parser("dbt", help="Build and test source-specific or complete dbt models.")
+    dbt.add_argument("source", choices=["fit", "health", "all"])
+    dbt.add_argument("--dry-run", action="store_true")
+    dbt.add_argument("--json", action="store_true", dest="json_output")
+
+    geocode = commands.add_parser("geocode", help="Resolve route city names from representative GPS points.")
+    geocode.add_argument("--dry-run", action="store_true")
+    geocode.add_argument("--json", action="store_true", dest="json_output")
+
     publish = commands.add_parser("publish", help="Sync Supabase serving tables from gold data.")
-    publish.add_argument("--full", action="store_true")
+    publish.add_argument("--mode", choices=["incremental", "full"], default="incremental")
     publish.add_argument("--confirm", action="store_true")
+    publish.add_argument("--supabase-db-url")
+    publish.add_argument("--dry-run", action="store_true")
+    publish.add_argument("--no-progress", action="store_true")
     publish.add_argument("--json", action="store_true", dest="json_output")
 
     status = commands.add_parser("status", help="Print a stored run manifest.")
-    status.add_argument("run_id")
+    status_group = status.add_mutually_exclusive_group(required=True)
+    status_group.add_argument("run_id", nargs="?")
+    status_group.add_argument("--latest", action="store_true")
     status.add_argument("--json", action="store_true", dest="json_output")
 
     return parser
@@ -169,12 +188,6 @@ def default_tokenstore() -> str:
 
 
 def add_refresh_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--source",
-        choices=["fit", "health"],
-        default="fit",
-        help="Refresh source. FIT is the scheduled default; health is manual.",
-    )
     parser.add_argument("--tokenstore", default=default_tokenstore())
     parser.add_argument("--fit-limit", type=download_garmin_fit.parse_limit, default=200)
     parser.add_argument("--no-input", action="store_true")
@@ -182,6 +195,21 @@ def add_refresh_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--json", action="store_true", dest="json_output")
     parser.add_argument("--databricks-target", default="dev")
+
+
+def add_raw_arguments(parser: argparse.ArgumentParser, source: RefreshSource) -> None:
+    parser.add_argument("--tokenstore", default=default_tokenstore())
+    parser.add_argument("--s3-bucket")
+    parser.add_argument("--s3-prefix")
+    parser.add_argument("--mode", choices=["incremental", "range-overwrite"], default="incremental")
+    parser.add_argument("--start-date", type=download_garmin_fit.parse_date_arg)
+    parser.add_argument("--end-date", type=download_garmin_fit.parse_date_arg)
+    if source == "fit":
+        parser.add_argument("--fit-limit", type=download_garmin_fit.parse_limit, default=200)
+    parser.add_argument("--no-input", action="store_true")
+    parser.add_argument("--confirm", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--json", action="store_true", dest="json_output")
 
 
 def refresh_options(args: argparse.Namespace) -> RefreshOptions:
@@ -203,47 +231,59 @@ def preflight_errors(
     source: RefreshSource = "fit",
     *,
     no_input: bool,
+    stages: frozenset[str] | None = None,
+    raw_s3_bucket: str | None = None,
 ) -> list[str]:
     load_dotenv(project_root / ".env")
     missing: list[str] = []
+    required_stages = stages or (
+        frozenset({"raw", "bronze", "dbt", "geocode", "publish"})
+        if source == "fit"
+        else frozenset({"raw", "bronze", "dbt"})
+    )
+    requires_raw = "raw" in required_stages
+    requires_databricks = bool(required_stages & {"bronze", "dbt", "geocode", "publish"})
 
-    if source == "fit" and not os.getenv("GARMIN_FIT_S3_BUCKET"):
+    if requires_raw and source == "fit" and not (raw_s3_bucket or os.getenv("GARMIN_FIT_S3_BUCKET")):
         missing.append("GARMIN_FIT_S3_BUCKET")
 
-    if source == "health" and not (
-        os.getenv("GARMIN_HEALTH_S3_BUCKET") or os.getenv("GARMIN_FIT_S3_BUCKET")
+    if requires_raw and source == "health" and not (
+        raw_s3_bucket or os.getenv("GARMIN_HEALTH_S3_BUCKET") or os.getenv("GARMIN_FIT_S3_BUCKET")
     ):
         missing.append("GARMIN_HEALTH_S3_BUCKET or GARMIN_FIT_S3_BUCKET")
 
-    for name in (
-        "DATABRICKS_HOST",
-        "DATABRICKS_TOKEN",
-        "DATABRICKS_CATALOG",
-        "DATABRICKS_GOLD_SCHEMA",
-    ):
-        if not os.getenv(name):
-            missing.append(name)
+    if requires_databricks:
+        for name in (
+            "DATABRICKS_HOST",
+            "DATABRICKS_TOKEN",
+            "DATABRICKS_CATALOG",
+            "DATABRICKS_GOLD_SCHEMA",
+        ):
+            if not os.getenv(name):
+                missing.append(name)
 
-    if source == "fit" and not os.getenv("SUPABASE_DB_URL"):
+    if "publish" in required_stages and not os.getenv("SUPABASE_DB_URL"):
         missing.append("SUPABASE_DB_URL")
 
-    http_path = os.getenv("DATABRICKS_HTTP_PATH")
-    if not http_path:
-        missing.append("DATABRICKS_HTTP_PATH")
-    elif not is_sql_warehouse_http_path(http_path):
-        missing.append("a Databricks SQL warehouse DATABRICKS_HTTP_PATH")
+    if requires_databricks:
+        http_path = os.getenv("DATABRICKS_HTTP_PATH")
+        if not http_path:
+            missing.append("DATABRICKS_HTTP_PATH")
+        elif not is_sql_warehouse_http_path(http_path):
+            missing.append("a Databricks SQL warehouse DATABRICKS_HTTP_PATH")
 
-    supabase_db_url = os.getenv("SUPABASE_DB_URL") if source == "fit" else None
+    supabase_db_url = os.getenv("SUPABASE_DB_URL") if "publish" in required_stages else None
     if supabase_db_url and not is_postgres_connection_url(supabase_db_url):
         missing.append("a PostgreSQL SUPABASE_DB_URL")
 
-    if not dbt_profile_path().is_file():
+    if "dbt" in required_stages and not dbt_profile_path().is_file():
         missing.append(f"dbt profile at {dbt_profile_path()}")
 
-    tokenstore_exists = Path(tokenstore).expanduser().exists()
-    has_garmin_credentials = bool(os.getenv("GARMIN_EMAIL")) and bool(os.getenv("GARMIN_PASSWORD"))
-    if no_input and not tokenstore_exists and not has_garmin_credentials:
-        missing.append("a Garmin token store or GARMIN_EMAIL and GARMIN_PASSWORD")
+    if requires_raw:
+        tokenstore_exists = Path(tokenstore).expanduser().exists()
+        has_garmin_credentials = bool(os.getenv("GARMIN_EMAIL")) and bool(os.getenv("GARMIN_PASSWORD"))
+        if no_input and not tokenstore_exists and not has_garmin_credentials:
+            missing.append("a Garmin token store or GARMIN_EMAIL and GARMIN_PASSWORD")
 
     return missing
 
@@ -269,22 +309,42 @@ def run_preflight(
     source: RefreshSource = "fit",
     *,
     no_input: bool,
+    stages: frozenset[str] | None = None,
+    raw_s3_bucket: str | None = None,
 ) -> list[str]:
-    errors = preflight_errors(project_root, tokenstore, source, no_input=no_input)
+    required_stages = stages or (
+        frozenset({"raw", "bronze", "dbt", "geocode", "publish"})
+        if source == "fit"
+        else frozenset({"raw", "bronze", "dbt"})
+    )
+    errors = preflight_errors(
+        project_root,
+        tokenstore,
+        source,
+        no_input=no_input,
+        stages=required_stages,
+        raw_s3_bucket=raw_s3_bucket,
+    )
     if errors:
         raise PipelineError(
             "Missing refresh configuration: " + ", ".join(errors),
             USAGE_FAILURE_EXIT_CODE,
         )
 
-    checks = [
-        f"Garmin {source} raw S3 configuration",
-        "Databricks SQL configuration values",
-        f"dbt profile at {dbt_profile_path()}",
-        "Non-interactive Garmin credentials" if no_input else "Garmin credentials or prompt",
-    ]
-    if source == "fit":
-        checks.insert(2, "Hosted Supabase connection URL")
+    checks: list[str] = []
+    if "raw" in required_stages:
+        checks.extend(
+            [
+                f"Garmin {source} raw S3 configuration",
+                "Non-interactive Garmin credentials" if no_input else "Garmin credentials or prompt",
+            ]
+        )
+    if required_stages & {"bronze", "dbt", "geocode", "publish"}:
+        checks.append("Databricks SQL configuration values")
+    if "dbt" in required_stages:
+        checks.append(f"dbt profile at {dbt_profile_path()}")
+    if "publish" in required_stages:
+        checks.append("Hosted Supabase connection URL")
     return checks
 
 
@@ -612,18 +672,24 @@ def execute_incremental(
     fit_runner: Callable[..., Any] = download_garmin_fit.run,
     health_runner: Callable[..., GarminHealthDownloadResult] = download_garmin_health.run,
 ) -> RunManifest:
+    if options.source == "health" and options.no_publish:
+        raise PipelineError("--no-publish applies to FIT refreshes only.", USAGE_FAILURE_EXIT_CODE)
     run_preflight(
         project_root,
         options.tokenstore,
         options.source,
         no_input=options.no_input,
+        stages=frozenset({"raw", "bronze", "dbt", "geocode", "publish"})
+        if options.source == "fit" and not options.no_publish
+        else frozenset({"raw", "bronze", "dbt"}),
     )
-    ensure_bundle_job_deployed(
-        project_root,
-        options.source,
-        options.databricks_target,
-        bundle_summary_runner,
-    )
+    if not options.dry_run:
+        ensure_bundle_job_deployed(
+            project_root,
+            options.source,
+            options.databricks_target,
+            bundle_summary_runner,
+        )
     resolved_state_dir = state_dir or get_state_dir()
 
     with RefreshLock(resolved_state_dir, f"source-{options.source}"):
@@ -631,9 +697,9 @@ def execute_incremental(
         write_manifest(resolved_state_dir, manifest)
 
         stage_names = [f"{options.source}_raw", f"bronze_{options.source}"]
+        stage_names.append(f"dbt_{options.source}")
         if options.source == "fit" and not options.no_publish:
             stage_names.append("geocode_cities")
-        stage_names.append(f"dbt_{options.source}")
         if options.source == "fit" and not options.no_publish:
             stage_names.append("publish_fit")
 
@@ -662,23 +728,6 @@ def execute_incremental(
             json_output=options.json_output,
         )
 
-        if options.source == "fit" and not options.no_publish:
-            run_command_stage(
-                manifest,
-                resolved_state_dir,
-                "geocode_cities",
-                [
-                    "uv",
-                    "run",
-                    "python",
-                    "scripts/geocode_cities.py",
-                ],
-                project_root,
-                GEOCODE_FAILURE_EXIT_CODE,
-                command_runner,
-                json_output=options.json_output,
-            )
-
         run_command_stage(
             manifest,
             resolved_state_dir,
@@ -705,6 +754,23 @@ def execute_incremental(
             run_command_stage(
                 manifest,
                 resolved_state_dir,
+                "geocode_cities",
+                [
+                    "uv",
+                    "run",
+                    "python",
+                    "scripts/geocode_cities.py",
+                ],
+                project_root,
+                GEOCODE_FAILURE_EXIT_CODE,
+                command_runner,
+                json_output=options.json_output,
+            )
+
+        if options.source == "fit" and not options.no_publish:
+            run_command_stage(
+                manifest,
+                resolved_state_dir,
                 "publish_fit",
                 [
                     "uv",
@@ -724,6 +790,306 @@ def execute_incremental(
         return manifest
 
 
+def skip_stages(
+    manifest: RunManifest,
+    state_dir: Path,
+    stage_names: list[str],
+    *,
+    json_output: bool,
+) -> RunManifest:
+    for name in stage_names:
+        manifest.start_stage(name)
+        manifest.finish_stage(name, "skipped", details={"reason": "dry run"})
+        report_progress(name, "skipped (dry run)", json_output=json_output)
+    manifest.finish("succeeded")
+    write_manifest(state_dir, manifest)
+    return manifest
+
+
+def raw_namespace(args: argparse.Namespace) -> argparse.Namespace:
+    source = cast(RefreshSource, args.source)
+    bucket_env = "GARMIN_FIT_S3_BUCKET" if source == "fit" else "GARMIN_HEALTH_S3_BUCKET"
+    prefix_env = "GARMIN_FIT_S3_PREFIX" if source == "fit" else "GARMIN_HEALTH_S3_PREFIX"
+    default_prefix = "garmin/fit" if source == "fit" else "garmin/health/daily"
+    bucket = args.s3_bucket or os.getenv(bucket_env) or os.getenv("GARMIN_FIT_S3_BUCKET")
+    prefix = args.s3_prefix or os.getenv(prefix_env, default_prefix)
+    end_date = args.end_date or date.today()
+
+    if args.mode == "range-overwrite":
+        if not args.confirm:
+            raise PipelineError(
+                "--mode range-overwrite requires --confirm.", USAGE_FAILURE_EXIT_CODE
+            )
+        if args.start_date is None or args.end_date is None:
+            raise PipelineError(
+                "--mode range-overwrite requires --start-date and --end-date.",
+                USAGE_FAILURE_EXIT_CODE,
+            )
+        if args.end_date < args.start_date:
+            raise PipelineError(
+                "--end-date must be on or after --start-date.", USAGE_FAILURE_EXIT_CODE
+            )
+
+    values: dict[str, Any] = {
+        "tokenstore": args.tokenstore,
+        "destination": "s3",
+        "s3_bucket": bucket,
+        "s3_prefix": prefix,
+        "mode": args.mode,
+        "start_date": args.start_date,
+        "end_date": end_date,
+    }
+    if source == "fit":
+        values["limit"] = args.fit_limit
+    return argparse.Namespace(**values)
+
+
+def run_raw_stage(
+    manifest: RunManifest,
+    state_dir: Path,
+    source: RefreshSource,
+    raw_args: argparse.Namespace,
+    *,
+    no_input: bool,
+    json_output: bool,
+    fit_runner: Callable[..., Any] = download_garmin_fit.run,
+    health_runner: Callable[..., GarminHealthDownloadResult] = download_garmin_health.run,
+) -> None:
+    stage_name = f"{source}_raw"
+    start_stage(manifest, state_dir, stage_name, {})
+    report_progress(stage_name, "starting Garmin raw landing", json_output=json_output)
+    try:
+        if source == "fit":
+            result = run_with_heartbeat(
+                stage_name,
+                lambda: fit_runner(raw_args, allow_prompt=not no_input),
+                json_output=json_output,
+            )
+            details = fit_result_details(result)
+        else:
+            result = run_with_heartbeat(
+                stage_name,
+                lambda: health_runner(raw_args, allow_prompt=not no_input),
+                json_output=json_output,
+            )
+            details = health_result_details(result)
+    except Exception as exc:
+        fail_stage(
+            manifest,
+            state_dir,
+            stage_name,
+            {},
+            raw_landing_failure_message(source.upper(), exc),
+            RAW_FAILURE_EXIT_CODE,
+        )
+
+    if source == "health" and result.endpoint_failures:
+        fail_stage(
+            manifest,
+            state_dir,
+            stage_name,
+            details,
+            "Health raw landing completed with endpoint failures.",
+            RAW_FAILURE_EXIT_CODE,
+        )
+    complete_stage(manifest, state_dir, stage_name, details)
+    report_progress(stage_name, "completed successfully", json_output=json_output)
+
+
+def execute_raw(
+    args: argparse.Namespace,
+    project_root: Path,
+    *,
+    state_dir: Path | None = None,
+    fit_runner: Callable[..., Any] = download_garmin_fit.run,
+    health_runner: Callable[..., GarminHealthDownloadResult] = download_garmin_health.run,
+) -> RunManifest:
+    source = cast(RefreshSource, args.source)
+    run_preflight(
+        project_root,
+        args.tokenstore,
+        source,
+        no_input=args.no_input,
+        stages=frozenset({"raw"}),
+        raw_s3_bucket=args.s3_bucket,
+    )
+    raw_args = raw_namespace(args)
+    resolved_state_dir = state_dir or get_state_dir()
+    options = {
+        "source": source,
+        "mode": args.mode,
+        "s3_bucket": raw_args.s3_bucket,
+        "s3_prefix": raw_args.s3_prefix,
+        "start_date": raw_args.start_date.isoformat() if raw_args.start_date else None,
+        "end_date": raw_args.end_date.isoformat(),
+    }
+    with RefreshLock(resolved_state_dir, f"source-{source}"):
+        manifest = RunManifest.create(f"raw {source}", options)
+        write_manifest(resolved_state_dir, manifest)
+        if args.dry_run:
+            return skip_stages(manifest, resolved_state_dir, [f"{source}_raw"], json_output=args.json_output)
+        run_raw_stage(
+            manifest,
+            resolved_state_dir,
+            source,
+            raw_args,
+            no_input=args.no_input,
+            json_output=args.json_output,
+            fit_runner=fit_runner,
+            health_runner=health_runner,
+        )
+        manifest.finish("succeeded")
+        write_manifest(resolved_state_dir, manifest)
+        return manifest
+
+
+def dbt_command(source: str) -> list[str]:
+    argv = ["uv", "run", "dbt", "build", "--project-dir", "dbt"]
+    if source != "all":
+        argv.extend(["--selector", f"{source}_refresh", "--target-path", f"target/{source}"])
+    return argv
+
+
+def source_locks(state_dir: Path, source: str) -> ExitStack:
+    locks = ExitStack()
+    for selected_source in (("fit", "health") if source == "all" else (source,)):
+        locks.enter_context(RefreshLock(state_dir, f"source-{selected_source}"))
+    return locks
+
+
+def execute_dbt(
+    args: argparse.Namespace,
+    project_root: Path,
+    *,
+    state_dir: Path | None = None,
+    command_runner: CommandRunner = default_command_runner,
+) -> RunManifest:
+    source = args.source
+    preflight_source = "fit" if source == "all" else cast(RefreshSource, source)
+    run_preflight(project_root, default_tokenstore(), preflight_source, no_input=False, stages=frozenset({"dbt"}))
+    resolved_state_dir = state_dir or get_state_dir()
+    stage_name = f"dbt_{source}"
+    with source_locks(resolved_state_dir, source):
+        manifest = RunManifest.create(f"dbt {source}", {"source": source})
+        write_manifest(resolved_state_dir, manifest)
+        if args.dry_run:
+            return skip_stages(manifest, resolved_state_dir, [stage_name], json_output=args.json_output)
+        run_command_stage(
+            manifest,
+            resolved_state_dir,
+            stage_name,
+            dbt_command(source),
+            project_root,
+            DBT_FAILURE_EXIT_CODE,
+            command_runner,
+            json_output=args.json_output,
+        )
+        manifest.finish("succeeded")
+        write_manifest(resolved_state_dir, manifest)
+        return manifest
+
+
+def execute_geocode(
+    args: argparse.Namespace,
+    project_root: Path,
+    *,
+    state_dir: Path | None = None,
+    command_runner: CommandRunner = default_command_runner,
+) -> RunManifest:
+    run_preflight(project_root, default_tokenstore(), "fit", no_input=False, stages=frozenset({"geocode"}))
+    resolved_state_dir = state_dir or get_state_dir()
+    with RefreshLock(resolved_state_dir, "source-fit"):
+        manifest = RunManifest.create("geocode", {})
+        write_manifest(resolved_state_dir, manifest)
+        if args.dry_run:
+            return skip_stages(manifest, resolved_state_dir, ["geocode_cities"], json_output=args.json_output)
+        run_command_stage(
+            manifest,
+            resolved_state_dir,
+            "geocode_cities",
+            ["uv", "run", "python", "scripts/geocode_cities.py"],
+            project_root,
+            GEOCODE_FAILURE_EXIT_CODE,
+            command_runner,
+            json_output=args.json_output,
+        )
+        manifest.finish("succeeded")
+        write_manifest(resolved_state_dir, manifest)
+        return manifest
+
+
+def execute_full_refresh(
+    args: argparse.Namespace,
+    project_root: Path,
+    *,
+    state_dir: Path | None = None,
+    command_runner: CommandRunner = default_command_runner,
+    bundle_summary_runner: BundleSummaryRunner | None = None,
+) -> RunManifest:
+    if not args.confirm:
+        raise PipelineError("--mode full requires --confirm.", USAGE_FAILURE_EXIT_CODE)
+    source = cast(RefreshSource, args.source)
+    if source == "health" and args.no_publish:
+        raise PipelineError("--no-publish applies to FIT refreshes only.", USAGE_FAILURE_EXIT_CODE)
+    stages = frozenset({"bronze", "dbt", "geocode", "publish"}) if source == "fit" and not args.no_publish else frozenset({"bronze", "dbt"})
+    run_preflight(project_root, args.tokenstore, source, no_input=args.no_input, stages=stages)
+    resolved_state_dir = state_dir or get_state_dir()
+    stage_names = [f"bronze_{source}", f"dbt_{source}"]
+    if source == "fit" and not args.no_publish:
+        stage_names.extend(["geocode_cities", "publish_fit"])
+
+    with RefreshLock(resolved_state_dir, f"source-{source}"):
+        manifest = RunManifest.create(f"refresh {source} full", {"source": source, "mode": "full"})
+        write_manifest(resolved_state_dir, manifest)
+        if args.dry_run:
+            return skip_stages(manifest, resolved_state_dir, stage_names, json_output=args.json_output)
+        ensure_bundle_job_deployed(project_root, source, args.databricks_target, bundle_summary_runner)
+        run_bronze_jobs(
+            manifest,
+            resolved_state_dir,
+            project_root,
+            source,
+            args.databricks_target,
+            True,
+            command_runner,
+            json_output=args.json_output,
+        )
+        run_command_stage(
+            manifest,
+            resolved_state_dir,
+            f"dbt_{source}",
+            dbt_command(source),
+            project_root,
+            DBT_FAILURE_EXIT_CODE,
+            command_runner,
+            json_output=args.json_output,
+        )
+        if source == "fit" and not args.no_publish:
+            run_command_stage(
+                manifest,
+                resolved_state_dir,
+                "geocode_cities",
+                ["uv", "run", "python", "scripts/geocode_cities.py"],
+                project_root,
+                GEOCODE_FAILURE_EXIT_CODE,
+                command_runner,
+                json_output=args.json_output,
+            )
+            run_command_stage(
+                manifest,
+                resolved_state_dir,
+                "publish_fit",
+                ["uv", "run", "python", "scripts/sync_site_supabase.py", "--no-progress", "--full"],
+                project_root,
+                PUBLISH_FAILURE_EXIT_CODE,
+                command_runner,
+                json_output=args.json_output,
+            )
+        manifest.finish("succeeded")
+        write_manifest(resolved_state_dir, manifest)
+        return manifest
+
+
 def execute_bronze(
     args: argparse.Namespace,
     project_root: Path,
@@ -732,40 +1098,57 @@ def execute_bronze(
     command_runner: CommandRunner = default_command_runner,
     bundle_summary_runner: BundleSummaryRunner | None = None,
 ) -> RunManifest:
-    if args.full_refresh and not args.confirm:
+    full_refresh = args.mode == "full"
+    if full_refresh and not args.confirm:
         raise PipelineError(
-            "--full-refresh requires --confirm because it replaces bronze tables from raw data.",
+            "--mode full requires --confirm because it replaces bronze tables from raw data.",
             USAGE_FAILURE_EXIT_CODE,
         )
 
     resolved_state_dir = state_dir or get_state_dir()
     selected_sources = ("fit", "health") if args.source == "all" else (args.source,)
-    for source in selected_sources:
-        ensure_bundle_job_deployed(
-            project_root,
-            cast(RefreshSource, source),
-            args.databricks_target,
-            bundle_summary_runner,
-        )
     with ExitStack() as locks:
         for source in selected_sources:
             locks.enter_context(RefreshLock(resolved_state_dir, f"source-{source}"))
+        for source in selected_sources:
+            refresh_source = cast(RefreshSource, source)
+            run_preflight(
+                project_root,
+                default_tokenstore(),
+                refresh_source,
+                no_input=False,
+                stages=frozenset({"bronze"}),
+            )
         manifest = RunManifest.create(
             "bronze",
             {
                 "source": args.source,
-                "full_refresh": args.full_refresh,
+                "mode": args.mode,
                 "databricks_target": args.databricks_target,
             },
         )
         write_manifest(resolved_state_dir, manifest)
+        if args.dry_run:
+            return skip_stages(
+                manifest,
+                resolved_state_dir,
+                [f"bronze_{source}" for source in selected_sources],
+                json_output=args.json_output,
+            )
+        for source in selected_sources:
+            ensure_bundle_job_deployed(
+                project_root,
+                cast(RefreshSource, source),
+                args.databricks_target,
+                bundle_summary_runner,
+            )
         run_bronze_jobs(
             manifest,
             resolved_state_dir,
             project_root,
             args.source,
             args.databricks_target,
-            args.full_refresh,
+            full_refresh,
             command_runner,
             json_output=args.json_output,
         )
@@ -781,16 +1164,26 @@ def execute_publish(
     state_dir: Path | None = None,
     command_runner: CommandRunner = default_command_runner,
 ) -> RunManifest:
-    if args.full and not args.confirm:
+    full = args.mode == "full"
+    if full and not args.confirm:
         raise PipelineError(
-            "--full requires --confirm because it forces every Supabase export to reload.",
+            "--mode full requires --confirm because it forces every Supabase export to reload.",
             USAGE_FAILURE_EXIT_CODE,
         )
 
     resolved_state_dir = state_dir or get_state_dir()
     with RefreshLock(resolved_state_dir, "source-fit"):
-        manifest = RunManifest.create("publish", {"full": args.full})
+        run_preflight(
+            project_root,
+            default_tokenstore(),
+            "fit",
+            no_input=False,
+            stages=frozenset({"publish"}),
+        )
+        manifest = RunManifest.create("publish", {"mode": args.mode})
         write_manifest(resolved_state_dir, manifest)
+        if args.dry_run:
+            return skip_stages(manifest, resolved_state_dir, ["publish_fit"], json_output=args.json_output)
         argv = [
             "uv",
             "run",
@@ -798,7 +1191,9 @@ def execute_publish(
             "scripts/sync_site_supabase.py",
             "--no-progress",
         ]
-        if args.full:
+        if args.supabase_db_url:
+            argv.extend(["--supabase-db-url", args.supabase_db_url])
+        if full:
             argv.append("--full")
         run_command_stage(
             manifest,
@@ -869,24 +1264,43 @@ def print_manifest(manifest: RunManifest, *, json_output: bool) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    load_dotenv(get_project_root() / ".env")
     parser = build_parser()
     args = parser.parse_args(argv)
     project_root = get_project_root()
 
     try:
         if args.command == "preflight":
+            if args.stage in {"geocode", "publish"} and args.source is not None:
+                raise PipelineError(
+                    f"preflight {args.stage} does not take a source.", USAGE_FAILURE_EXIT_CODE
+                )
+            if args.stage not in {"geocode", "publish"} and args.source is None:
+                raise PipelineError(
+                    f"preflight {args.stage} requires a source.", USAGE_FAILURE_EXIT_CODE
+                )
+            if args.stage in {"raw", "refresh"} and args.source == "all":
+                raise PipelineError(
+                    f"preflight {args.stage} requires fit or health, not all.",
+                    USAGE_FAILURE_EXIT_CODE,
+                )
+            source = "fit" if args.source in {None, "all"} else cast(RefreshSource, args.source)
+            stage_sets = {
+                "raw": frozenset({"raw"}),
+                "bronze": frozenset({"bronze"}),
+                "dbt": frozenset({"dbt"}),
+                "geocode": frozenset({"geocode"}),
+                "publish": frozenset({"publish"}),
+                "refresh": frozenset({"raw", "bronze", "dbt", "geocode", "publish"})
+                if source == "fit"
+                else frozenset({"raw", "bronze", "dbt"}),
+            }
             checks = run_preflight(
                 project_root,
                 args.tokenstore,
-                cast(RefreshSource, args.source),
+                source,
                 no_input=args.no_input,
-            )
-            checks.append(
-                ensure_bundle_job_deployed(
-                    project_root,
-                    cast(RefreshSource, args.source),
-                    args.databricks_target,
-                )
+                stages=stage_sets[args.stage],
             )
             if args.json_output:
                 print(json.dumps({"status": "succeeded", "checks": checks}, indent=2, sort_keys=True))
@@ -897,12 +1311,31 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "refresh":
-            manifest = execute_incremental(refresh_options(args), project_root)
+            manifest = (
+                execute_incremental(refresh_options(args), project_root)
+                if args.mode == "incremental"
+                else execute_full_refresh(args, project_root)
+            )
+            print_manifest(manifest, json_output=args.json_output)
+            return 0
+
+        if args.command == "raw":
+            manifest = execute_raw(args, project_root)
             print_manifest(manifest, json_output=args.json_output)
             return 0
 
         if args.command == "bronze":
             manifest = execute_bronze(args, project_root)
+            print_manifest(manifest, json_output=args.json_output)
+            return 0
+
+        if args.command == "dbt":
+            manifest = execute_dbt(args, project_root)
+            print_manifest(manifest, json_output=args.json_output)
+            return 0
+
+        if args.command == "geocode":
+            manifest = execute_geocode(args, project_root)
             print_manifest(manifest, json_output=args.json_output)
             return 0
 
@@ -912,7 +1345,9 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "status":
-            stored_manifest = load_manifest(get_state_dir(), args.run_id)
+            stored_manifest = (
+                load_latest_manifest(get_state_dir()) if args.latest else load_manifest(get_state_dir(), args.run_id)
+            )
             if args.json_output:
                 print(json.dumps(stored_manifest, indent=2, sort_keys=True))
             else:

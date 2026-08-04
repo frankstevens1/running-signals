@@ -99,7 +99,7 @@ export default function ExerciseCard({
 
   return (
     <div
-      className={`border overflow-hidden transition-colors ${
+      className={`min-w-0 border overflow-hidden transition-colors ${
         completed ? "border-accent/30" : "border-border"
       }`}
     >
@@ -130,7 +130,7 @@ export default function ExerciseCard({
       </div>
 
       {/* body */}
-      <div className="p-5 space-y-4">
+      <div className="min-w-0 p-5 space-y-4">
         {/* prompt */}
         {prompt && (
           <div className="p-3.5 bg-surface-muted border border-border/60">

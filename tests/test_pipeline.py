@@ -135,12 +135,6 @@ def test_incremental_refresh_runs_stages_in_order(
         [
             "uv",
             "run",
-            "python",
-            "scripts/geocode_cities.py",
-        ],
-        [
-            "uv",
-            "run",
             "dbt",
             "build",
             "--project-dir",
@@ -154,12 +148,18 @@ def test_incremental_refresh_runs_stages_in_order(
             "uv",
             "run",
             "python",
+            "scripts/geocode_cities.py",
+        ],
+        [
+            "uv",
+            "run",
+            "python",
             "scripts/sync_site_supabase.py",
             "--no-progress",
         ],
     ]
     assert manifest.status == "succeeded"
-    assert list(manifest.stages) == ["fit_raw", "bronze_fit", "geocode_cities", "dbt_fit", "publish_fit"]
+    assert list(manifest.stages) == ["fit_raw", "bronze_fit", "dbt_fit", "geocode_cities", "publish_fit"]
     assert [stage.status for stage in manifest.stages.values()] == ["succeeded"] * 5
     assert (tmp_path / "state" / f"{manifest.run_id}.json").exists()
 
@@ -280,7 +280,7 @@ def test_dbt_failure_prevents_publish(
         )
 
     assert error.value.exit_code == pipeline.DBT_FAILURE_EXIT_CODE
-    assert [call[:2] for call in commands] == [["databricks", "bundle"], ["uv", "run"], ["uv", "run"]]
+    assert [call[:2] for call in commands] == [["databricks", "bundle"], ["uv", "run"]]
 
 
 def test_dry_run_does_not_invoke_stages(
@@ -310,7 +310,7 @@ def test_dry_run_does_not_invoke_stages(
     )
 
     assert manifest.status == "succeeded"
-    assert list(manifest.stages) == ["fit_raw", "bronze_fit", "geocode_cities", "dbt_fit", "publish_fit"]
+    assert list(manifest.stages) == ["fit_raw", "bronze_fit", "dbt_fit", "geocode_cities", "publish_fit"]
     assert {stage.status for stage in manifest.stages.values()} == {"skipped"}
 
 
@@ -339,7 +339,7 @@ def test_fit_and_health_refresh_locks_are_independent(tmp_path: Path) -> None:
 
 def test_standalone_fit_commands_share_refresh_lock(tmp_path: Path) -> None:
     parser = pipeline.build_parser()
-    bronze_args = parser.parse_args(["bronze", "--source", "fit"])
+    bronze_args = parser.parse_args(["bronze", "fit"])
     publish_args = parser.parse_args(["publish"])
     state_dir = tmp_path / "state"
 
@@ -350,11 +350,14 @@ def test_standalone_fit_commands_share_refresh_lock(tmp_path: Path) -> None:
             pipeline.execute_publish(publish_args, Path.cwd(), state_dir=state_dir)
 
 
-def test_full_bronze_uses_job_parameter_and_requires_confirmation(tmp_path: Path) -> None:
+def test_full_bronze_uses_job_parameter_and_requires_confirmation(
+    configured_environment: str,
+    tmp_path: Path,
+) -> None:
     parser = pipeline.build_parser()
-    without_confirmation = parser.parse_args(["bronze", "--full-refresh"])
+    without_confirmation = parser.parse_args(["bronze", "fit", "--mode", "full"])
 
-    with pytest.raises(pipeline.PipelineError, match="requires --confirm"):
+    with pytest.raises(pipeline.PipelineError, match="--mode full requires --confirm"):
         pipeline.execute_bronze(without_confirmation, Path.cwd(), state_dir=tmp_path / "state")
 
     commands: list[list[str]] = []
@@ -365,7 +368,7 @@ def test_full_bronze_uses_job_parameter_and_requires_confirmation(tmp_path: Path
         commands.append(argv)
         return subprocess.CompletedProcess(argv, 0, "", "")
 
-    confirmed = parser.parse_args(["bronze", "--full-refresh", "--confirm"])
+    confirmed = parser.parse_args(["bronze", "fit", "--mode", "full", "--confirm"])
     pipeline.execute_bronze(
         confirmed,
         Path.cwd(),
@@ -383,6 +386,84 @@ def test_full_bronze_uses_job_parameter_and_requires_confirmation(tmp_path: Path
         "full_refresh=true",
         "garmin_fit_bronze_ingestion",
     ]
+
+
+def test_new_command_tree_accepts_isolated_stages() -> None:
+    parser = pipeline.build_parser()
+
+    assert parser.parse_args(["refresh", "fit", "--mode", "incremental"]).source == "fit"
+    assert parser.parse_args(["raw", "health", "--mode", "incremental"]).source == "health"
+    assert parser.parse_args(["bronze", "all", "--mode", "full", "--dry-run"]).source == "all"
+    assert parser.parse_args(["dbt", "fit"]).source == "fit"
+    assert parser.parse_args(["geocode"]).command == "geocode"
+    assert parser.parse_args(["publish", "--mode", "full"]).mode == "full"
+    assert parser.parse_args(["status", "--latest"]).latest is True
+
+
+def test_raw_range_overwrite_requires_confirmation() -> None:
+    parser = pipeline.build_parser()
+    args = parser.parse_args(
+        [
+            "raw",
+            "fit",
+            "--mode",
+            "range-overwrite",
+            "--start-date",
+            "2026-01-01",
+            "--end-date",
+            "2026-01-02",
+        ]
+    )
+
+    with pytest.raises(pipeline.PipelineError, match="requires --confirm"):
+        pipeline.raw_namespace(args)
+
+
+def test_bronze_dry_run_skips_bundle_inspection(
+    configured_environment: str,
+    tmp_path: Path,
+) -> None:
+    args = pipeline.build_parser().parse_args(["bronze", "fit", "--dry-run"])
+
+    def unexpected_summary(
+        argv: list[str], cwd: Path
+    ) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("dry run must not inspect the bundle")
+
+    manifest = pipeline.execute_bronze(
+        args,
+        Path.cwd(),
+        state_dir=tmp_path / "state",
+        bundle_summary_runner=unexpected_summary,
+    )
+
+    assert manifest.stages["bronze_fit"].status == "skipped"
+
+
+def test_full_fit_refresh_rebuilds_derived_stages(
+    configured_environment: str,
+    tmp_path: Path,
+) -> None:
+    parser = pipeline.build_parser()
+    args = parser.parse_args(["refresh", "fit", "--mode", "full", "--confirm", "--no-input"])
+    commands: list[list[str]] = []
+
+    def fake_command(
+        argv: list[str], cwd: Path, stage: str, json_output: bool
+    ) -> subprocess.CompletedProcess[str]:
+        commands.append(argv)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    manifest = pipeline.execute_full_refresh(
+        args,
+        Path.cwd(),
+        state_dir=tmp_path / "state",
+        command_runner=fake_command,
+    )
+
+    assert list(manifest.stages) == ["bronze_fit", "dbt_fit", "geocode_cities", "publish_fit"]
+    assert commands[0][-3:] == ["--params", "full_refresh=true", "garmin_fit_bronze_ingestion"]
+    assert commands[-1][-1] == "--full"
 
 
 def test_preflight_requires_non_interactive_garmin_credentials(

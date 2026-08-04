@@ -21,6 +21,7 @@ html[data-theme="dark"] {
   --signal-warn: #e8b15c;
   --signal-error: #ff8a85;
   --focus-ring: #76eb95;
+  --sql-editor-font-size: 0.8125rem;
 }
 
 @media (prefers-color-scheme: light) {
@@ -98,16 +99,20 @@ html[data-theme="light"] {
 }
 
 html {
-  min-width: 320px;
   scroll-behavior: smooth;
 }
 
 body {
-  min-width: 320px;
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
   text-rendering: optimizeLegibility;
+}
+
+@media (max-width: 639px) {
+  :root {
+    --sql-editor-font-size: 1rem;
+  }
 }
 
 ::selection {

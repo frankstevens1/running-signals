@@ -8,8 +8,17 @@ import { AppNav } from "@/app/components/app-nav";
 import { CommandPalette } from "@/app/components/command-palette";
 import { DistanceUnitToggle } from "@/app/components/distance-unit-toggle";
 import { ThemeToggle } from "@/app/components/theme-toggle";
+import { getLandingStatus } from "@/app/lib/data";
+import { formatSnapshotFreshness, formatSyncDate } from "@/app/lib/format";
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export async function AppShell({ children }: { children: React.ReactNode }) {
+  const status = await getLandingStatus();
+  const publishedSnapshot = status.status === "ok" ? status.data.lastSyncDate : null;
+  const freshnessLabel = formatSnapshotFreshness(publishedSnapshot);
+  const snapshotLabel = publishedSnapshot
+    ? `snapshot ${formatSyncDate(publishedSnapshot)}`
+    : "snapshot unavailable";
+
   return (
     <div className="flex min-h-screen flex-col bg-(--background) text-(--text)">
       <a
@@ -37,18 +46,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     className="terminal-cursor inline-block h-3.5 w-1.5 bg-(--accent)"
                   />
                 </span>
-                <span className="mt-1 hidden truncate text-xs text-(--text-soft) sm:block">
-                  Garmin data → explainable training signals
-                </span>
               </Link>
 
               <div
                 className="hidden items-center gap-2 border-l border-(--border) pl-4 font-mono text-[10px] uppercase tracking-[0.12em] text-(--text-faint) md:flex"
-                aria-label="System status: online, gold signal models available"
+                aria-label={`Published FIT data: ${freshnessLabel}, ${snapshotLabel}`}
               >
-                <span className="status-pulse h-1.5 w-1.5 bg-(--signal-ok)" aria-hidden="true" />
-                <span className="text-(--signal-ok)">online</span>
-                <span>/ gold models</span>
+                <span
+                  className={`status-pulse h-1.5 w-1.5 ${publishedSnapshot ? "bg-(--signal-ok)" : "bg-(--signal-warn)"}`}
+                  aria-hidden="true"
+                />
+                <span className={publishedSnapshot ? "text-(--signal-ok)" : "text-(--signal-warn)"}>
+                  {freshnessLabel}
+                </span>
+                <span className="max-w-72 truncate">/ {snapshotLabel}</span>
               </div>
             </div>
 
@@ -77,10 +88,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="text-(--accent)" aria-hidden="true">
                 rs://
               </span>
-              analytics-engineering / 2026
-            </p>
-            <p className="mt-1.5 text-xs text-(--text-faint)">
-              Personal running data, modeled for clarity not coaching.
+              analytics-engineering / {new Date().getUTCFullYear()}
             </p>
           </div>
 

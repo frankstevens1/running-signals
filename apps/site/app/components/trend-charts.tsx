@@ -137,7 +137,6 @@ const tooltipStyle = {
   contentStyle: {
     backgroundColor: "var(--surface)",
     border: "1px solid var(--border)",
-    borderRadius: 2,
     color: "var(--text)",
     boxShadow: "0 12px 32px color-mix(in srgb, var(--background) 34%, transparent)",
     fontFamily: "var(--font-mono)",
@@ -336,7 +335,7 @@ function FitnessLineLegend({
     <div className="flex min-w-0 max-w-full flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-1 font-mono text-[11px] leading-4 text-(--text-soft)">
       <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
         <span
-          className="w-5 shrink-0 rounded-full"
+          className="w-5 shrink-0"
           style={{ backgroundColor: PRIMARY_SERIES_COLOR, height: 1.5 }}
           aria-hidden="true"
         />
@@ -344,7 +343,7 @@ function FitnessLineLegend({
       </span>
       <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
         <span
-          className="w-5 shrink-0 rounded-full"
+          className="w-5 shrink-0"
           style={{ backgroundColor: SECONDARY_SERIES_COLOR, height: 3 }}
           aria-hidden="true"
         />
@@ -367,7 +366,7 @@ function RecoveryLegend({
     <div className="flex min-w-0 max-w-full flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-1 font-mono text-[11px] leading-4 text-(--text-soft)">
       <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
         <span
-          className="size-2 shrink-0 rounded-full"
+          className="size-2 shrink-0"
           style={{ backgroundColor: MUTED_SERIES_COLOR }}
           aria-hidden="true"
         />
@@ -375,7 +374,7 @@ function RecoveryLegend({
       </span>
       <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
         <span
-          className="size-2 shrink-0 rounded-full border"
+          className="size-2 shrink-0 border"
           style={{ backgroundColor: latestColor, borderColor: "var(--surface)" }}
           aria-hidden="true"
         />
@@ -817,7 +816,7 @@ function ChartFrame({
   children: ReactNode;
 }) {
   return (
-    <section className="flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden rounded-sm border border-(--border) bg-(--surface)">
+    <section className="flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden border border-(--border) bg-(--surface)">
       <div className="flex items-start justify-between gap-3 border-b border-(--border) px-4 py-3">
         <div className="min-w-0">
           <p className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-(--accent)">
@@ -876,14 +875,12 @@ export function WeeklyVolumeChart({ weeks }: { weeks: WeekRollup[] }) {
             name="Longest run"
             stackId="distance"
             fill={PRIMARY_SERIES_COLOR}
-            radius={[0, 0, 0, 0]}
           />
           <Bar
             dataKey="otherWeeklyDistanceKm"
             name="Other distance"
             stackId="distance"
             fill={MUTED_SERIES_COLOR}
-            radius={[2, 2, 0, 0]}
           />
           <Line
             type="monotone"
@@ -951,7 +948,6 @@ export function MonthlyVolumeChart({ months }: { months: MonthRollup[] }) {
             dataKey="monthlyDistanceKm"
             name="Monthly distance"
             fill={PRIMARY_SERIES_COLOR}
-            radius={[2, 2, 0, 0]}
           />
           <Line
             yAxisId="right"
@@ -1027,7 +1023,6 @@ export function WeeklyStructureChart({ weeks }: { weeks: WeekRollup[] }) {
             name="Active days"
             stackId="days"
             fill={PRIMARY_SERIES_COLOR}
-            radius={[0, 0, 0, 0]}
           />
           <Bar
             yAxisId="left"
@@ -1035,7 +1030,6 @@ export function WeeklyStructureChart({ weeks }: { weeks: WeekRollup[] }) {
             name="Missed days"
             stackId="days"
             fill={MUTED_SERIES_COLOR}
-            radius={[2, 2, 0, 0]}
           />
           <Line
             yAxisId="right"
@@ -1903,7 +1897,6 @@ function RecoveryTooltip({
       style={{
         backgroundColor: "var(--surface)",
         border: "1px solid var(--border)",
-        borderRadius: 2,
         color: "var(--text)",
         boxShadow:
           "0 12px 32px color-mix(in srgb, var(--background) 34%, transparent)",
@@ -1976,7 +1969,7 @@ function RecoveryBaselineComparison({ point }: { point: RecoveryTrendPoint | und
   ) {
     const observedCount = point?.recoveryPrior90dCount ?? 0;
     return (
-      <div className="min-w-0 rounded-sm border border-(--border) bg-(--surface-muted) px-4 py-3 font-mono text-xs leading-5 text-(--text-soft)">
+      <div className="min-w-0 border border-(--border) bg-(--surface-muted) px-4 py-3 font-mono text-xs leading-5 text-(--text-soft)">
         <strong className="text-(--text)">Baseline unavailable.</strong>{" "}
         {observedCount} of {RECOVERY_BASELINE_MIN_OBSERVATIONS} comparable recovery readings are
         available in the prior 90 days.
@@ -2000,7 +1993,7 @@ function RecoveryBaselineComparison({ point }: { point: RecoveryTrendPoint | und
       : "below the prior baseline";
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-sm border border-(--border) bg-(--surface-muted) px-4 py-3">
+    <div className="min-w-0 overflow-hidden border border-(--border) bg-(--surface-muted) px-4 py-3">
       <div className="grid min-w-0 grid-cols-1 items-baseline gap-x-3 gap-y-1 font-mono text-xs leading-5 sm:grid-cols-3">
         <span className="text-(--text-soft)">Prior 90-day comparable response</span>
         <span className="text-(--text-soft) sm:text-center">
@@ -2020,7 +2013,7 @@ function RecoveryBaselineComparison({ point }: { point: RecoveryTrendPoint | und
           style={{ left: position(minimum), width: `calc(${position(maximum)} - ${position(minimum)})` }}
         />
         <div
-          className="absolute top-4 h-3 -translate-y-1/2 rounded-full bg-(--accent-soft)"
+          className="absolute top-4 h-3 -translate-y-1/2 bg-(--accent-soft)"
           style={{ left: position(q1), width: `calc(${position(q3)} - ${position(q1)})` }}
         />
         <div
@@ -2044,7 +2037,7 @@ function RecoveryBaselineComparison({ point }: { point: RecoveryTrendPoint | und
           style={{ left: position(maximum) }}
         />
         <div
-          className="absolute top-4 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-(--surface)"
+          className="absolute top-4 size-3 -translate-x-1/2 -translate-y-1/2 border-2 border-(--surface)"
           style={{ left: position(point.garminRecoveryHr), backgroundColor: recoveryClassificationColor(point.recoveryClassification) }}
         />
         <span className="absolute top-8 hidden -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-(--text-soft) sm:block" style={{ left: position(q1) }}>
@@ -2334,7 +2327,7 @@ export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
               onClick={() => toggleHeartRateBand(band.id)}
             >
               <span
-                className="size-1.5 shrink-0 rounded-full"
+                className="size-1.5 shrink-0"
                 style={{ backgroundColor: bandColorById.get(band.id) ?? getBandColor(0) }}
                 aria-hidden="true"
               />
@@ -2451,7 +2444,7 @@ export function PaceHeartRateTrend({ points }: { points: FitnessPoint[] }) {
         {trendData.length > 0 ? (
           <div className="mt-1 flex items-center justify-center gap-1.5 text-[11px] leading-4 text-(--text-soft)">
             <span
-              className="h-0.5 w-5 rounded-full bg-(--text-soft)"
+              className="h-0.5 w-5 bg-(--text-soft)"
               aria-hidden="true"
             />
             <span>Trend</span>
@@ -2745,7 +2738,6 @@ export function ElevationEconomyChart({ points }: { points: FitnessPoint[] }) {
             name="Ascent"
             fill={MUTED_SERIES_COLOR}
             opacity={0.3}
-            radius={[2, 2, 0, 0]}
           />
           <Line
             yAxisId="economy"

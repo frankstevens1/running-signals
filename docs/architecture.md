@@ -95,7 +95,10 @@ changed files are parsed and written. Unchanged files are skipped. If an already
 changes, the job deletes that `run_id` from all three bronze tables before appending replacement
 rows, making repeated runs idempotent without heavier orchestration.
 
-See `scripts/README.md` for FIT and health landing commands and the S3 landing smoke test.
+The `running-signals` CLI can run complete source refreshes or isolated raw, bronze, dbt,
+geocoding, and publish stages. Full source refreshes rebuild from existing raw landing; destructive
+FIT raw replacement remains an explicit, date-bounded, confirmed raw command. See `scripts/README.md`
+for the command matrix and S3 landing smoke test.
 
 ## Modeling
 
@@ -128,7 +131,8 @@ and are flagged with per-endpoint availability booleans.
 ## Presentation Serving
 
 The Next.js site does not query Databricks during normal page rendering. After dbt builds the gold
-models, `scripts/sync_site_supabase.py` loads the FIT presentation tables into Supabase.
+models and route geocoding updates city labels, `running-signals publish` loads the FIT presentation
+tables into Supabase.
 FIT is stored in physical core tables (`site_*_core`) with thin public views over them.
 Window-aware RPCs (`site_period_summary`, `site_route_summaries`,
 `site_run_filter_bounds_for_window`) serve analytics scoped to a selected date range. Monthly and

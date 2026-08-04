@@ -9,14 +9,14 @@ const steps = [
     label: "Ingest",
     title: "Python lands Garmin source payloads.",
     icon: RadioTower,
-    copy: "Ingestion jobs authenticate to Garmin Connect, download FIT activity payloads, and write source files into the raw S3 landing zone before analytical assumptions are applied.",
+    copy: "Ingestion jobs authenticate to Garmin Connect, download FIT activity files, and write source files to the raw S3 landing zone before modeling.",
   },
   {
     id: "bronze",
     label: "Bronze",
     title: "Bronze preserves source-shaped evidence.",
     icon: FileArchive,
-    copy: "Databricks bronze tables keep raw Garmin payloads recoverable with payload lineage intact, so source data can be replayed when parsers, schemas, or signal definitions improve.",
+    copy: "Databricks parses source files into lineage-preserving bronze tables. S3 retains recoverable source files for replay.",
   },
   {
     id: "silver",
@@ -30,7 +30,7 @@ const steps = [
     label: "Gold",
     title: "Gold publishes analytical signal marts.",
     icon: Database,
-    copy: "Gold models encode consistency, volume, route, and descriptive fitness definitions as marts for frontend explorers and downstream ML feature work. Curated projections are published to Supabase for the website.",
+    copy: "Gold models define consistency, volume, route, and descriptive fitness marts. Selected FIT read models publish to Supabase.",
   },
 ];
 
@@ -141,7 +141,7 @@ export function PipelineScroller() {
                   </div>
                   <span className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-(--signal-ok)">
                     <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                    complete
+                    implemented
                   </span>
                 </div>
                 <p

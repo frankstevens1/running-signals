@@ -1,4 +1,9 @@
-{{ config(materialized='table') }}
+{{ config(
+    materialized='view',
+    pre_hook=[
+        "create table if not exists `" ~ env_var('DATABRICKS_CATALOG') ~ "`.`" ~ env_var('DATABRICKS_GOLD_SCHEMA') ~ "`.`route_city_names` (route_id string not null, city_name string, country_name string, country_code string, route_start_latitude_deg double, route_start_longitude_deg double) using delta"
+    ]
+) }}
 
 {% set gold_catalog = env_var('DATABRICKS_CATALOG') %}
 {% set gold_schema = env_var('DATABRICKS_GOLD_SCHEMA') %}
@@ -55,6 +60,8 @@ run_start_records as (
         run_id,
         min(record_index) as start_record_index
     from {{ ref('mart_map_profile_records') }}
+    where position_lat_deg between -90 and 90
+      and position_long_deg between -180 and 180
     group by run_id
 ),
 
@@ -69,8 +76,6 @@ representative_route_start_points as (
     inner join {{ ref('mart_map_profile_records') }} as records
         on records.run_id = starts.run_id
         and records.record_index = starts.start_record_index
-    where records.position_lat_deg between -90 and 90
-      and records.position_long_deg between -180 and 180
 )
 
 select

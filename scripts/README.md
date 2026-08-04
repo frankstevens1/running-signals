@@ -3,28 +3,67 @@
 Small operational entrypoints for local project tasks. Keep scripts thin: argument parsing,
 user prompts, and orchestration belong here; reusable logic should live under `ingest/`.
 
-For routine production refreshes, use the `running-signals` CLI. It preserves the
-required stage order, records an atomic local manifest, and stops at the first failed
-stage. FIT continues through Supabase; health stops after dbt.
+For production refreshes and isolated stages, use the `running-signals` CLI. It
+preserves required stage order for complete runs, records an atomic local manifest,
+and stops at the first failed stage.
 
 ```bash
-uv run running-signals preflight --source fit --no-input --databricks-target dev
-uv run running-signals refresh incremental --no-input --databricks-target dev
+uv run running-signals preflight refresh fit --no-input
+uv run running-signals refresh fit --mode incremental --no-input --databricks-target dev
 ```
 
-The default refresh is FIT-only. Health is independent and manual:
+Complete FIT stages are `fit_raw -> bronze_fit -> dbt_fit -> geocode_cities -> publish_fit`.
+Health is independent and stops after dbt:
 
 ```bash
-uv run running-signals refresh incremental --source health --no-input --databricks-target dev
+uv run running-signals refresh health --mode incremental --no-input --databricks-target dev
 ```
 
-The health command runs raw landing, bronze ingestion, and `dbt_health`. It does not
-publish health data to Supabase.
+Use isolated commands when only one layer needs work:
 
-Use `--json` for one machine-readable result document, `--dry-run` to validate and
-render an incremental plan without remote calls or data writes, and `--no-publish` to
-stop after a successful dbt build. Refresh manifests and the local advisory lock
-live under `$XDG_STATE_HOME/running-signals` or `~/.local/state/running-signals`.
+```bash
+uv run running-signals raw fit --mode incremental --no-input
+uv run running-signals bronze fit --mode incremental
+uv run running-signals dbt fit
+uv run running-signals geocode
+uv run running-signals publish --mode incremental
+```
+
+`dbt all` builds and tests the complete DAG. `bronze all` runs both bronze jobs.
+Health never geocodes or publishes.
+
+Full refreshes rebuild derived layers from the existing raw landing; they do not
+download Garmin history:
+
+```bash
+uv run running-signals refresh fit --mode full --confirm --no-input
+uv run running-signals refresh health --mode full --confirm --no-input
+```
+
+The FIT full flow is `bronze_fit(full) -> dbt_fit -> geocode_cities -> publish_fit(full)`.
+For an intentional FIT raw replacement, provide an explicit complete date range and
+confirmation, then run the FIT full refresh:
+
+```bash
+uv run running-signals raw fit --mode range-overwrite \
+  --start-date 2026-01-01 --end-date 2026-12-31 --confirm --no-input
+uv run running-signals refresh fit --mode full --confirm --no-input
+```
+
+FIT range overwrite deletes every FIT object under its selected prefix before fetching
+the requested range. Do not use a partial range unless it represents the complete
+history you intend to retain. Health range overwrite is bounded to its requested dates:
+
+```bash
+uv run running-signals raw health --mode range-overwrite \
+  --start-date 2026-06-01 --end-date 2026-06-07 --confirm --no-input
+```
+
+Use `--json` for one machine-readable result document. `--dry-run` validates local
+configuration and renders skipped stages without remote calls or data writes.
+`--no-publish` stops a FIT refresh after dbt. Manifests and advisory locks live under
+`$XDG_STATE_HOME/running-signals` or `~/.local/state/running-signals`; inspect them
+with `uv run running-signals status RUN_ID` or `uv run running-signals status --latest`.
 
 The CLI prints every stage start and completion, streams child command logs, and emits
 a heartbeat every 30 seconds while a raw download or remote command is still running.
@@ -33,14 +72,27 @@ remains the only stdout output. Each completed or failed run ends with an execut
 timing table for every phase and the total runtime; the same durations are recorded
 in the manifest.
 
-`preflight` checks required configuration values, the Databricks SQL warehouse-path
-format, and the local dbt profile presence. FIT preflight also checks the hosted
-Supabase PostgreSQL URL; health preflight does not require `SUPABASE_DB_URL`. It does
-not make remote connectivity checks.
+`preflight` is stage-aware: for example, `preflight raw health` does not require dbt
+or Supabase, while `preflight publish` requires Databricks and Supabase only. It checks
+local configuration and value formats, not remote connectivity. Bronze execution checks
+the deployed Databricks job immediately before it starts.
 
-`refresh incremental` intentionally has no `--full` or raw range-overwrite mode.
-The existing FIT range-overwrite operation deletes every FIT file under its configured
-destination before downloading, so it remains a manual recovery/backfill operation.
+### Orchestration CLI reference
+
+| Command | Scope and modes | Safety |
+|---|---|---|
+| `preflight STAGE [SOURCE]` | `raw`, `bronze`, `dbt`, `geocode`, `publish`, or `refresh` | Local configuration validation only |
+| `refresh fit|health --mode incremental|full` | Complete source lane | Full requires `--confirm`; FIT full starts at bronze |
+| `raw fit|health --mode incremental|range-overwrite` | S3 landing only | Range overwrite requires dates and `--confirm` |
+| `bronze fit|health|all --mode incremental|full` | Databricks ingestion only | Full requires `--confirm` |
+| `dbt fit|health|all` | Source selector or full dbt DAG | No separate mode; dbt owns materialization |
+| `geocode` | FIT route-city lookup only | Run after dbt and before publish |
+| `publish --mode incremental|full` | Supabase FIT serving data only | Full requires `--confirm` |
+| `status RUN_ID` or `status --latest` | Local run manifest | Read-only |
+
+`--json` and `--dry-run` apply to commands that execute stages. `--databricks-target`
+applies to refresh and bronze; only `dev` is currently configured. `--no-publish` is
+available on FIT refreshes to stop after dbt.
 
 For individual entrypoints, recovery, and investigation, use the commands below.
 
@@ -161,6 +213,9 @@ Configuration is read from the repository `.env` file or shell environment:
 - `DATABRICKS_HTTP_PATH`
 - `DATABRICKS_CATALOG`
 - `DATABRICKS_GOLD_SCHEMA`
+- `SITE_REVALIDATE_URL` and `SITE_REVALIDATE_SECRET`, together, to expire the deployed site's
+  shared data cache after a successful publish. The URL must point to the site's protected
+  `POST /api/revalidate` endpoint and the secret must match the site deployment environment.
 
 For local development, `SUPABASE_DB_URL` is not required. The script defaults to the Supabase CLI
 database at `postgresql://postgres:postgres@127.0.0.1:54322/postgres`. For hosted Supabase, set
@@ -168,6 +223,10 @@ database at `postgresql://postgres:postgres@127.0.0.1:54322/postgres`. For hoste
 
 `SUPABASE_URL` and `SUPABASE_ANON_KEY` are site runtime variables and belong in `apps/site/.env.local`
 or the site deployment environment, not in the root operational `.env`.
+
+If neither revalidation variable is configured, the publisher skips the callback. If the callback
+fails after bounded retries, it logs a warning but keeps the successfully committed Supabase
+snapshot; the site's normal cache TTL remains the fallback.
 
 ## AWS Credentials For S3 Downloads
 

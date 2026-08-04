@@ -224,33 +224,35 @@ export function RunFilters({
           embedded ? "p-4" : "p-3"
         }`}
       >
-        <label className={`${fieldClass} lg:col-span-1 xl:col-span-2`}>
-          <span className={fieldLabelClass}>Date from</span>
-          <input
-            name="dateFrom"
-            type="date"
-            suppressHydrationWarning
-            value={values.dateFrom}
-            min={dateMinimum}
-            max={values.dateTo || dateMaximum}
-            onChange={updateValue}
-            className={controlClass}
-          />
-        </label>
+        <div className="grid min-w-0 grid-cols-2 gap-3 sm:col-span-2 lg:col-span-2 xl:col-span-4">
+          <label className={`${fieldClass} min-w-0`}>
+            <span className={fieldLabelClass}>Date from</span>
+            <input
+              name="dateFrom"
+              type="date"
+              suppressHydrationWarning
+              value={values.dateFrom}
+              min={dateMinimum}
+              max={values.dateTo || dateMaximum}
+              onChange={updateValue}
+              className={`${controlClass} min-w-0`}
+            />
+          </label>
 
-        <label className={`${fieldClass} lg:col-span-1 xl:col-span-2`}>
-          <span className={fieldLabelClass}>Date to</span>
-          <input
-            name="dateTo"
-            type="date"
-            suppressHydrationWarning
-            value={values.dateTo}
-            min={values.dateFrom || dateMinimum}
-            max={dateMaximum}
-            onChange={updateValue}
-            className={controlClass}
-          />
-        </label>
+          <label className={`${fieldClass} min-w-0`}>
+            <span className={fieldLabelClass}>Date to</span>
+            <input
+              name="dateTo"
+              type="date"
+              suppressHydrationWarning
+              value={values.dateTo}
+              min={values.dateFrom || dateMinimum}
+              max={dateMaximum}
+              onChange={updateValue}
+              className={`${controlClass} min-w-0`}
+            />
+          </label>
+        </div>
 
         <label className={`${fieldClass} sm:col-span-2 lg:col-span-2 xl:col-span-4`}>
           <span className={fieldLabelClass}>Route</span>

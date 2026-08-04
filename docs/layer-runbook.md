@@ -112,13 +112,15 @@ supabase db reset --local
 Use the orchestration CLI for the normal production flow:
 
 ```bash
-uv run running-signals preflight --source fit --no-input --databricks-target dev
-uv run running-signals refresh incremental --no-input --databricks-target dev
+uv run running-signals preflight refresh fit --no-input
+uv run running-signals refresh fit --mode incremental --no-input --databricks-target dev
 ```
 
 The default incremental command runs FIT raw landing, FIT bronze, a full dbt build,
-and the FIT Supabase publisher. It does not invoke health. A failed stage prevents
-following FIT stages. `--json` produces a machine-readable run manifest;
+route-city geocoding, and the FIT Supabase publisher. `mart_routes` is a view, so
+the city labels written by geocoding are immediately visible to the publisher without
+a second dbt build. It does not invoke health. A failed stage prevents following FIT
+stages. `--json` produces a machine-readable run manifest;
 `--no-publish` stops after dbt; and `--dry-run` validates configuration and prints a
 plan without remote calls or data writes. Run state is recorded outside the repository under
 `$XDG_STATE_HOME/running-signals` or `~/.local/state/running-signals`.
@@ -132,8 +134,8 @@ Expected FIT bronze tables are `garmin_fit_sessions`, `garmin_fit_events`, and
 ### Manual health refresh
 
 ```bash
-uv run running-signals preflight --source health --no-input --databricks-target dev
-uv run running-signals refresh incremental --source health --no-input --databricks-target dev
+uv run running-signals preflight refresh health --no-input
+uv run running-signals refresh health --mode incremental --no-input --databricks-target dev
 ```
 
 The health lane builds `health_days` and then feeds into `mart_days` via the unified dbt DAG. It does not require
@@ -145,16 +147,13 @@ This replaces bronze data from the existing raw landing zone; it does not downlo
 Garmin history. The confirmation is required because bronze tables are rebuilt.
 
 ```bash
-uv run running-signals bronze --source fit --full-refresh --confirm --databricks-target dev
-uv run dbt build --project-dir dbt
-uv run running-signals publish --full --confirm
+uv run running-signals refresh fit --mode full --confirm --no-input --databricks-target dev
 ```
 
-Health has the equivalent independent bronze rebuild, followed by the unified dbt build:
+Health has the equivalent independent derived rebuild:
 
 ```bash
-uv run running-signals bronze --source health --full-refresh --confirm --databricks-target dev
-uv run dbt build --project-dir dbt
+uv run running-signals refresh health --mode full --confirm --no-input --databricks-target dev
 ```
 
 ### Build silver and gold manually
@@ -178,10 +177,15 @@ uv run dbt run --project-dir dbt --select dates+ mart_days+ mart_weeks mart_mont
 uv run dbt run --project-dir dbt --select run_records+ mart_route_prediction_features
 ```
 
+The orchestration equivalents are `running-signals dbt fit`, `running-signals dbt health`,
+and `running-signals dbt all`. Isolated raw, bronze, geocoding, and publishing commands
+are available as `running-signals raw`, `running-signals bronze`, `running-signals geocode`,
+and `running-signals publish`.
+
 ### Sync Supabase read models manually
 
 ```bash
-uv run python scripts/sync_site_supabase.py
+uv run running-signals publish --mode incremental
 ```
 
 The sync is incremental: unchanged tables are skipped via content fingerprints, so a no-change run
@@ -190,9 +194,9 @@ CloudFetch results and `COPY` into temporary Postgres staging tables; a short fi
 replaces the serving tables and metadata atomically. Failed downloads retry from a fresh read query
 without changing the live serving snapshot.
 
-- `--dry-run` — show which tables would sync or be skipped, without writing.
-- `--full` — force a complete reload of every table.
-- `--no-progress` — plain log lines instead of the progress bar.
+- `--dry-run` — validate and show the skipped publish stage without writing.
+- `--mode full --confirm` — force a complete reload of every table.
+- `--supabase-db-url` — override the configured Supabase database URL.
 
 Defaults to the local Supabase CLI database; set `SUPABASE_DB_URL` for hosted Supabase.
 The publisher is FIT-only. It exports days, weeks, and other core serving tables but not months or
@@ -200,11 +204,10 @@ years; those periods are derived from days by the frontend.
 
 ### Raw backfills and recovery
 
-The CLI deliberately does not wrap raw FIT `range-overwrite`. That command deletes
-every FIT file in its configured local directory or S3 prefix before downloading the
-requested date range, so a partial range can discard unrelated history. Use it only
-for a complete intentional reload after verifying the requested range, then run the
-derived rebuild above. Routine refreshes must use incremental mode.
+`running-signals raw fit --mode range-overwrite` deletes every FIT file in its configured
+S3 prefix before downloading the requested date range. Use it only with an explicit complete
+date range and `--confirm`, then run the FIT full refresh above. Routine refreshes must use
+incremental mode.
 
 ## Quality Checks
 

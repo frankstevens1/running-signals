@@ -31,7 +31,7 @@ export default function PlaygroundPage() {
 
  return (
  <div className="min-h-screen">
- <div className="max-w-5xl mx-auto px-6 py-12">
+ <div className="max-w-5xl mx-auto px-4 py-12 sm:px-6">
  <header className="mb-8">
  <Link
  href="/"
@@ -43,8 +43,8 @@ export default function PlaygroundPage() {
   <p className="text-text-soft">Run read-only queries against curated Supabase views.</p>
  </header>
 
- <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
- <div className="space-y-4">
+ <div className="grid min-w-0 gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
+ <div className="min-w-0 space-y-4">
  <SqlEditor value={sql} onChange={setSql} label="SQL Query" />
 
  <div className="flex items-center gap-3">

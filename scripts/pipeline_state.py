@@ -164,3 +164,10 @@ def load_manifest(state_dir: Path, run_id: str) -> dict[str, Any]:
         raise ValueError(f"Run manifest for {run_id} must contain a JSON object.")
 
     return data
+
+
+def load_latest_manifest(state_dir: Path) -> dict[str, Any]:
+    manifests = sorted(state_dir.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True)
+    if not manifests:
+        raise ValueError("No run manifests exist.")
+    return load_manifest(state_dir, manifests[0].stem)

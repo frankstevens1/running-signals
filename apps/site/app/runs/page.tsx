@@ -1,6 +1,7 @@
 import { AppShell } from "@/app/components/app-shell";
 import { DataState } from "@/app/components/data-state";
 import { RunFilters } from "@/app/components/run-filters";
+import { RunDataRefreshProvider, RunDataRefreshRegion } from "@/app/components/run-data-refresh";
 import { RunMobilePaginationControls } from "@/app/components/run-mobile-pagination-controls";
 import { RunPagination } from "@/app/components/run-pagination";
 import { RunTable } from "@/app/components/run-table";
@@ -59,37 +60,39 @@ export default async function RunsPage({
             bounds={filterBounds}
           />
         </div>
-        <DataState result={result}>
-          {(data) => (
-            <div>
-              <RunPagination
-                params={params}
-                view={view}
-                total={data.total}
-                limit={data.limit}
-                offset={data.offset}
-                comparisonTotal={comparisonTotal}
-                paramsString={params.toString()}
-                routes={routeOptions}
-                unit={unit}
-                bounds={filterBounds}
-              />
-              <div className="mt-4">
-                {view === "table" ? (
-                  <RunTable runs={data.items} paramsString={params.toString()} unit={unit} />
-                ) : (
-                  <RunTimeline runs={data.items} />
-                )}
+        <RunDataRefreshProvider view={view}>
+          <DataState result={result}>
+            {(data) => (
+              <div>
+                <RunPagination
+                  params={params}
+                  view={view}
+                  total={data.total}
+                  limit={data.limit}
+                  offset={data.offset}
+                  comparisonTotal={comparisonTotal}
+                  paramsString={params.toString()}
+                  routes={routeOptions}
+                  unit={unit}
+                  bounds={filterBounds}
+                />
+                <RunDataRefreshRegion itemCount={data.items.length}>
+                  {view === "table" ? (
+                    <RunTable runs={data.items} paramsString={params.toString()} unit={unit} />
+                  ) : (
+                    <RunTimeline runs={data.items} />
+                  )}
+                </RunDataRefreshRegion>
+                <RunMobilePaginationControls
+                  paramsString={params.toString()}
+                  total={data.total}
+                  limit={data.limit}
+                  offset={data.offset}
+                />
               </div>
-              <RunMobilePaginationControls
-                paramsString={params.toString()}
-                total={data.total}
-                limit={data.limit}
-                offset={data.offset}
-              />
-            </div>
-          )}
-        </DataState>
+            )}
+          </DataState>
+        </RunDataRefreshProvider>
       </div>
     </AppShell>
   );

@@ -32,7 +32,7 @@ export default async function CategoryPage({ params }: Props) {
 
   return (
     <div className="min-h-screen">
-      <div className="max-w-5xl mx-auto px-6 py-12">
+      <div className="max-w-5xl mx-auto px-4 py-12 sm:px-6">
         <header className="mb-10">
           <Link
             href="/"

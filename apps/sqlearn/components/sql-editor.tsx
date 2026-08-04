@@ -37,6 +37,9 @@ export default function SqlEditor({ value, onChange, label }: SqlEditorProps) {
         EditorView.theme({
           "&": {
             border: "1px solid var(--border)",
+            width: "100%",
+            minWidth: 0,
+            maxWidth: "100%",
           },
           "&.cm-focused": {
             outline: "none",
@@ -45,11 +48,16 @@ export default function SqlEditor({ value, onChange, label }: SqlEditorProps) {
           },
           ".cm-scroller": {
             minHeight: "240px",
+            width: "100%",
+            minWidth: 0,
+            maxWidth: "100%",
+            overflowX: "auto",
             fontFamily: "var(--font-mono)",
             lineHeight: "1.65",
           },
           ".cm-content": {
-            fontSize: "0.8125rem",
+            minWidth: "100%",
+            fontSize: "var(--sql-editor-font-size)",
             padding: "0.75rem 0",
           },
           ".cm-gutters": {
@@ -88,9 +96,9 @@ export default function SqlEditor({ value, onChange, label }: SqlEditorProps) {
   }, [value]);
 
   return (
-    <div className="w-full">
+    <div className="w-full min-w-0 max-w-full">
       {label && <label className="block mb-1.5 text-sm text-text-soft">{label}</label>}
-      <div ref={containerRef} />
+      <div ref={containerRef} className="w-full min-w-0 max-w-full" />
     </div>
   );
 }

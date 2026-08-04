@@ -4,7 +4,7 @@ import { AlertTriangle, CheckCircle2, LoaderCircle, Terminal } from "lucide-reac
 import { useEffect, useState } from "react";
 
 import { ConsoleStatusIndicator } from "@/app/components/console-primitives";
-import { formatSyncDate } from "@/app/lib/format";
+import { formatSnapshotFreshness, formatSyncDate } from "@/app/lib/format";
 import type { LandingStatus } from "@/app/lib/types";
 
 type StatusState =
@@ -14,7 +14,7 @@ type StatusState =
 
 const pipelineFacts = [
   ["source", "Garmin Connect"],
-  ["storage", "S3 + Delta Lake"],
+  ["storage", "S3 raw landing + Delta tables"],
   ["transform", "dbt + SQL"],
   ["serving", "Supabase + Next.js"],
 ] as const;
@@ -69,7 +69,7 @@ export function LandingStatusPanel() {
         if (!response.ok) {
           setState({
             status: "error",
-            message: errorMessageFromPayload(payload) ?? "Unable to check gold mart status.",
+            message: errorMessageFromPayload(payload) ?? "Unable to check published FIT data.",
           });
           return;
         }
@@ -79,7 +79,7 @@ export function LandingStatusPanel() {
         if (data === null) {
           setState({
             status: "error",
-            message: "Gold mart status returned an unexpected response.",
+            message: "Published FIT data returned an unexpected response.",
           });
           return;
         }
@@ -92,7 +92,7 @@ export function LandingStatusPanel() {
 
         setState({
           status: "error",
-          message: error instanceof Error ? error.message : "Unable to check gold mart status.",
+          message: error instanceof Error ? error.message : "Unable to check published FIT data.",
         });
       }
     }
@@ -115,7 +115,7 @@ export function LandingStatusPanel() {
               aria-hidden="true"
             />
           ),
-          title: "Checking pipeline status",
+          title: "Checking published data",
           description: "Loading the latest completed day.",
         }
       : state.status === "error"
@@ -125,7 +125,7 @@ export function LandingStatusPanel() {
             icon: (
               <AlertTriangle className="h-4 w-4 text-(--signal-warn)" aria-hidden="true" />
             ),
-            title: "Pipeline status unavailable",
+            title: "Published data status unavailable",
             description: state.message,
           }
         : state.data.latestCompletedDate === null
@@ -135,26 +135,26 @@ export function LandingStatusPanel() {
               icon: (
                 <AlertTriangle className="h-4 w-4 text-(--signal-warn)" aria-hidden="true" />
               ),
-              title: state.data.statusLabel,
+              title: "No published FIT data",
               description: "No completed day has been published yet.",
             }
           : {
-              label: "available",
+              label: formatSnapshotFreshness(state.data.lastSyncDate),
               tone: "active" as const,
               icon: (
                 <CheckCircle2 className="h-4 w-4 text-(--signal-ok)" aria-hidden="true" />
               ),
               title: state.data.statusLabel,
-              description: `Last data sync: ${formatSyncDate(state.data.lastSyncDate)}.`,
+              description: `Snapshot: ${formatSyncDate(state.data.lastSyncDate)}.`,
             };
 
   return (
-    <aside className="border border-(--border) bg-(--surface)" aria-label="Pipeline status">
+    <aside className="border border-(--border) bg-(--surface)" aria-label="Published FIT data status">
       <div className="flex items-center justify-between gap-4 border-b border-(--border) bg-(--surface-muted)/60 px-4 py-3">
         <div className="flex items-center gap-2">
           <Terminal className="h-4 w-4 text-(--accent)" aria-hidden="true" />
           <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-(--text)">
-            pipeline.status
+            published.status
           </p>
         </div>
         <ConsoleStatusIndicator label={status.label} tone={status.tone} />

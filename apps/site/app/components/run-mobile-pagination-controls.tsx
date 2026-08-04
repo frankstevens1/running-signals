@@ -1,9 +1,10 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+
+import { RunDataRefreshLink } from "./run-data-refresh";
 
 const pageSizes = [25, 50, 100];
 
@@ -127,7 +128,7 @@ export function RunMobilePaginationControls({
               <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-3 pt-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))]">
                 <div className="justify-self-start">
                   {hasPrevious ? (
-                    <Link
+                    <RunDataRefreshLink
                       href={hrefWith(params, { offset: previousOffset })}
                       scroll={false}
                       className={controlClass}
@@ -135,7 +136,7 @@ export function RunMobilePaginationControls({
                       <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                       <span className="hidden sm:inline">Previous</span>
                       <span className="sr-only sm:hidden">Previous page</span>
-                    </Link>
+                    </RunDataRefreshLink>
                   ) : (
                     <span className={disabledClass}>
                       <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -151,7 +152,7 @@ export function RunMobilePaginationControls({
                   className="flex items-center gap-0.5 justify-self-center border border-(--border) bg-(--surface-muted) p-0.5"
                 >
                   {pageSizes.map((size) => (
-                    <Link
+                    <RunDataRefreshLink
                       key={size}
                       href={hrefWith(params, { limit: size, offset: 0 })}
                       scroll={false}
@@ -163,13 +164,13 @@ export function RunMobilePaginationControls({
                       }`}
                     >
                       {size}
-                    </Link>
+                    </RunDataRefreshLink>
                   ))}
                 </div>
 
                 <div className="justify-self-end">
                   {hasNext ? (
-                    <Link
+                    <RunDataRefreshLink
                       href={hrefWith(params, { offset: nextOffset })}
                       scroll={false}
                       className={controlClass}
@@ -177,7 +178,7 @@ export function RunMobilePaginationControls({
                       <span className="hidden sm:inline">Next</span>
                       <span className="sr-only sm:hidden">Next page</span>
                       <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                    </Link>
+                    </RunDataRefreshLink>
                   ) : (
                     <span className={disabledClass}>
                       <span className="hidden sm:inline">Next</span>

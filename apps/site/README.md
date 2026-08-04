@@ -29,8 +29,20 @@ Optional values:
 ```bash
 SUPABASE_URL=http://127.0.0.1:54321
 SUPABASE_ANON_KEY=<override anon key>
-SITE_DATA_REVALIDATE_SECONDS=900
+# Use 0 locally so a Supabase refresh is visible immediately. Production defaults to 900.
+SITE_DATA_REVALIDATE_SECONDS=0
 ```
+
+## Published Snapshot Freshness
+
+Production Supabase reads use a 900-second Next Data Cache TTL by default. The FIT publisher calls
+the protected `POST /api/revalidate` endpoint after its atomic Supabase transaction commits, which
+expires the shared `site-data` cache tag so the next page request reads the new snapshot together.
+
+Set `SITE_REVALIDATE_SECRET` in the site deployment environment. The root publisher receives the
+same secret plus `SITE_REVALIDATE_URL`; see `scripts/README.md`. If the callback is unavailable,
+the publish succeeds and the normal production TTL remains the fallback. The header and home
+`pipeline.status` panel display the atomically published `generated_at` timestamp in UTC.
 
 Create `apps/site/.env.local` from the example only when overriding local defaults or configuring a
 hosted deployment locally:
@@ -40,8 +52,8 @@ cp apps/site/.env.example apps/site/.env.local
 ```
 
 For local development, start Supabase with `supabase start`, apply migrations with
-`supabase db reset`, and run `scripts/sync_site_supabase.py` after the FIT selector
-succeeds. The sync script
+`supabase db reset`, and run `uv run running-signals publish --mode incremental` after
+the FIT selector succeeds. The publisher
 defaults to the local Supabase CLI database at `127.0.0.1:54322`, so `SUPABASE_DB_URL` is only needed
 for hosted Supabase and belongs in the root operational `.env`, not the site runtime env.
 

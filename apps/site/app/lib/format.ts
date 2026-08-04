@@ -150,9 +150,30 @@ export function formatSyncDate(value: string | null | undefined): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "UTC",
+    timeZoneName: "short",
   }).format(date);
+}
+
+export function formatSnapshotFreshness(value: string | null | undefined, now = new Date()): string {
+  if (!value) return "sync time unavailable";
+  const snapshot = new Date(value);
+  if (Number.isNaN(snapshot.getTime())) return "sync time unavailable";
+
+  const utcDay = (date: Date) => Date.UTC(
+    date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(),
+  ) / 86_400_000;
+  const ageInDays = utcDay(now) - utcDay(snapshot);
+
+  if (ageInDays === 0) return "synced today";
+  if (ageInDays === 1) return "synced yesterday";
+  if (ageInDays > 1) return `synced ${ageInDays} days ago`;
+  return "sync time unavailable";
 }
 
 export function formatRouteId(value: string | null | undefined): string {

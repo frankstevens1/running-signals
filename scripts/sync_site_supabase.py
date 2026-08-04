@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import http.client
+import json
 import os
 import sys
 import time
+import urllib.error
+import urllib.request
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -38,6 +42,9 @@ POSTGRES_STATEMENT_TIMEOUT = "30min"
 PROGRESS_BAR_WIDTH = 20
 Fingerprint = dict[str, object]
 FINGERPRINT_METADATA_KEY = "export_fingerprints"
+SITE_REVALIDATE_ATTEMPTS = 3
+SITE_REVALIDATE_BACKOFF_SECONDS = 1.0
+SITE_REVALIDATE_TIMEOUT_SECONDS = 10.0
 
 
 @dataclass(frozen=True)
@@ -47,6 +54,12 @@ class DatabricksConfig:
     http_path: str
     catalog: str
     schema: str
+
+
+@dataclass(frozen=True)
+class SiteRevalidateConfig:
+    url: str
+    secret: str
 
 
 @dataclass(frozen=True)
@@ -107,6 +120,21 @@ def get_databricks_config() -> DatabricksConfig:
         catalog=required_env("DATABRICKS_CATALOG"),
         schema=required_env("DATABRICKS_GOLD_SCHEMA"),
     )
+
+
+def get_site_revalidate_config() -> SiteRevalidateConfig | None:
+    url = os.getenv("SITE_REVALIDATE_URL")
+    secret = os.getenv("SITE_REVALIDATE_SECRET")
+
+    if not url and not secret:
+        return None
+    if not url or not secret:
+        raise RuntimeError(
+            "SITE_REVALIDATE_URL and SITE_REVALIDATE_SECRET must both be set "
+            "to enable site revalidation."
+        )
+
+    return SiteRevalidateConfig(url=url, secret=secret)
 
 
 def quote_identifier(value: str) -> str:
@@ -880,6 +908,85 @@ class ProgressReporter:
             sys.stdout.write("\r\x1b[K" + message)
             sys.stdout.flush()
 
+    def warning(self, message: str) -> None:
+        self.info(f"warning: {message}")
+
+
+class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(
+        self,
+        request: urllib.request.Request,
+        fp: object,
+        code: int,
+        msg: str,
+        headers: object,
+        newurl: str,
+    ) -> None:
+        return None
+
+
+def post_site_revalidation(url: str, secret: str) -> int:
+    request = urllib.request.Request(
+        url,
+        data=json.dumps({}).encode(),
+        headers={
+            "Authorization": f"Bearer {secret}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    opener = urllib.request.build_opener(NoRedirectHandler)
+    try:
+        with opener.open(request, timeout=SITE_REVALIDATE_TIMEOUT_SECONDS) as response:
+            return cast(int, response.getcode())
+    except urllib.error.HTTPError as exc:
+        return exc.code
+
+
+def retryable_revalidation_status(status: int) -> bool:
+    return status in {408, 425, 429} or 500 <= status < 600
+
+
+def revalidate_site(
+    config: SiteRevalidateConfig | None,
+    progress: ProgressReporter,
+    *,
+    request_sender: Callable[[str, str], int] = post_site_revalidation,
+    sleep: Callable[[float], None] = time.sleep,
+) -> None:
+    if config is None:
+        progress.info(
+            "Site revalidation skipped: SITE_REVALIDATE_URL and "
+            "SITE_REVALIDATE_SECRET are not configured."
+        )
+        return
+
+    for attempt in range(1, SITE_REVALIDATE_ATTEMPTS + 1):
+        try:
+            status = request_sender(config.url, config.secret)
+        except (http.client.HTTPException, OSError, TimeoutError, urllib.error.URLError):
+            outcome = "transport error"
+            should_retry = True
+        else:
+            if 200 <= status < 300:
+                progress.info("Site revalidation completed.")
+                return
+            outcome = f"HTTP {status}"
+            should_retry = retryable_revalidation_status(status)
+
+        if should_retry and attempt < SITE_REVALIDATE_ATTEMPTS:
+            progress.warning(
+                f"Site revalidation failed with {outcome}; retrying "
+                f"({attempt}/{SITE_REVALIDATE_ATTEMPTS})."
+            )
+            sleep(SITE_REVALIDATE_BACKOFF_SECONDS * (2 ** (attempt - 1)))
+            continue
+
+        progress.warning(
+            f"Site revalidation failed with {outcome}; continuing without revalidation."
+        )
+        return
+
 
 def acquire_publish_lock(
     connection: psycopg.Connection[Any],
@@ -984,6 +1091,7 @@ def sync_supabase(
     force_full: bool,
     dry_run: bool,
     progress: ProgressReporter,
+    revalidate_config: SiteRevalidateConfig | None,
 ) -> None:
     changed: list[TableExport] = []
 
@@ -1097,6 +1205,7 @@ def sync_supabase(
         f"Supabase site read models reloaded: {len(changed)} synced, "
         f"{skipped_count} unchanged."
     )
+    revalidate_site(revalidate_config, progress)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -1135,6 +1244,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     config = get_databricks_config()
+    revalidate_config = get_site_revalidate_config()
     progress = ProgressReporter(
         use_tty=not args.no_progress and sys.stdout.isatty()
     )
@@ -1146,6 +1256,7 @@ def main(argv: list[str] | None = None) -> int:
         force_full=args.full,
         dry_run=args.dry_run,
         progress=progress,
+        revalidate_config=revalidate_config,
     )
     return 0
 

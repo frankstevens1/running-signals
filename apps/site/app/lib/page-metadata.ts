@@ -81,7 +81,7 @@ export const sitePages = {
   mlReadiness: {
     href: "/ml-readiness",
     label: "ML Readiness",
-    description: "Review active offline experiments and versioned feature assets.",
+    description: "Review active offline experiments and versioned feature and label marts.",
     group: "Extensions",
     keywords: ["machine learning", "features", "models", "experiments", "validation"],
     icon: BrainCircuit,

@@ -178,7 +178,7 @@ export function CommandPalette() {
                 Navigation index
               </p>
               <p id="command-palette-description" className="mt-1 text-sm text-(--text-soft)">
-                Search signals, explorers, and system documentation.
+                Search explorers, signals, and project views.
               </p>
             </div>
             <button

@@ -53,7 +53,7 @@ export function ActivityCalendar({
 }) {
   if (days.length === 0) {
     return (
-      <div className="rounded-sm border border-dashed border-(--border) bg-(--surface) p-8 font-mono text-sm text-(--text-soft)">
+      <div className="border border-dashed border-(--border) bg-(--surface) p-8 font-mono text-sm text-(--text-soft)">
         No day rows returned from mart_days.
       </div>
     );
@@ -64,7 +64,7 @@ export function ActivityCalendar({
   const endPad = (7 - (totalCells % 7)) % 7;
 
   return (
-    <section className="overflow-hidden rounded-sm border border-(--border) bg-(--surface)">
+    <section className="overflow-hidden border border-(--border) bg-(--surface)">
       <div className="flex items-start justify-between gap-3 border-b border-(--border) px-4 py-3">
         <div className="min-w-0">
           <p className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-(--accent)">
@@ -97,7 +97,7 @@ export function ActivityCalendar({
                 title={label}
                 role="listitem"
                 aria-label={label}
-                className="size-4 rounded-[2px] border border-(--border)"
+                className="size-4 border border-(--border)"
                 style={{ backgroundColor: calendarColors[intensityIndex(day)] }}
               />
             );
@@ -111,7 +111,7 @@ export function ActivityCalendar({
           {calendarColors.map((color) => (
             <span
               key={color}
-              className="size-3 rounded-[1px] border border-(--border)"
+              className="size-3 border border-(--border)"
               style={{ backgroundColor: color }}
               aria-hidden="true"
             />

@@ -6,7 +6,7 @@ FIT is the scheduled pipeline. Health is an independent manual analytics pipelin
 Daily GitHub Actions schedule
             |
             v
-FIT raw -> FIT bronze -> dbt build -> Supabase FIT tables -> Next.js site
+FIT raw -> FIT bronze -> dbt build -> route geocoding -> Supabase FIT tables -> Next.js site
 
 Manual command
             |
@@ -16,11 +16,11 @@ Health raw -> health bronze -> dbt build
 
 ## FIT Refresh
 
-The default command is FIT-only:
+The complete FIT command is:
 
 ```bash
-uv run running-signals preflight --source fit --no-input --databricks-target dev
-uv run running-signals refresh incremental \
+uv run running-signals preflight refresh fit --no-input
+uv run running-signals refresh fit --mode incremental \
   --no-input \
   --json \
   --databricks-target dev
@@ -29,15 +29,16 @@ uv run running-signals refresh incremental \
 Its stages are:
 
 ```text
-fit_raw -> bronze_fit -> dbt_fit -> publish_fit
+fit_raw -> bronze_fit -> dbt_fit -> geocode_cities -> publish_fit
 ```
 
 The tracked `.github/workflows/incremental-fit-refresh.yml` workflow runs this command daily at
 05:15 UTC and supports manual dispatch. It uses the `running-signals-fit-refresh` concurrency group.
 The workflow requires FIT S3 configuration but no health S3 variables.
 
-The project currently uses only the Databricks `dev` bundle target. Preflight reads the bundle
-summary and fails before raw landing when the source-specific job is not deployed.
+The project currently uses only the Databricks `dev` bundle target. Preflight checks local
+configuration; bronze execution reads the bundle summary and fails before raw landing when the
+source-specific job is not deployed.
 
 Configure repository variables `AWS_REFRESH_ROLE_ARN`, `AWS_REGION`, `GARMIN_FIT_S3_BUCKET`,
 `GARMIN_FIT_S3_PREFIX`, `DATABRICKS_CATALOG`, and `DATABRICKS_GOLD_SCHEMA`. Configure repository
@@ -52,9 +53,8 @@ into the daily training foundation; missing health observations remain null.
 Health is currently manual-only:
 
 ```bash
-uv run running-signals preflight --source health --no-input --databricks-target dev
-uv run running-signals refresh incremental \
-  --source health \
+uv run running-signals preflight refresh health --no-input
+uv run running-signals refresh health --mode incremental \
   --no-input \
   --json \
   --databricks-target dev
@@ -89,12 +89,38 @@ uv run dbt build --project-dir dbt
 observations will have null health columns and false availability flags. On the free-edition
 serverless warehouse, use `--threads 4` if you hit connection resets.
 
+The orchestration CLI also supports isolated stages:
+
+```bash
+uv run running-signals raw fit --mode incremental --no-input
+uv run running-signals bronze fit --mode incremental
+uv run running-signals dbt fit
+uv run running-signals geocode
+uv run running-signals publish --mode incremental
+```
+
+`running-signals dbt all` builds the full dbt DAG. Full source refreshes rebuild from existing raw
+landing and require confirmation:
+
+```bash
+uv run running-signals refresh fit --mode full --confirm --no-input
+uv run running-signals refresh health --mode full --confirm --no-input
+```
+
+FIT raw range overwrite is available only as an explicit isolated operation because it deletes the
+selected FIT prefix before downloading the requested range:
+
+```bash
+uv run running-signals raw fit --mode range-overwrite \
+  --start-date 2026-01-01 --end-date 2026-12-31 --confirm --no-input
+```
+
 ## FIT Publisher
 
 The publisher is FIT-only:
 
 ```bash
-uv run python scripts/sync_site_supabase.py --no-progress
+uv run running-signals publish --mode incremental
 ```
 
 It maintains the unprefixed fingerprints, row counts, generation time, and latest-date metadata.
@@ -121,5 +147,5 @@ dbt build fails
     -> downstream stages stop; only FIT has a publish stage
 ```
 
-Raw FIT `range-overwrite` remains excluded from the CLI because it deletes every FIT object in its
-configured destination before downloading the requested range.
+Raw FIT `range-overwrite` requires explicit dates and `--confirm`; follow it with
+`running-signals refresh fit --mode full --confirm`.

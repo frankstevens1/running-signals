@@ -175,7 +175,7 @@ async function queryLandingStatus(): Promise<LandingStatus> {
   return {
     latestCompletedDate,
     lastSyncDate,
-    statusLabel: latestCompletedDate ? "Modeled data available" : "No modeled data available",
+    statusLabel: latestCompletedDate ? "Published FIT data available" : "No published FIT data available",
   };
 }
 
