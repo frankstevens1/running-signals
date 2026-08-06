@@ -326,6 +326,8 @@ def test_fit_exports_preserve_garmin_recovery_hr() -> None:
     assert "rolling_4_run_recovery_hr" in fitness_export.statement(databricks_config())
     assert "aerobic_decoupling_failed_gates" in fitness_export.columns
     assert "aerobic_decoupling_failed_gates" in fitness_export.statement(databricks_config())
+    assert "live_drift_trace" in fitness_export.columns
+    assert "live_drift_trace" in fitness_export.statement(databricks_config())
     assert {
         "previous_aerobic_decoupling_pct",
         "previous_distance_economy_m_per_beat",

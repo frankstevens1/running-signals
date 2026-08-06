@@ -247,6 +247,26 @@ models:
       - name: aerobic_decoupling_status
         description: Eligibility status after duration, distance, segment, HR coverage, and HR gap checks.
 
+  - name: mart_run_efficiency_trace
+    description: >
+      Per-run normalized efficiency trace for live-drift visualization. Uses rolling
+      baseline (10-15 min before current point) and recent (last 10 min) windows to
+      compute smoothed-speed-to-heart-rate efficiency across the run. Excludes pauses,
+      GPS gaps, extreme gradients, and the initial HR ramp. Outputs a JSON array of
+      per-record points with cumulative distance, normalized efficiency, confidence,
+      and exclusion flags.
+    columns:
+      - name: activity_id
+        description: Garmin activity identifier.
+      - name: live_drift_trace
+        description: >
+          JSON array of per-record trace points. Each point has cumulative distance in km,
+          normalized efficiency (100 = baseline), confidence (0–1), and an exclusion flag.
+      - name: drift_valid_samples
+        description: Number of non-excluded intervals used for drift calculation.
+      - name: drift_total_elapsed_seconds
+        description: Total elapsed seconds from first to last record.
+
   - name: mart_running_signals
     description: Run-level signal mart combining mart_fitness metrics with mart_weeks weekly training context.
     columns:

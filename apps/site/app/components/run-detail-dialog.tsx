@@ -1,8 +1,8 @@
 "use client";
 
-import { X } from "lucide-react";
+import { ArrowUpRight, X } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   CartesianGrid,
   Line,
@@ -32,11 +32,14 @@ import {
   formatPace,
   formatRouteId,
   formatSpeed,
+  formatSignedPercent,
 } from "@/app/lib/format";
+import { aerobicDecouplingLevel } from "@/app/lib/aerobic-decoupling";
 import type { MapProfileRecord, RunSegment, RunSession } from "@/app/lib/types";
 
 import { ActivityRouteMap } from "./activity-route-map";
 import { useDistanceUnit } from "./distance-unit-provider";
+import { LiveDriftChart } from "./live-drift-chart";
 import { useRunRecords } from "../lib/run-records-client";
 import { useRunSegments } from "../lib/run-segments-client";
 
@@ -67,17 +70,21 @@ function statItems(run: RunSession, unit: DistanceUnit) {
     ["Score",
       run.personalEfficiencyScore != null ? `${Math.round(run.personalEfficiencyScore)}` : "\u2014",
     ],
-    ["Route",
-      run.routeId
+    [
+      "Aerobic decoupling",
+      run.aerobicDecouplingStatus === "eligible" && run.aerobicDecouplingPct !== null
         ? (
-          <Link
-            href={`/routes?routeId=${encodeURIComponent(run.routeId)}`}
-            className="font-mono text-accent hover:underline"
-          >
-            {formatRouteId(run.routeId)}
-          </Link>
+          <span className={
+            aerobicDecouplingLevel(run.aerobicDecouplingPct) === "low"
+              ? "text-signal-ok"
+              : aerobicDecouplingLevel(run.aerobicDecouplingPct) === "moderate"
+                ? "text-signal-warn"
+                : "text-signal-error"
+          }>
+            {formatSignedPercent(run.aerobicDecouplingPct)}
+          </span>
         )
-        : "n/a",
+        : "\u2014",
     ],
   ] as const;
 }
@@ -285,12 +292,29 @@ export function RunDetailDialog({
     open && run !== null,
   );
   const hideSegmentDuration = resolution === 1;
-  const elevationPoints = recordState.records ? profilePoints(recordState.records, unit) : [];
+  const elevationPoints = useMemo(
+    () => recordState.records ? profilePoints(recordState.records, unit) : [],
+    [recordState.records, unit],
+  );
   const elevationAltitudes = elevationPoints.map((p) => p.altitudeM);
   const elevationMin = elevationAltitudes.length > 0 ? Math.min(...elevationAltitudes) : 0;
   const elevationMax = elevationAltitudes.length > 0 ? Math.max(...elevationAltitudes) : 100;
   const elevationDomainMax =
     elevationMax + (elevationMax - elevationMin) * ELEVATION_UPPER_MARGIN_PCT;
+
+  const hrPoints = useMemo(
+    () => (recordState.records ?? [])
+      .filter((r) => r.distanceKm !== null && r.heartRate !== null)
+      .map((r) => ({ distanceKm: r.distanceKm!, heartRate: r.heartRate! })),
+    [recordState.records],
+  );
+
+  const pacePoints = useMemo(
+    () => (recordState.records ?? [])
+      .filter((r) => r.distanceKm !== null && r.paceMinPerKm !== null)
+      .map((r) => ({ distanceKm: r.distanceKm!, paceMinPerKm: r.paceMinPerKm! })),
+    [recordState.records],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -457,20 +481,31 @@ export function RunDetailDialog({
 
         <div className="space-y-6 px-5 py-5">
           <section className="space-y-4">
-            <div>
-              {recordState.isLoading ? (
-                <div className="h-80 animate-pulse border border-border bg-surface-muted" />
-              ) : recordState.error ? (
-                <div className="flex h-80 items-center justify-center border border-dashed border-border bg-surface-muted px-4 font-mono text-xs text-text-soft">
-                  {recordState.error}
-                </div>
-              ) : (
-                <ActivityRouteMap
-                  records={recordState.records ?? []}
-                  className="h-80 border border-border bg-surface-muted"
-                />
-              )}
-            </div>
+              <div>
+                {recordState.isLoading ? (
+                  <div className="h-80 animate-pulse border border-border bg-surface-muted" />
+                ) : recordState.error ? (
+                  <div className="flex h-80 items-center justify-center border border-dashed border-border bg-surface-muted px-4 font-mono text-xs text-text-soft">
+                    {recordState.error}
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <ActivityRouteMap
+                      records={recordState.records ?? []}
+                      className="h-80 border border-border bg-surface-muted"
+                    />
+                    {run.routeId ? (
+                      <Link
+                        href={`/routes?routeId=${encodeURIComponent(run.routeId)}`}
+                        className="absolute left-3 top-3 inline-flex h-8 items-center gap-1.5 border border-border bg-surface/90 px-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-accent backdrop-blur-sm transition-colors hover:border-accent hover:bg-accent-soft"
+                      >
+                        route {formatRouteId(run.routeId)}
+                        <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+                      </Link>
+                    ) : null}
+                  </div>
+                )}
+              </div>
 
             <div className="space-y-3">
               <h3 className="font-mono text-xs uppercase tracking-[0.12em] text-text">
@@ -480,7 +515,7 @@ export function RunDetailDialog({
                 {statItems(run, unit).map(([label, value]) => (
                   <div
                     key={label}
-                    className={`${label === "Route" ? "hidden lg:block " : ""}border-r border-b border-border bg-surface-muted/60 px-3 py-3`}
+                    className="border-r border-b border-border bg-surface-muted/60 px-3 py-3"
                   >
                     <dt className="font-mono text-[10px] uppercase tracking-widest text-text-soft">
                       <SummaryLabel label={label} />
@@ -492,6 +527,31 @@ export function RunDetailDialog({
                 ))}
               </dl>
             </div>
+          </section>
+
+          <section className="space-y-3">
+            <div>
+              <h3 className="font-mono text-xs uppercase tracking-[0.12em] text-text">
+                live_drift
+              </h3>
+              <p className="mt-1 text-xs text-text-soft">
+                Green band stable ≤2.5% drift, amber moderate ≤5% drift, red high drift.
+                Pauses, GPS gaps, and the initial HR ramp are excluded.
+              </p>
+            </div>
+            {run.liveDriftTrace.length > 0 ? (
+              <LiveDriftChart
+                trace={run.liveDriftTrace}
+                decouplingPct={run.aerobicDecouplingPct}
+                decouplingStatus={run.aerobicDecouplingStatus}
+                hrPoints={hrPoints}
+                pacePoints={pacePoints}
+              />
+            ) : (
+              <div className="border border-dashed border-border bg-surface-muted p-6 font-mono text-xs text-text-soft">
+                Live drift data is not available for this run.
+              </div>
+            )}
           </section>
 
           <section className="space-y-3">

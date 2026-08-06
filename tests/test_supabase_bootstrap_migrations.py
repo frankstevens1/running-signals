@@ -14,6 +14,7 @@ MIGRATION_NAMES = [
     "202608060001_run_fitness_view.sql",
     "202608060002_aerobic_decoupling_gate_evidence.sql",
     "202608060003_metric_trends.sql",
+    "202608060004_live_drift_trace.sql",
 ]
 
 
@@ -87,6 +88,13 @@ def test_metric_trends_extend_fitness_and_run_views() -> None:
 
     assert migration_sql.count("add column previous_") == 4
     assert migration_sql.count("fitness.previous_") == 8
+
+
+def test_live_drift_trace_extends_fitness_and_run_views() -> None:
+    migration_sql = migration("202608060004_live_drift_trace.sql")
+
+    assert "add column live_drift_trace jsonb" in migration_sql
+    assert migration_sql.count("fitness.live_drift_trace") == 2
 
 
 def test_sqlearn_reader_is_limited_to_dedicated_security_barrier_views() -> None:

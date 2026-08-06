@@ -6,11 +6,8 @@ import { MetricCard } from "@/app/components/metric-card";
 import { ScrollReveal } from "@/app/components/motion-reveal";
 import { SectionHeading } from "@/app/components/section-heading";
 import {
-  DistanceEconomyChart,
-  EfficiencyScoreChart,
-  ElevationEconomyChart,
-  FitnessEfficiencyChart,
   AerobicDecouplingChart,
+  FitnessEfficiencyChart,
   PaceHeartRateTrend,
   RecoveryHeartRateChart,
 } from "@/app/components/trend-charts";
@@ -309,6 +306,7 @@ export default async function FitnessPage({
                   <ScrollReveal className="h-full min-w-0" delayMs={120}>
                     <FitnessEfficiencyChart points={data} />
                   </ScrollReveal>
+                  {/*
                   <ScrollReveal className="h-full min-w-0" delayMs={140}>
                     <DistanceEconomyChart points={data} />
                   </ScrollReveal>
@@ -318,6 +316,7 @@ export default async function FitnessPage({
                   <ScrollReveal className="h-full min-w-0 xl:col-span-2" delayMs={180}>
                     <EfficiencyScoreChart points={data} />
                   </ScrollReveal>
+                  */}
                   <ScrollReveal className="h-full min-w-0 xl:col-span-2" delayMs={200}>
                     <RecoveryHeartRateChart points={data} />
                   </ScrollReveal>

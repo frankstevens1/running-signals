@@ -10,6 +10,15 @@ aerobic_decoupling as (
     from {{ ref('mart_run_aerobic_decoupling') }}
 ),
 
+efficiency_trace as (
+    select
+        activity_id,
+        live_drift_trace,
+        drift_valid_samples,
+        drift_total_elapsed_seconds
+    from {{ ref('mart_run_efficiency_trace') }}
+),
+
 prior_7d_load as (
     select
         runs.run_id,
@@ -94,7 +103,10 @@ run_fitness as (
         aerobic_decoupling.first_half_efficiency_ratio,
         aerobic_decoupling.second_half_efficiency_ratio,
         economy.distance_economy_m_per_beat,
-        economy.elevation_economy_m_per_beat
+        economy.elevation_economy_m_per_beat,
+        efficiency_trace.live_drift_trace,
+        efficiency_trace.drift_valid_samples,
+        efficiency_trace.drift_total_elapsed_seconds
     from runs
     left join aerobic_decoupling
         on runs.run_id = aerobic_decoupling.run_id
@@ -102,6 +114,8 @@ run_fitness as (
         on runs.run_id = economy.run_id
     left join prior_7d_load
         on runs.run_id = prior_7d_load.run_id
+    left join efficiency_trace
+        on runs.activity_id = efficiency_trace.activity_id
 ),
 
 windowed as (

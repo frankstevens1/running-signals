@@ -619,6 +619,7 @@ EXPORTS: tuple[TableExport, ...] = (
             "distance_economy_m_per_beat",
             "elevation_economy_m_per_beat",
             "personal_efficiency_score",
+            "live_drift_trace",
         ),
         statement=lambda config: f"""
             select
@@ -664,7 +665,8 @@ EXPORTS: tuple[TableExport, ...] = (
               garmin_recovery_hr,
               distance_economy_m_per_beat,
               elevation_economy_m_per_beat,
-              personal_efficiency_score
+              personal_efficiency_score,
+              live_drift_trace
             from {gold_table(config, "mart_fitness")}
         """,
     ),

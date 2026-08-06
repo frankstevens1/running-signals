@@ -77,12 +77,20 @@ export type RunSession = {
   aerobicDecouplingFailedGates: AerobicDecouplingFailedGate[];
   avgCadence: number | null;
   maxCadence: number | null;
+  liveDriftTrace: LiveDriftTracePoint[];
 };
 
 export type AerobicDecouplingFailedGate = {
   code: string;
   observed: string;
   required: string;
+};
+
+export type LiveDriftTracePoint = {
+  cumulativeDistanceKm: number;
+  normalizedEfficiency: number | null;
+  confidence: number;
+  excluded: boolean;
 };
 
 export type RouteSummary = {

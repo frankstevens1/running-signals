@@ -32,6 +32,7 @@ const RUN_SELECT = [
   "aerobic_decoupling_unavailable_reason", "aerobic_decoupling_failed_gates",
   "previous_aerobic_decoupling_pct", "previous_distance_economy_m_per_beat",
   "previous_elevation_economy_m_per_beat", "previous_prior_7d_distance_km",
+  "live_drift_trace",
 ].join(",");
 const DAY_SELECT = [
   "calendar_date", "run_count", "distance_km", "duration_seconds",

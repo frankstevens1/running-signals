@@ -1,5 +1,6 @@
 import type {
   AerobicDecouplingFailedGate,
+  LiveDriftTracePoint,
   DayRollup,
   FitnessPoint,
   MapProfileRecord,
@@ -69,6 +70,46 @@ function aerobicDecouplingFailedGatesValue(
   });
 }
 
+function liveDriftTraceValue(
+  row: Record<string, unknown>,
+): LiveDriftTracePoint[] {
+  const value = row.live_drift_trace;
+  const parsed = typeof value === "string"
+    ? (() => {
+        try {
+          return JSON.parse(value) as unknown;
+        } catch {
+          return null;
+        }
+      })()
+    : value;
+
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed.flatMap((point) => {
+    const candidate = point as Record<string, unknown> | null;
+    if (
+      !candidate
+      || typeof candidate !== "object"
+      || typeof candidate.cumulativeDistanceKm !== "number"
+      || typeof candidate.confidence !== "number"
+      || typeof candidate.excluded !== "boolean"
+    ) {
+      return [];
+    }
+
+    return [{
+      cumulativeDistanceKm: candidate.cumulativeDistanceKm,
+      normalizedEfficiency:
+        typeof candidate.normalizedEfficiency === "number"
+          ? candidate.normalizedEfficiency
+          : null,
+      confidence: candidate.confidence,
+      excluded: candidate.excluded,
+    }];
+  });
+}
+
 export function mapRun(row: Record<string, unknown>): RunSession {
   const aerobicDecouplingStatus = stringValue(row, "aerobic_decoupling_status");
 
@@ -108,6 +149,7 @@ export function mapRun(row: Record<string, unknown>): RunSession {
         : null,
     aerobicDecouplingUnavailableReason: stringValue(row, "aerobic_decoupling_unavailable_reason"),
     aerobicDecouplingFailedGates: aerobicDecouplingFailedGatesValue(row),
+    liveDriftTrace: liveDriftTraceValue(row),
     avgCadence: numberValue(row, "avg_cadence"),
     maxCadence: numberValue(row, "max_cadence"),
   };
