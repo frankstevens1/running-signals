@@ -102,6 +102,7 @@ export function RunFiltersDialog({
           routes={routes}
           unit={unit}
           bounds={bounds}
+          onApply={close}
         />
       </dialog>
     </>

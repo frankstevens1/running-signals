@@ -1435,18 +1435,46 @@ FROM sampled_records`,
     context:
       "`mart_fitness` defines descriptive aerobic fitness indicators at the run grain: " +
        "quality-gated aerobic decoupling and speed-to-heart-rate efficiency ratios.\n\n" +
-       "Aerobic decoupling uses record-level moving intervals rather than fixed-distance segments. " +
-       "The cumulative moving-distance midpoint divides the run into first and second allocations; " +
-       "an interval crossing that midpoint is split proportionally. Each half has a moving-time-weighted " +
-       "efficiency, and a positive `aerobic_decoupling_pct` means lower second-half efficiency.\n\n" +
-       "A quality status protects the comparison by requiring sufficient moving duration, distance, " +
-       "interval coverage, heart-rate coverage, and no excessive record gaps.",
-    sql: `WITH record_intervals AS (
+        "Aerobic decoupling uses FIT timer-running record intervals rather than elapsed fixed-distance splits. " +
+        "Timer events identify pauses, while timer-running intervals retain their duration even when a record " +
+        "reports no distance change. The cumulative timer-running-distance midpoint divides the run into first and second allocations; " +
+        "an interval crossing that midpoint is split proportionally. Each half has a timer-running " +
+        "efficiency, and a positive `aerobic_decoupling_pct` means lower second-half efficiency.\n\n" +
+        "A quality status protects the comparison by reconciling timer events to Garmin's session timer, " +
+        "then requiring sufficient timer-running duration, distance, interval coverage, heart-rate coverage, and no excessive record gaps.",
+    sql: `WITH timer_event_sequence AS (
+    SELECT
+        run_id,
+        CAST(timestamp AS timestamp) AS event_timestamp,
+        event_type,
+        LEAD(CAST(timestamp AS timestamp)) OVER timer_events AS next_event_timestamp,
+        LEAD(event_type) OVER timer_events AS next_event_type
+    FROM {{ source('garmin_raw', 'garmin_fit_events') }}
+    WHERE event = 'timer'
+    WINDOW timer_events AS (
+        PARTITION BY run_id
+        ORDER BY CAST(timestamp AS timestamp)
+    )
+),
+
+timer_windows AS (
+    SELECT
+        run_id,
+        event_timestamp AS timer_start_timestamp,
+        next_event_timestamp AS timer_end_timestamp
+    FROM timer_event_sequence
+    WHERE event_type = 'start'
+        AND next_event_type IN ('stop', 'stop_all', 'stop_disable', 'stop_disable_all')
+),
+
+record_intervals AS (
     SELECT
         run_id,
         record_index,
-        record_distance_m
-            - LAG(record_distance_m) OVER run_records AS interval_distance_m,
+        record_timestamp,
+        LAG(record_timestamp) OVER run_records AS interval_start_timestamp,
+        GREATEST(record_distance_m
+            - LAG(record_distance_m) OVER run_records, 0.0) AS interval_distance_m,
         GREATEST(CAST(
             UNIX_TIMESTAMP(record_timestamp)
             - UNIX_TIMESTAMP(LAG(record_timestamp) OVER run_records)
@@ -1460,94 +1488,40 @@ FROM sampled_records`,
     )
 ),
 
-moving_intervals AS (
-    SELECT *,
-        SUM(interval_distance_m) OVER run_distance
-            - interval_distance_m AS interval_start_m,
-        SUM(interval_distance_m) OVER run_distance AS interval_end_m,
-        SUM(interval_distance_m) OVER (
-            PARTITION BY run_id
-        ) AS moving_distance_m
-    FROM record_intervals
-    WHERE interval_distance_m > 0
-        AND interval_duration_seconds > 0
-        AND interval_distance_m / interval_duration_seconds >= 0.5
-    WINDOW run_distance AS (
-        PARTITION BY run_id
-        ORDER BY record_index
-        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-    )
+timer_intervals AS (
+    SELECT
+        intervals.*,
+        SUM(GREATEST(
+            LEAST(UNIX_TIMESTAMP(intervals.record_timestamp), UNIX_TIMESTAMP(windows.timer_end_timestamp))
+                - GREATEST(UNIX_TIMESTAMP(intervals.interval_start_timestamp), UNIX_TIMESTAMP(windows.timer_start_timestamp)),
+            0.0
+        )) AS timer_running_duration_seconds
+    FROM record_intervals AS intervals
+    INNER JOIN timer_windows AS windows
+        ON intervals.run_id = windows.run_id
+            AND intervals.interval_start_timestamp < windows.timer_end_timestamp
+            AND intervals.record_timestamp > windows.timer_start_timestamp
+    GROUP BY ALL
 ),
 
-half_allocations AS (
-    SELECT *,
-        GREATEST(
-            LEAST(interval_end_m, moving_distance_m / 2.0) - interval_start_m,
-            0.0
-        ) AS first_distance_m,
-        GREATEST(
-            interval_end_m - GREATEST(interval_start_m, moving_distance_m / 2.0),
-            0.0
-        ) AS second_distance_m
-    FROM moving_intervals
-),
-
-run_quality AS (
+timer_running_output AS (
     SELECT
         run_id,
-        SUM(interval_distance_m) AS moving_distance_m,
-        SUM(interval_duration_seconds) AS moving_duration_seconds,
-        COUNT(*) AS moving_interval_count,
-        AVG(CASE WHEN interval_heart_rate > 0 THEN 1.0 ELSE 0.0 END)
-            AS heart_rate_coverage,
-        MAX(interval_duration_seconds) AS longest_interval_seconds,
-        CASE
-            WHEN SUM(interval_duration_seconds) < 1200
-                OR SUM(interval_distance_m) < 5000
-                OR COUNT(*) < 8 THEN 'insufficient_moving_data'
-            WHEN AVG(CASE WHEN interval_heart_rate > 0 THEN 1.0 ELSE 0.0 END) < 0.80
-                OR MAX(interval_duration_seconds) > 30 THEN 'insufficient_heart_rate_quality'
-            ELSE 'pass'
-        END AS aerobic_decoupling_quality_status
-    FROM half_allocations
-    GROUP BY run_id
-),
-
-half_efficiency AS (
-    SELECT
-        run_id,
-        SUM(first_distance_m) * 3.6
-            / NULLIF(SUM(
-                CASE WHEN interval_heart_rate > 0
-                    THEN interval_heart_rate * interval_duration_seconds
-                        * first_distance_m / interval_distance_m
-                END
-            ), 0.0) AS first_half_efficiency,
-        SUM(second_distance_m) * 3.6
-            / NULLIF(SUM(
-                CASE WHEN interval_heart_rate > 0
-                    THEN interval_heart_rate * interval_duration_seconds
-                        * second_distance_m / interval_distance_m
-                END
-            ), 0.0) AS second_half_efficiency
-    FROM half_allocations
+        SUM(interval_distance_m * timer_running_duration_seconds
+            / NULLIF(interval_duration_seconds, 0.0)) AS timer_running_distance_m,
+        SUM(timer_running_duration_seconds) AS timer_running_duration_seconds,
+        SUM(interval_heart_rate * timer_running_duration_seconds)
+            / NULLIF(SUM(CASE WHEN interval_heart_rate > 0 THEN timer_running_duration_seconds END), 0.0)
+            AS timer_running_avg_heart_rate
+    FROM timer_intervals
     GROUP BY run_id
 )
 
 SELECT
-    quality.*,
-    efficiency.first_half_efficiency,
-    efficiency.second_half_efficiency,
-    CASE WHEN quality.aerobic_decoupling_quality_status = 'pass'
-            AND efficiency.second_half_efficiency > 0
-        THEN efficiency.first_half_efficiency
-            / efficiency.second_half_efficiency - 1
-    END AS aerobic_decoupling_pct
-FROM run_quality AS quality
-INNER JOIN half_efficiency AS efficiency
-    ON quality.run_id = efficiency.run_id`,
+    *
+FROM timer_running_output`,
     keyTechnique:
-      "Build moving intervals at the record grain, then allocate the midpoint-crossing interval by distance. Compute each half's moving-time-weighted speed-to-heart-rate efficiency only for quality-passing runs; `first_half_efficiency / second_half_efficiency - 1` makes deterioration positive.",
+      "Build timer-running windows from FIT events, then intersect every record interval with those windows. This preserves timer-running zero-distance records and excludes pauses before allocating the midpoint-crossing interval by distance. Compute each half's timer-running speed-to-heart-rate efficiency only for quality-passing runs; `first_half_efficiency / second_half_efficiency - 1` makes deterioration positive.",
      lineageContext:
        "`mart_fitness` refs `runs`, `mart_run_aerobic_decoupling`, and record-level economy metrics. It feeds `mart_running_signals`. Exported to Supabase as `site_fitness_core`. The most analytically sophisticated signal model.",
   },

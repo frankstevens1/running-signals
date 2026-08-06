@@ -54,7 +54,7 @@ Recovery HR when Garmin provides it. Daily health remains an independently refre
 | `efficiency_ratio` | Run | `speed_kmh / avg_heart_rate` when heart rate is present and positive. | `mart_fitness` | Implemented |
 | `hr_band` | Run | Bucketed average heart-rate band. | `mart_fitness` | Implemented |
 | `rolling_4_run_efficiency_ratio` | Run | Average efficiency over the current and previous three runs. | `mart_fitness` | Implemented |
-| `aerobic_decoupling_pct` | Run | First-half moving-time-weighted speed-to-HR efficiency divided by second-half efficiency minus one. Halves split at 50% cumulative moving distance. Positive means lower second-half efficiency. | `mart_run_aerobic_decoupling`, `mart_fitness` | Implemented only after duration, distance, segment, HR coverage, and HR-gap quality gates |
+| `aerobic_decoupling_pct` | Run | First-half timer-running speed-to-HR efficiency divided by second-half efficiency minus one. Halves split at 50% cumulative timer-running distance from FIT timer events. Positive means lower second-half efficiency. | `mart_run_aerobic_decoupling`, `mart_fitness` | Implemented only after timer-event reconciliation, duration, distance, segment, HR coverage, and HR-gap quality gates |
 | `aerobic_decoupling_prior_90d_median` | Run | Median eligible aerobic decoupling across the preceding 90 calendar days, excluding the current run. | `mart_fitness` | Available with at least four prior eligible observations |
 | `garmin_recovery_hr` | Run | Final recorded run heart rate minus the latest FIT `recovery_hr` event value, reported as bpm recovered. | `runs` | Implemented when present |
 | `ending_heart_rate` | Run | Final recorded run heart rate used as the recovery-drop starting value and to group comparable recovery observations. | `runs`, `mart_fitness` | Implemented when present |
@@ -89,8 +89,11 @@ Route and within-run analytics are portfolio-oriented feature marts, not a produ
 
 - Session-level heart rate is coarse and does not capture within-run effort distribution.
 - Garmin FIT `recovery_hr` events report the heart rate after the recovery interval. Running Signals
-  reports Recovery HR as the bpm drop from the final recorded run heart rate to that event value.
-  Activities without either value remain null.
+ reports Recovery HR as the bpm drop from the final recorded run heart rate to that event value.
+ Activities without either value remain null.
+- Aerobic decoupling uses FIT timer-running time instead of elapsed split pace. Elapsed time can be
+  changed by stops, delayed restarts, and recording gaps that fall unevenly across the run, without
+  representing a change in aerobic drift.
 - Garmin FIT cadence is reported per leg. Silver models double cadence fields so downstream marts and
   the site present total steps per minute.
 - Segment detail depends on per-record FIT telemetry. Pace requires positive distance and timestamps;

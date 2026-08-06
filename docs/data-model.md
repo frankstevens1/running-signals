@@ -150,9 +150,9 @@ Important columns include `run_id`, `timestamp`, `distance`, `heart_rate`, `enha
 
 Grain: one event row per run event timestamp.
 
-Purpose: preserve FIT event messages, including timer boundaries and Garmin Recovery HR events when
-they are present in the activity file. Recovery HR extraction remains nullable because event payload
-availability varies by device and activity.
+Purpose: preserve FIT event messages, including complete timer state sequences used to construct
+timer-running intervals and Garmin Recovery HR events when they are present in the activity file.
+Recovery HR extraction remains nullable because event payload availability varies by device and activity.
 
 ### bronze.garmin_health_daily_payloads
 

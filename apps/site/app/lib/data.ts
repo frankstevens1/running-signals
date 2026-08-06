@@ -28,7 +28,10 @@ const RUN_SELECT = [
   "segment_count", "avg_segment_grade", "route_altitude_range_m",
   "prior_7d_distance_km", "prior_28d_distance_km",
   "distance_economy_m_per_beat", "elevation_economy_m_per_beat",
-  "personal_efficiency_score",
+  "personal_efficiency_score", "aerobic_decoupling_pct", "aerobic_decoupling_status",
+  "aerobic_decoupling_unavailable_reason", "aerobic_decoupling_failed_gates",
+  "previous_aerobic_decoupling_pct", "previous_distance_economy_m_per_beat",
+  "previous_elevation_economy_m_per_beat", "previous_prior_7d_distance_km",
 ].join(",");
 const DAY_SELECT = [
   "calendar_date", "run_count", "distance_km", "duration_seconds",

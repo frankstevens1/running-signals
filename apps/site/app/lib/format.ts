@@ -65,6 +65,20 @@ export function formatDuration(seconds: number | null | undefined): string {
   return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
 }
 
+export function formatDurationClock(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined || Number.isNaN(seconds)) return "n/a";
+  const rounded = Math.round(seconds);
+  const hours = Math.floor(rounded / 3600);
+  const minutes = Math.floor((rounded % 3600) / 60);
+  const remainingSeconds = rounded % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
+  }
+
+  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+}
+
 export function formatPace(
   value: number | null | undefined,
   unit: DistanceUnit = "km",

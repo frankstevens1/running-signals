@@ -10,12 +10,13 @@ macro-paths: ["macros"]
 
 vars:
   analytics_time_zone: "Europe/Amsterdam"
-  aerobic_decoupling_moving_speed_threshold_mps: 0.5
-  aerobic_decoupling_minimum_moving_duration_seconds: 1200
-  aerobic_decoupling_minimum_moving_distance_m: 5000
+  aerobic_decoupling_minimum_timer_running_duration_seconds: 1200
+  aerobic_decoupling_minimum_timer_running_distance_m: 5000
   aerobic_decoupling_minimum_valid_segments: 8
+  aerobic_decoupling_minimum_segment_speed_kmh: 1.8
   aerobic_decoupling_minimum_hr_coverage_ratio: 0.8
   aerobic_decoupling_maximum_hr_gap_seconds: 30
+  aerobic_decoupling_timer_reconciliation_tolerance_seconds: 2
 
 models:
   running_signals:

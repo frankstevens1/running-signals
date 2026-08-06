@@ -14,8 +14,9 @@ export const RUN_TABLE_SORT_OPTIONS = [
   { sort: "total_ascent", label: "Ascent/Descent", defaultDirection: "desc" },
   { sort: "prior_7d_distance_km", label: "Prior 7d", defaultDirection: "desc" },
   { sort: "distance_economy_m_per_beat", label: "Dist Economy", defaultDirection: "desc" },
+  { sort: "elevation_economy_m_per_beat", label: "Elev Economy", defaultDirection: "desc" },
+  { sort: "aerobic_decoupling_pct", label: "Aerobic Dec", defaultDirection: "asc" },
   { sort: "personal_efficiency_score", label: "Score", defaultDirection: "desc" },
-  { sort: "route_id", label: "Route", defaultDirection: "asc" },
 ] satisfies RunSortOption[];
 
 export function getRunSortState(
@@ -29,7 +30,7 @@ export function getRunSortState(
   return {
     active,
     direction,
-    nextDirection: active && direction === "desc" ? "asc" : defaultDirection,
+    nextDirection: active ? (direction === "asc" ? "desc" : "asc") : defaultDirection,
     ariaSort: active ? (direction === "asc" ? "ascending" : "descending") : "none",
   } as const;
 }

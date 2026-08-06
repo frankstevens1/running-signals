@@ -49,12 +49,14 @@ export function RunFilters({
   unit,
   bounds,
   embedded = false,
+  onApply,
 }: {
   paramsString: string;
   routes: RouteSummary[];
   unit: DistanceUnit;
   bounds: RunFilterBounds | null;
   embedded?: boolean;
+  onApply?: () => void;
 }) {
   const router = useRouter();
   const filterBounds = bounds ?? EMPTY_RUN_FILTER_BOUNDS;
@@ -177,6 +179,8 @@ export function RunFilters({
     if (nextParams.toString() !== paramsString) {
       router.push(hrefFor(nextParams), { scroll: false });
     }
+
+    onApply?.();
   }
 
   function clearFilters() {
@@ -225,7 +229,7 @@ export function RunFilters({
         }`}
       >
         <div className="grid min-w-0 grid-cols-2 gap-3 sm:col-span-2 lg:col-span-2 xl:col-span-4">
-          <label className={`${fieldClass} min-w-0`}>
+          <label className={`${fieldClass} min-w-0 overflow-hidden`}>
             <span className={fieldLabelClass}>Date from</span>
             <input
               name="dateFrom"
@@ -239,7 +243,7 @@ export function RunFilters({
             />
           </label>
 
-          <label className={`${fieldClass} min-w-0`}>
+          <label className={`${fieldClass} min-w-0 overflow-hidden`}>
             <span className={fieldLabelClass}>Date to</span>
             <input
               name="dateTo"

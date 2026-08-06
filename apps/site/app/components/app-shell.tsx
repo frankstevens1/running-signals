@@ -21,13 +21,6 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-text">
-      <a
-        href="#main-content"
-        className="fixed left-3 top-3 z-100 -translate-y-20 border border-accent bg-surface px-3 py-2 font-mono text-xs text-accent transition-transform focus:translate-y-0"
-      >
-        Skip to content
-      </a>
-
       <header
         data-app-header
         className="sticky top-0 z-40 border-b border-border bg-background/94 shadow-(--shadow-header) backdrop-blur-md"

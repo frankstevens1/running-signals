@@ -37,11 +37,9 @@ def filter_relevant_events(df: pd.DataFrame) -> pd.DataFrame:
         return df.iloc[0:0].copy()
 
     event = df["event"] if "event" in df.columns else pd.Series([None] * len(df))
-    event_type = df["event_type"] if "event_type" in df.columns else pd.Series([None] * len(df))
-
     mask = (
         event.eq("recovery_hr")
-        | (event.eq("timer") & event_type.isin(["start", "stop_all"]))
+        | event.eq("timer")
     )
 
     return df[mask].copy()

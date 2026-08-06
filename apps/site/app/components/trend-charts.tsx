@@ -21,6 +21,12 @@ import {
 
 import { useDistanceUnit } from "@/app/components/distance-unit-provider";
 import {
+  aerobicDecouplingCallout,
+  aerobicDecouplingLabel,
+  aerobicDecouplingLevel,
+  aerobicDecouplingUnavailableReason,
+} from "@/app/lib/aerobic-decoupling";
+import {
   distanceFromKm,
   paceFromMinPerKm,
   speedFromKmh,
@@ -693,8 +699,8 @@ const CHART_INFO = {
   aerobicDecoupling: {
     title: "Aerobic decoupling",
     definition:
-      "Aerobic decoupling compares moving-time-weighted speed-to-heart-rate efficiency between exact cumulative-distance halves of a run. It is first-half efficiency divided by second-half efficiency minus one, so positive values mean lower second-half efficiency.",
-    source: "dbt mart_run_aerobic_decoupling and mart_fitness, using record-level moving intervals and canonical 250 m segment quality checks.",
+      "Aerobic decoupling compares timer-running speed-to-heart-rate efficiency between exact cumulative-distance halves of a run. It is first-half efficiency divided by second-half efficiency minus one, so positive values mean lower second-half efficiency.",
+    source: "dbt mart_run_aerobic_decoupling and mart_fitness, using FIT timer events, record-level telemetry, and canonical 250 m segment quality checks.",
     interpretation: [
       "Near 0% means second-half efficiency was similar to first-half efficiency.",
       "Positive values mean lower second-half efficiency. This can reflect fatigue, heat, hills, poor pacing, or harder terrain.",
@@ -703,7 +709,9 @@ const CHART_INFO = {
     ],
     caveats: [
       "Compare like with like. Route, elevation, weather, workout type, and pacing can move this metric.",
-      "Runs must pass moving-time, distance, segment, heart-rate coverage, and sampling-gap checks before they are eligible.",
+      "Elapsed pace answers how quickly a complete clock-time segment passed. Decoupling instead asks whether heart-rate cost rose while you were running.",
+      "Traffic lights, water or bathroom stops, delayed restarts, and GPS gaps can land unevenly between halves and change elapsed pace without representing aerobic drift.",
+      "Runs must pass timer-event, timer-running duration and distance, segment, heart-rate coverage, and sampling-gap checks before they are eligible.",
     ],
   },
   fitnessEfficiency: {
@@ -1106,48 +1114,21 @@ function formatHalfEfficiency(value: number, unit: DistanceUnit): string {
   return formatEfficiencyRatio(speedFromKmh(value, unit) * 10, unit);
 }
 
-function aerobicDecouplingCallout(value: number): string {
-  if (value < -0.01) return "Second-half efficiency higher";
-  if (value <= 0.01) return "Stable across both halves";
-  if (value <= 0.05) return "Small second-half drop";
-  if (value <= 0.1) return "Moderate second-half drop";
-  return "Large second-half drop";
-}
-
 function aerobicDecouplingClassification(value: number) {
-  if (value <= 0.05) {
-    return {
-      label: "Low decoupling",
-      color: SIGNAL_OK_COLOR,
-      textClassName: "text-signal-ok",
-    };
-  }
-  if (value <= 0.1) {
-    return {
-      label: "Moderate decoupling",
-      color: "var(--signal-warn)",
-      textClassName: "text-signal-warn",
-    };
-  }
+  const level = aerobicDecouplingLevel(value);
   return {
-    label: "High decoupling",
-    color: SIGNAL_ERROR_COLOR,
-    textClassName: "text-signal-error",
+    label: aerobicDecouplingLabel(value),
+    color: level === "low"
+      ? SIGNAL_OK_COLOR
+      : level === "moderate"
+        ? "var(--signal-warn)"
+        : SIGNAL_ERROR_COLOR,
+    textClassName: level === "low"
+      ? "text-signal-ok"
+      : level === "moderate"
+        ? "text-signal-warn"
+        : "text-signal-error",
   };
-}
-
-function unavailableReasonLabel(reason: string | null): string {
-  switch (reason) {
-    case "missing_moving_telemetry": return "The run did not contain enough moving telemetry.";
-    case "insufficient_moving_duration": return "Less than 20 minutes of moving time.";
-    case "insufficient_moving_distance": return "Less than 5 km of moving distance.";
-    case "insufficient_valid_segments": return "Fewer than 8 valid 250 m segments.";
-    case "insufficient_hr_coverage": return "Heart-rate coverage was below the required threshold.";
-    case "excessive_hr_gap": return "A moving-time heart-rate gap exceeded 30 seconds.";
-    case "missing_half_heart_rate": return "One half of the run lacked usable heart-rate data.";
-    case "invalid_half_speed": return "One half of the run lacked usable moving-speed data.";
-    default: return "No eligible aerobic-decoupling reading is available.";
-  }
 }
 
 function AerobicDecouplingTooltip({
@@ -1180,7 +1161,7 @@ function AerobicDecouplingTooltip({
         Second half: {speedFromKmh(point.secondHalfSpeedKmh, unit).toFixed(1)} {unit}/h, {Math.round(point.secondHalfAvgHeartRate)} bpm
       </div>
       <div style={tooltipStyle.itemStyle}>
-        Moving time: {formatDuration(point.aerobicDecouplingMovingDurationSeconds)}
+        Timer-running time: {formatDuration(point.aerobicDecouplingMovingDurationSeconds)}
       </div>
       <div style={tooltipStyle.itemStyle}>
         Valid segments: {point.aerobicDecouplingValidSegmentCount ?? "n/a"}
@@ -1229,7 +1210,7 @@ function AerobicDecouplingUnavailableReason({
 }) {
   return (
     <div className={`border border-dashed border-border bg-surface-muted px-4 py-3 font-mono text-xs leading-5 text-text-soft ${className ?? ""}`}>
-      {unavailableReasonLabel(reason)}
+      {aerobicDecouplingUnavailableReason(reason)}
     </div>
   );
 }

@@ -1,18 +1,32 @@
 "use client";
 
-import { ArrowUpRight } from "lucide-react";
+import {
+  ArrowUpRight,
+  Clock3,
+  Footprints,
+  Gauge,
+  Heart,
+  Mountain,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import {
+  aerobicDecouplingLevel,
+  aerobicDecouplingUnavailableReason,
+} from "@/app/lib/aerobic-decoupling";
+import {
+  formatCadence,
   formatDate,
   formatDistance,
-  formatDuration,
+  formatDurationClock,
   formatEconomy,
   formatElevation,
   formatHeartRate,
   formatPace,
   formatRouteId,
+  formatSignedPercent,
 } from "@/app/lib/format";
 import type { RunSession } from "@/app/lib/types";
 
@@ -86,28 +100,225 @@ function TimelineRouteMap({ runId }: { runId: string }) {
   );
 }
 
-function MetricItem({
+function PrimaryMetric({
+  icon: Icon,
   label,
   value,
-  emphasis = false,
+  className,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  className?: string;
+}) {
+  return (
+    <div className={`min-w-0 last:col-span-2 sm:last:col-span-1 sm:border-l sm:border-border sm:px-5 first:sm:border-l-0 first:sm:pl-0 ${className ?? ""}`}>
+      <dt className="flex items-center gap-1.5 whitespace-nowrap font-mono text-[8px] uppercase tracking-[0.08em] text-text-soft sm:gap-2 sm:text-[10px] sm:tracking-[0.1em]">
+        <Icon className="h-3.5 w-3.5 text-text sm:h-4 sm:w-4" aria-hidden="true" />
+        {label}
+      </dt>
+      <dd className="mt-1.5 truncate font-mono text-sm leading-none text-text sm:mt-2 sm:text-base">
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+function signalTextClassName(value: number | null): string {
+  if (value === null) return "text-text-soft";
+  if (value > 100) return "text-signal-ok";
+  if (value < 100) return "text-signal-error";
+  return "text-text";
+}
+
+function SignalMetric({
+  label,
+  value,
+  detail,
+  valueClassName,
+  badge,
   className,
 }: {
   label: string;
   value: string;
-  emphasis?: boolean;
+  detail?: ReactNode;
+  valueClassName?: string;
+  badge?: ReactNode;
   className?: string;
 }) {
   return (
-    <div className="min-w-0">
-      <dt className="whitespace-nowrap font-mono text-[9px] uppercase tracking-[0.12em] text-text-soft">
+    <div className={`relative min-w-0 sm:border-l sm:border-border sm:px-5 first:sm:border-l-0 first:sm:pl-0 ${className ?? ""}`}>
+      <dt className="font-mono text-[10px] uppercase tracking-[0.1em] text-text-soft">
         {label}
       </dt>
-      <dd
-        className={`mt-1 truncate font-mono text-text ${emphasis ? "text-sm" : "text-xs"} ${className ?? ""}`}
-      >
+      {badge}
+      <dd className={`mt-2 truncate font-mono text-base leading-none text-text ${valueClassName ?? ""}`}>
         {value}
       </dd>
+      {detail ? (
+        <div className="mt-2 text-[11px] leading-4 text-text-soft">{detail}</div>
+      ) : null}
     </div>
+  );
+}
+
+function TrendDetail({
+  delta,
+  format,
+  lowerIsBetter = false,
+  neutral = false,
+}: {
+  delta: number | null;
+  format: (value: number) => string;
+  lowerIsBetter?: boolean;
+  neutral?: boolean;
+}) {
+  if (delta === null) {
+    return <span>No prior qualifying run</span>;
+  }
+
+  if (delta === 0) {
+    return <span>-</span>;
+  }
+
+  const favorable = lowerIsBetter ? delta < 0 : delta > 0;
+  const className = neutral
+    ? "text-text-soft"
+    : favorable
+      ? "text-signal-ok"
+      : "text-signal-error";
+
+  return (
+    <span className={className}>
+      {format(delta)}
+    </span>
+  );
+}
+
+function signedFixed(value: number, decimals: number, unit: string): string {
+  return `${value > 0 ? "+" : ""}${value.toFixed(decimals)} ${unit}`;
+}
+
+function RunSignals({ run, unit }: { run: RunSession; unit: "km" | "mi" }) {
+  const decoupling = run.aerobicDecouplingPct;
+  const decouplingSignal = decoupling === null
+      ? null
+      : {
+        level: aerobicDecouplingLevel(decoupling),
+        value: formatSignedPercent(decoupling),
+      };
+  const failures = run.aerobicDecouplingFailedGates.length > 0
+    ? run.aerobicDecouplingFailedGates
+    : [{
+        code: run.aerobicDecouplingUnavailableReason ?? "unavailable",
+        observed: aerobicDecouplingUnavailableReason(run.aerobicDecouplingUnavailableReason),
+        required: "Quality-gate evidence was not recorded for this run.",
+  }];
+  const score = run.personalEfficiencyScore;
+  const eligibleSignal = run.aerobicDecouplingStatus === "eligible"
+    ? decouplingSignal
+    : null;
+
+  return (
+    <section aria-label="Run signals">
+      <dl className="grid grid-cols-2 gap-x-5 gap-y-6 sm:grid-cols-4 sm:gap-x-0">
+        <SignalMetric
+          label="Aerobic decoupling"
+          value={eligibleSignal ? eligibleSignal.value : "Not eligible"}
+          detail={
+            eligibleSignal
+              ? (
+                  <TrendDetail
+                    delta={
+                      run.previousAerobicDecouplingPct === null
+                        ? null
+                        : run.aerobicDecouplingPct! - run.previousAerobicDecouplingPct
+                    }
+                    format={(value) => signedFixed(value * 100, 1, "pp")}
+                    lowerIsBetter
+                  />
+                )
+              : `${failures.length} quality gate${failures.length === 1 ? "" : "s"} not met`
+          }
+          valueClassName={
+            !eligibleSignal
+              ? "text-text-soft"
+              : eligibleSignal.level === "low"
+                ? "text-signal-ok"
+                : eligibleSignal.level === "moderate"
+                  ? "text-signal-warn"
+                  : "text-signal-error"
+          }
+        />
+        <SignalMetric
+          label="Dist. economy"
+          value={formatEconomy(run.distanceEconomyMperBeat, 3, "m/beat")}
+          detail={
+            <TrendDetail
+              delta={
+                run.distanceEconomyMperBeat === null || run.previousDistanceEconomyMperBeat === null
+                  ? null
+                  : run.distanceEconomyMperBeat - run.previousDistanceEconomyMperBeat
+              }
+              format={(value) => signedFixed(value, 3, "m/beat")}
+            />
+          }
+          badge={
+            score === null ? null : (
+              <span className={`absolute right-0 top-0 bg-surface-muted px-1.5 py-1 font-mono text-[9px] ${signalTextClassName(score)}`}>
+                {Math.round(score)}
+              </span>
+            )
+          }
+        />
+        <SignalMetric
+          label="Elev. economy"
+          value={formatEconomy(run.elevationEconomyMperBeat, 4, "m/beat")}
+          className="hidden sm:block"
+          detail={
+            <TrendDetail
+              delta={
+                run.elevationEconomyMperBeat === null || run.previousElevationEconomyMperBeat === null
+                  ? null
+                  : run.elevationEconomyMperBeat - run.previousElevationEconomyMperBeat
+              }
+              format={(value) => signedFixed(value, 4, "m/beat")}
+            />
+          }
+        />
+        <SignalMetric
+          label="Prior 7 days"
+          value={formatDistance(run.prior7dDistanceKm, unit)}
+          className="hidden sm:block"
+          detail={
+            <TrendDetail
+              delta={
+                run.prior7dDistanceKm === null || run.previousPrior7dDistanceKm === null
+                  ? null
+                  : run.prior7dDistanceKm - run.previousPrior7dDistanceKm
+              }
+              format={(value) => `${value > 0 ? "+" : value < 0 ? "-" : ""}${formatDistance(Math.abs(value), unit)}`}
+              neutral
+            />
+          }
+        />
+      </dl>
+      {!eligibleSignal ? (
+        <div className="mt-5 border-t border-border pt-4">
+          <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-text-soft">
+            Decoupling quality gates
+          </p>
+          <ul className="mt-2 space-y-1.5 text-sm text-text-soft">
+            {failures.map((failure) => (
+              <li key={failure.code}>
+                <span className="text-text">{failure.observed}</span>
+                <span> - needs {failure.required}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -131,11 +342,16 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
     const previousSnapTop = root.style.getPropertyValue("--runs-timeline-snap-top");
     const previousSnapBottom = root.style.getPropertyValue("--runs-timeline-snap-bottom");
     let animationFrame: number | null = null;
-    let lastSnapScrollTime = 0;
-    const SNAP_SCROLL_COOLDOWN = 400;
+    let snapTargetScroll: number | null = null;
 
     function updateSnapViewport() {
       animationFrame = null;
+      if (snapTargetScroll !== null) {
+        const currentScroll = window.scrollY || document.documentElement.scrollTop;
+        if (Math.abs(currentScroll - snapTargetScroll) < 2) {
+          snapTargetScroll = null;
+        }
+      }
       const headerRect = appHeaderElement.getBoundingClientRect();
       const paginationRect = paginationElement.getBoundingClientRect();
       const controls = document.querySelector<HTMLElement>("[data-runs-mobile-controls]");
@@ -163,9 +379,7 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
 
     function handleWheel(event: WheelEvent) {
       if (!root.hasAttribute("data-runs-timeline-snap")) return;
-
-      const now = performance.now();
-      if (now - lastSnapScrollTime < SNAP_SCROLL_COOLDOWN) {
+      if (snapTargetScroll !== null) {
         event.preventDefault();
         return;
       }
@@ -203,9 +417,13 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
         targetRect.top -
         snapTop;
 
-      lastSnapScrollTime = now;
       event.preventDefault();
-      window.scrollTo({ top: targetScrollTop, behavior: "smooth" });
+      snapTargetScroll = targetScrollTop;
+      window.scrollTo({ top: targetScrollTop, behavior: "instant" });
+      setTimeout(() => {
+        snapTargetScroll = null;
+      }, 400);
+      scheduleUpdate();
     }
 
     const resizeObserver =
@@ -271,53 +489,8 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
                 <TimelineRouteMap runId={run.runId} />
               </div>
 
-              <div className="min-w-0 lg:grid lg:grid-rows-[auto_minmax(0,1fr)]">
-                {/* Desktop: 3-column grid with Detail button as third column */}
-                <div className="hidden gap-4 border-b border-border p-4 lg:grid md:grid-cols-[12rem_minmax(0,1fr)_auto] md:items-start xl:grid-cols-[14rem_minmax(0,1fr)_auto]">
-                  <div className="min-w-0">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-soft">
-                      row::{String(index + 1).padStart(2, "0")} · {formatDate(run.activityDate)}
-                    </p>
-                    <h3 className="mt-1 font-mono text-2xl leading-tight text-text">
-                      {formatDistance(run.distanceKm, unit)}
-                    </h3>
-                    <div className="mt-2 text-sm text-text-soft">
-                      {run.routeId ? (
-                        <Link
-                          href={`/routes?routeId=${encodeURIComponent(run.routeId)}`}
-                          className="font-mono text-accent hover:underline"
-                        >
-                          route {formatRouteId(run.routeId)}
-                        </Link>
-                      ) : (
-                        "No route cluster"
-                      )}
-                    </div>
-                  </div>
-
-                  <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4 md:self-center">
-                    <MetricItem
-                      label="Duration"
-                      value={formatDuration(run.durationSeconds)}
-                      emphasis
-                    />
-                    <MetricItem label="Pace" value={formatPace(run.avgPaceMinPerKm, unit)} emphasis />
-                    <MetricItem label="Avg HR" value={formatHeartRate(run.avgHeartRate)} emphasis />
-                    <MetricItem label="Max HR" value={formatHeartRate(run.maxHeartRate)} emphasis />
-                  </dl>
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRun(run)}
-                    className="inline-flex h-9 shrink-0 items-center gap-2 justify-self-start border border-border px-3 font-mono text-[10px] uppercase tracking-[0.08em] text-text transition-colors hover:border-accent hover:bg-accent-soft md:justify-self-end"
-                  >
-                    Detail
-                    <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                </div>
-
-                {/* Mobile: stacked layout with Detail button inline next to date */}
-                <div className="border-b border-border p-4 lg:hidden">
+              <div className="min-w-0">
+                <div className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-soft">
@@ -349,55 +522,39 @@ export function RunTimeline({ runs }: { runs: RunSession[] }) {
                     </button>
                   </div>
 
-                  <dl className="mt-4 grid grid-cols-4 gap-x-2 gap-y-3 sm:gap-x-6">
-                    <MetricItem
-                      label="Duration"
-                      value={formatDuration(run.durationSeconds)}
-                      emphasis
-                    />
-                    <MetricItem label="Pace" value={formatPace(run.avgPaceMinPerKm, unit)} emphasis />
-                    <MetricItem label="Avg HR" value={formatHeartRate(run.avgHeartRate)} emphasis />
-                    <MetricItem label="Max HR" value={formatHeartRate(run.maxHeartRate)} emphasis />
-                  </dl>
-                </div>
-
-                <div className="p-4 lg:flex lg:items-center">
-                  <dl className="grid w-full grid-cols-3 gap-x-4 gap-y-3 sm:gap-x-5 lg:grid-cols-6">
-                    <MetricItem
-                      label="Dist economy"
-                      value={formatEconomy(run.distanceEconomyMperBeat, 3, "m/beat")}
-                    />
-                    <MetricItem
-                      label="Elev economy"
-                      value={formatEconomy(run.elevationEconomyMperBeat, 4, "m/beat")}
-                    />
-                    <MetricItem
-                      label="Score"
-                      value={
-                        run.personalEfficiencyScore != null
-                          ? `${Math.round(run.personalEfficiencyScore)}`
-                          : "\u2014"
-                      }
-                      className={
-                        run.personalEfficiencyScore != null
-                          ? run.personalEfficiencyScore > 100
-                            ? "text-signal-ok"
-                            : run.personalEfficiencyScore < 100
-                              ? "text-signal-error"
-                              : "text-text-soft"
-                          : ""
-                      }
-                    />
-                    <MetricItem label="Prior 7d" value={formatDistance(run.prior7dDistanceKm, unit)} />
-                    <MetricItem label="Recovery HR" value={formatHeartRate(run.garminRecoveryHr)} />
-                    <MetricItem
-                      label="Ascent/Descent"
-                      value={[
-                        formatElevation(run.totalAscent),
-                        formatElevation(run.totalDescent),
-                      ].join(" / ")}
-                    />
-                  </dl>
+                  <section className="mt-6" aria-label="Run metrics">
+                    <dl className="grid grid-cols-4 gap-x-3 border-b border-border pb-5 sm:grid-cols-5 sm:gap-x-0">
+                      <PrimaryMetric
+                        icon={Clock3}
+                        label="Duration"
+                        value={formatDurationClock(run.durationSeconds)}
+                      />
+                      <PrimaryMetric
+                        icon={Gauge}
+                        label="Avg pace"
+                        value={formatPace(run.avgPaceMinPerKm, unit)}
+                      />
+                      <PrimaryMetric
+                        icon={Heart}
+                        label="Avg HR"
+                        value={formatHeartRate(run.avgHeartRate)}
+                      />
+                      <PrimaryMetric
+                        icon={Mountain}
+                        label="Elev gain"
+                        value={formatElevation(run.totalAscent)}
+                      />
+                      <PrimaryMetric
+                        icon={Footprints}
+                        label="Avg cadence"
+                        value={formatCadence(run.avgCadence)}
+                        className="hidden sm:block"
+                      />
+                    </dl>
+                    <div className="pt-5">
+                      <RunSignals run={run} unit={unit} />
+                    </div>
+                  </section>
                 </div>
               </div>
             </div>

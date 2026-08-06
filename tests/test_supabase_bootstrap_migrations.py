@@ -11,6 +11,9 @@ MIGRATION_NAMES = [
     "202608040006_postgrest_reload.sql",
     "202608040007_sqlearn_reader.sql",
     "202608040008_route_country_iso3.sql",
+    "202608060001_run_fitness_view.sql",
+    "202608060002_aerobic_decoupling_gate_evidence.sql",
+    "202608060003_metric_trends.sql",
 ]
 
 
@@ -69,6 +72,21 @@ def test_route_country_iso3_migration_updates_the_rpc_contract() -> None:
     assert "drop function if exists public.site_route_summaries" in migration_sql
     assert "country_iso3 text" in migration_sql
     assert "routes.country_iso3" in migration_sql
+
+
+def test_aerobic_decoupling_gate_evidence_extends_fitness_and_run_views() -> None:
+    migration_sql = migration("202608060002_aerobic_decoupling_gate_evidence.sql")
+
+    assert "add column aerobic_decoupling_failed_gates jsonb" in migration_sql
+    assert migration_sql.count("create or replace view public.site_") == 2
+    assert migration_sql.count("fitness.aerobic_decoupling_failed_gates") == 2
+
+
+def test_metric_trends_extend_fitness_and_run_views() -> None:
+    migration_sql = migration("202608060003_metric_trends.sql")
+
+    assert migration_sql.count("add column previous_") == 4
+    assert migration_sql.count("fitness.previous_") == 8
 
 
 def test_sqlearn_reader_is_limited_to_dedicated_security_barrier_views() -> None:

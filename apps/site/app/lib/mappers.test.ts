@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { mapFitness, mapMapProfileRecord, mapRoute } from "./mappers";
+import { mapFitness, mapMapProfileRecord, mapRoute, mapRun } from "./mappers";
 
 describe("mapRoute", () => {
   it("maps nullable representative route centroids", () => {
@@ -83,5 +83,55 @@ describe("mapFitness", () => {
       aerobicDecouplingPrior90dMedian: 0.04,
     });
     expect(mapFitness({ aerobic_decoupling_status: "unknown" }).aerobicDecouplingStatus).toBeNull();
+  });
+});
+
+describe("mapRun", () => {
+  it("maps aerobic decoupling states exposed by the run view", () => {
+    expect(
+      mapRun({
+        aerobic_decoupling_pct: "0.0625",
+        aerobic_decoupling_status: "eligible",
+        aerobic_decoupling_failed_gates: "[]",
+        previous_aerobic_decoupling_pct: "0.045",
+        previous_distance_economy_m_per_beat: "0.123",
+        previous_elevation_economy_m_per_beat: "0.0045",
+        previous_prior_7d_distance_km: "42.5",
+      }),
+    ).toMatchObject({
+      aerobicDecouplingPct: 0.0625,
+      aerobicDecouplingStatus: "eligible",
+      aerobicDecouplingUnavailableReason: null,
+      aerobicDecouplingFailedGates: [],
+      previousAerobicDecouplingPct: 0.045,
+      previousDistanceEconomyMperBeat: 0.123,
+      previousElevationEconomyMperBeat: 0.0045,
+      previousPrior7dDistanceKm: 42.5,
+    });
+
+    expect(
+      mapRun({
+        aerobic_decoupling_status: "ineligible",
+        aerobic_decoupling_unavailable_reason: "insufficient_valid_segments",
+        aerobic_decoupling_failed_gates: [{
+          code: "insufficient_valid_segments",
+          observed: "6 valid 250 m HR segments",
+          required: "at least 8 segments",
+        }],
+      }),
+    ).toMatchObject({
+      aerobicDecouplingPct: null,
+      aerobicDecouplingStatus: "ineligible",
+      aerobicDecouplingUnavailableReason: "insufficient_valid_segments",
+      aerobicDecouplingFailedGates: [{
+        code: "insufficient_valid_segments",
+        observed: "6 valid 250 m HR segments",
+        required: "at least 8 segments",
+      }],
+    });
+
+    expect(mapRun({ aerobic_decoupling_status: "unknown" }).aerobicDecouplingStatus).toBeNull();
+    expect(mapRun({ aerobic_decoupling_failed_gates: "not valid JSON" }).aerobicDecouplingFailedGates)
+      .toEqual([]);
   });
 });

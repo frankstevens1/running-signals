@@ -15,6 +15,8 @@ export type RunSort =
   | "route_id"
   | "record_distance_coverage_ratio"
   | "distance_economy_m_per_beat"
+  | "elevation_economy_m_per_beat"
+  | "aerobic_decoupling_pct"
   | "personal_efficiency_score";
 
 export type SortDirection = "asc" | "desc";
@@ -50,6 +52,8 @@ const RUN_SORTS = new Set<RunSort>([
   "route_id",
   "record_distance_coverage_ratio",
   "distance_economy_m_per_beat",
+  "elevation_economy_m_per_beat",
+  "aerobic_decoupling_pct",
   "personal_efficiency_score",
 ]);
 

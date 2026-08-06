@@ -67,8 +67,22 @@ export type RunSession = {
   distanceEconomyMperBeat: number | null;
   elevationEconomyMperBeat: number | null;
   personalEfficiencyScore: number | null;
+  previousAerobicDecouplingPct: number | null;
+  previousDistanceEconomyMperBeat: number | null;
+  previousElevationEconomyMperBeat: number | null;
+  previousPrior7dDistanceKm: number | null;
+  aerobicDecouplingPct: number | null;
+  aerobicDecouplingStatus: "eligible" | "ineligible" | null;
+  aerobicDecouplingUnavailableReason: string | null;
+  aerobicDecouplingFailedGates: AerobicDecouplingFailedGate[];
   avgCadence: number | null;
   maxCadence: number | null;
+};
+
+export type AerobicDecouplingFailedGate = {
+  code: string;
+  observed: string;
+  required: string;
 };
 
 export type RouteSummary = {

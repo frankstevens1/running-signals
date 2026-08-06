@@ -1,11 +1,11 @@
 "use client";
 
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { DistanceUnit } from "@/app/lib/distance-unit";
+import { aerobicDecouplingLevel } from "@/app/lib/aerobic-decoupling";
 import {
   formatDate,
   formatDistance,
@@ -13,7 +13,6 @@ import {
   formatElevation,
   formatHeartRate,
   formatPace,
-  formatRouteId,
 } from "@/app/lib/format";
 import type { RunSort, SortDirection } from "@/app/lib/query";
 import { RUN_TABLE_SORT_OPTIONS, getRunSortState, hrefWithRunSort, type RunSortOption } from "@/app/lib/run-sort";
@@ -22,10 +21,7 @@ import type { RunSession } from "@/app/lib/types";
 import { RunDataRefreshLink } from "./run-data-refresh";
 import { RunDetailDialog } from "./run-detail-dialog";
 
-const sortableColumns: Array<RunSortOption | { label: string; sort?: undefined }> = [
-  ...RUN_TABLE_SORT_OPTIONS,
-  { label: "Detail" },
-];
+const sortableColumns: Array<RunSortOption> = [...RUN_TABLE_SORT_OPTIONS];
 
 type StickyHeaderLayout = {
   top: number;
@@ -224,27 +220,25 @@ export function RunTable({
             }`}
           >
             <tr>
-              {sortableColumns.map((column) =>
-                column.sort ? (
-                  <SortableHeader
-                    key={column.label}
-                    params={params}
-                    tabIndex={stickyHeader ? -1 : undefined}
-                    sort={column.sort}
-                    label={column.label}
-                    defaultDirection={column.defaultDirection}
-                  />
-                ) : (
-                  <th key={column.label} className="whitespace-nowrap px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-text-soft font-normal">
-                    {column.label}
-                  </th>
-                ),
-              )}
+              {sortableColumns.map((column) => (
+                <SortableHeader
+                  key={column.label}
+                  params={params}
+                  tabIndex={stickyHeader ? -1 : undefined}
+                  sort={column.sort}
+                  label={column.label}
+                  defaultDirection={column.defaultDirection}
+                />
+              ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {runs.map((run) => (
-              <tr key={run.runId} className="font-mono text-xs transition-colors hover:bg-accent-soft">
+              <tr
+                key={run.runId}
+                onClick={() => setSelectedRun(run)}
+                className="cursor-pointer font-mono text-xs transition-colors hover:bg-accent-soft"
+              >
                 <td className="whitespace-nowrap px-4 py-3 text-text">
                   {formatDate(run.activityDate)}
                 </td>
@@ -265,6 +259,24 @@ export function RunTable({
                 <td className="whitespace-nowrap px-4 py-3">
                   {formatEconomy(run.distanceEconomyMperBeat, 3, "m/beat")}
                 </td>
+                <td className="whitespace-nowrap px-4 py-3">
+                  {formatEconomy(run.elevationEconomyMperBeat, 4, "m/beat")}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3">
+                  {run.aerobicDecouplingStatus === "eligible" && run.aerobicDecouplingPct !== null
+                    ? (
+                        <span className={
+                          aerobicDecouplingLevel(run.aerobicDecouplingPct) === "low"
+                            ? "text-signal-ok"
+                            : aerobicDecouplingLevel(run.aerobicDecouplingPct) === "moderate"
+                              ? "text-signal-warn"
+                              : "text-signal-error"
+                        }>
+                          {run.aerobicDecouplingPct > 0 ? "+" : ""}{(run.aerobicDecouplingPct * 100).toFixed(1)}%
+                        </span>
+                      )
+                    : "\u2014"}
+                </td>
                 <td className={`whitespace-nowrap px-4 py-3 ${
                   run.personalEfficiencyScore != null
                     ? run.personalEfficiencyScore > 100
@@ -277,28 +289,6 @@ export function RunTable({
                   {run.personalEfficiencyScore != null
                     ? Math.round(run.personalEfficiencyScore)
                     : "\u2014"}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3">
-                  {run.routeId ? (
-                    <Link
-                      href={`/routes?routeId=${encodeURIComponent(run.routeId)}`}
-                      className="font-mono text-accent hover:underline"
-                    >
-                      {formatRouteId(run.routeId)}
-                    </Link>
-                  ) : (
-                    "n/a"
-                  )}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRun(run)}
-                    aria-label={`View details for ${formatDate(run.activityDate)}`}
-                    className="font-mono text-accent hover:underline"
-                  >
-                    View
-                  </button>
                 </td>
               </tr>
             ))}
@@ -328,7 +318,6 @@ export function RunTable({
                   }}
                 >
                   {sortableColumns.map((column, index) => {
-                    if (column.sort) {
                        const { ariaSort } = getRunSortState(
                         params,
                         column.sort,
@@ -351,18 +340,6 @@ export function RunTable({
                           />
                         </div>
                       );
-                    }
-
-                    return (
-                      <div
-                        key={column.label}
-                        role="columnheader"
-                        className="shrink-0 whitespace-nowrap px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-text-soft font-normal"
-                        style={{ width: stickyHeader.columnWidths[index] }}
-                      >
-                        {column.label}
-                      </div>
-                    );
                   })}
                 </div>
               </div>

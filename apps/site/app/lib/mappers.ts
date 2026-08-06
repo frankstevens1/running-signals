@@ -1,4 +1,5 @@
 import type {
+  AerobicDecouplingFailedGate,
   DayRollup,
   FitnessPoint,
   MapProfileRecord,
@@ -32,7 +33,45 @@ export function booleanValue(row: Record<string, unknown>, key: string): boolean
   return false;
 }
 
+function aerobicDecouplingFailedGatesValue(
+  row: Record<string, unknown>,
+): AerobicDecouplingFailedGate[] {
+  const value = row.aerobic_decoupling_failed_gates;
+  const parsed = typeof value === "string"
+    ? (() => {
+        try {
+          return JSON.parse(value) as unknown;
+        } catch {
+          return null;
+        }
+      })()
+    : value;
+
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed.flatMap((gate) => {
+    const candidate = gate as Record<string, unknown> | null;
+    if (
+      !candidate
+      || typeof candidate !== "object"
+      || typeof candidate.code !== "string"
+      || typeof candidate.observed !== "string"
+      || typeof candidate.required !== "string"
+    ) {
+      return [];
+    }
+
+    return [{
+      code: candidate.code,
+      observed: candidate.observed,
+      required: candidate.required,
+    }];
+  });
+}
+
 export function mapRun(row: Record<string, unknown>): RunSession {
+  const aerobicDecouplingStatus = stringValue(row, "aerobic_decoupling_status");
+
   return {
     runId: stringValue(row, "run_id") ?? "",
     activityId: stringValue(row, "activity_id") ?? "",
@@ -58,6 +97,17 @@ export function mapRun(row: Record<string, unknown>): RunSession {
     distanceEconomyMperBeat: numberValue(row, "distance_economy_m_per_beat"),
     elevationEconomyMperBeat: numberValue(row, "elevation_economy_m_per_beat"),
     personalEfficiencyScore: numberValue(row, "personal_efficiency_score"),
+    previousAerobicDecouplingPct: numberValue(row, "previous_aerobic_decoupling_pct"),
+    previousDistanceEconomyMperBeat: numberValue(row, "previous_distance_economy_m_per_beat"),
+    previousElevationEconomyMperBeat: numberValue(row, "previous_elevation_economy_m_per_beat"),
+    previousPrior7dDistanceKm: numberValue(row, "previous_prior_7d_distance_km"),
+    aerobicDecouplingPct: numberValue(row, "aerobic_decoupling_pct"),
+    aerobicDecouplingStatus:
+      aerobicDecouplingStatus === "eligible" || aerobicDecouplingStatus === "ineligible"
+        ? aerobicDecouplingStatus
+        : null,
+    aerobicDecouplingUnavailableReason: stringValue(row, "aerobic_decoupling_unavailable_reason"),
+    aerobicDecouplingFailedGates: aerobicDecouplingFailedGatesValue(row),
     avgCadence: numberValue(row, "avg_cadence"),
     maxCadence: numberValue(row, "max_cadence"),
   };

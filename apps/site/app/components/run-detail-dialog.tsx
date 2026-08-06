@@ -54,7 +54,13 @@ function statItems(run: RunSession, unit: DistanceUnit) {
     ["Avg HR", formatHeartRate(run.avgHeartRate)],
     ["Max HR", formatHeartRate(run.maxHeartRate)],
     ["Ascent/Descent",
-      [formatElevation(run.totalAscent), formatElevation(run.totalDescent)].join(" / "),
+      <span key="ascent-descent">
+        {run.totalAscent != null ? Math.round(run.totalAscent) : "n/a"}
+        <span className="hidden sm:inline"> m / </span>
+        <span className="sm:hidden">m/</span>
+        {run.totalDescent != null ? Math.round(run.totalDescent) : "n/a"}
+        m
+      </span>,
     ],
     ["Dist Economy", formatEconomy(run.distanceEconomyMperBeat, 3, "m/beat")],
     ["Elev Economy", formatEconomy(run.elevationEconomyMperBeat, 4, "m/beat")],

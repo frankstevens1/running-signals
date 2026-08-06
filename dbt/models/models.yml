@@ -184,13 +184,24 @@ models:
           - not_null
       - name: aerobic_decoupling_pct
         description: >
-          Relative loss of moving-time-weighted speed-to-heart-rate efficiency from the first
+          Relative loss of timer-running speed-to-heart-rate efficiency from the first
           half to the second half of a run. Positive values indicate lower second-half
-          efficiency. Runs must pass aerobic-decoupling telemetry and duration quality gates.
+          efficiency. FIT timer events exclude pauses from both half pace and heart-rate weighting.
+          Runs must pass timer-event, telemetry, and duration quality gates.
       - name: aerobic_decoupling_status
         description: "Eligibility status for aerobic decoupling: eligible or ineligible."
       - name: aerobic_decoupling_unavailable_reason
         description: Quality-gate reason aerobic decoupling is unavailable for an ineligible run.
+      - name: aerobic_decoupling_failed_gates
+        description: JSON list of every failed aerobic-decoupling quality gate, with observed evidence and the required threshold.
+      - name: previous_aerobic_decoupling_pct
+        description: Aerobic decoupling from the most recent earlier eligible run.
+      - name: previous_distance_economy_m_per_beat
+        description: Distance economy from the most recent earlier run with distance-economy evidence.
+      - name: previous_elevation_economy_m_per_beat
+        description: Elevation economy from the most recent earlier run with elevation-economy evidence.
+      - name: previous_prior_7d_distance_km
+        description: Prior seven-day distance from the most recent earlier run with training-load context.
       - name: aerobic_decoupling_prior_90d_count
         description: Count of eligible aerobic-decoupling observations in the prior 90 calendar days, excluding the current run.
       - name: aerobic_decoupling_prior_90d_median
@@ -223,9 +234,9 @@ models:
 
   - name: mart_run_aerobic_decoupling
     description: >
-      Run-level aerobic decoupling calculated from record-level moving intervals split at
-      50 percent cumulative moving distance, with telemetry quality gates and half-level
-      evidence for presentation.
+      Run-level aerobic decoupling calculated from FIT timer-running record intervals split at
+      50 percent cumulative timer-running distance, with timer reconciliation, telemetry quality
+      gates, and half-level evidence for presentation.
     columns:
       - name: run_id
         tests:

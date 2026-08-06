@@ -324,6 +324,14 @@ def test_fit_exports_preserve_garmin_recovery_hr() -> None:
     fitness_export = exports["site_fitness_core"]
     assert "rolling_4_run_recovery_hr" in fitness_export.columns
     assert "rolling_4_run_recovery_hr" in fitness_export.statement(databricks_config())
+    assert "aerobic_decoupling_failed_gates" in fitness_export.columns
+    assert "aerobic_decoupling_failed_gates" in fitness_export.statement(databricks_config())
+    assert {
+        "previous_aerobic_decoupling_pct",
+        "previous_distance_economy_m_per_beat",
+        "previous_elevation_economy_m_per_beat",
+        "previous_prior_7d_distance_km",
+    } <= set(fitness_export.columns)
     assert {
         "ending_heart_rate",
         "recovery_prior_90d_count",

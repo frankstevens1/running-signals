@@ -10,6 +10,21 @@ aerobic_decoupling as (
     from {{ ref('mart_run_aerobic_decoupling') }}
 ),
 
+prior_7d_load as (
+    select
+        runs.run_id,
+        sum(case
+            when days.calendar_date >= date_add(runs.activity_date, -7)
+            then days.distance_km
+            else 0.0
+        end) as prior_7d_distance_km
+    from runs
+    left join {{ ref('mart_days') }} as days
+        on days.calendar_date between date_add(runs.activity_date, -7)
+            and date_add(runs.activity_date, -1)
+    group by runs.run_id
+),
+
 record_economy as (
     select
         run_id,
@@ -62,10 +77,13 @@ run_fitness as (
             else 'other'
         end as hr_band,
         runs.garmin_recovery_hr,
+        prior_7d_load.prior_7d_distance_km,
         aerobic_decoupling.aerobic_decoupling_pct,
         aerobic_decoupling.aerobic_decoupling_status,
         aerobic_decoupling.aerobic_decoupling_unavailable_reason,
-        aerobic_decoupling.moving_duration_seconds as aerobic_decoupling_moving_duration_seconds,
+        aerobic_decoupling.aerobic_decoupling_failed_gates,
+        aerobic_decoupling.timer_running_duration_seconds
+            as aerobic_decoupling_moving_duration_seconds,
         aerobic_decoupling.valid_segment_count as aerobic_decoupling_valid_segment_count,
         aerobic_decoupling.hr_coverage_ratio as aerobic_decoupling_hr_coverage_ratio,
         aerobic_decoupling.maximum_hr_gap_seconds as aerobic_decoupling_maximum_hr_gap_seconds,
@@ -82,6 +100,8 @@ run_fitness as (
         on runs.run_id = aerobic_decoupling.run_id
     left join economy_metrics as economy
         on runs.run_id = economy.run_id
+    left join prior_7d_load
+        on runs.run_id = prior_7d_load.run_id
 ),
 
 windowed as (
@@ -134,7 +154,15 @@ windowed as (
     percentile_approx(aerobic_decoupling_pct, 0.25, 10000) over aerobic_decoupling_prior_90d_window
         as aerobic_decoupling_prior_90d_q1,
     percentile_approx(aerobic_decoupling_pct, 0.75, 10000) over aerobic_decoupling_prior_90d_window
-        as aerobic_decoupling_prior_90d_q3
+        as aerobic_decoupling_prior_90d_q3,
+    last(aerobic_decoupling_pct, true) over prior_qualifying_run_window
+        as previous_aerobic_decoupling_pct,
+    last(distance_economy_m_per_beat, true) over prior_qualifying_run_window
+        as previous_distance_economy_m_per_beat,
+    last(elevation_economy_m_per_beat, true) over prior_qualifying_run_window
+        as previous_elevation_economy_m_per_beat,
+    last(prior_7d_distance_km, true) over prior_qualifying_run_window
+        as previous_prior_7d_distance_km
     from run_fitness
     window recovery_prior_90d_window as (
         partition by case
@@ -146,6 +174,10 @@ windowed as (
     aerobic_decoupling_prior_90d_window as (
         order by activity_date
         range between interval '90' day preceding and interval '1' day preceding
+    ),
+    prior_qualifying_run_window as (
+        order by activity_date, activity_id
+        rows between unbounded preceding and 1 preceding
     )
 )
 
