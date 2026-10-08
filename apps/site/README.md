@@ -57,6 +57,21 @@ the FIT selector succeeds. The publisher
 defaults to the local Supabase CLI database at `127.0.0.1:54322`, so `SUPABASE_DB_URL` is only needed
 for hosted Supabase and belongs in the root operational `.env`, not the site runtime env.
 
+## Crawler Policy
+
+Next.js serves `public/robots.txt` at `/robots.txt` as a static file. The policy asks MJ12bot and
+Reflectionbot not to crawl any path, and asks other crawlers to avoid `/api/` while leaving public
+pages discoverable by search engines.
+
+To block another crawler, add a separate `User-agent: <crawler-token>` group with `Disallow: /`
+before the general `User-agent: *` group. Use the crawler's token rather than its full browser-style
+user-agent string.
+
+After deployment, verify that `/robots.txt` returns HTTP 200 with plain-text content and monitor
+request logs for reduced crawler traffic. Crawlers may cache the policy, and compliance is voluntary.
+If a crawler continues consuming resources, enforce a user-agent block at the hosting firewall/edge;
+rate limiting can help with broader abusive traffic.
+
 ## Commands
 
 ```bash

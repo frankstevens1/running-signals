@@ -1,0 +1,11 @@
+# Block Majestic's crawler across the entire site.
+User-agent: MJ12bot
+Disallow: /
+
+# Block Reflection's crawler across the entire site.
+User-agent: Reflectionbot
+Disallow: /
+
+# Keep public pages discoverable, but exclude data endpoints.
+User-agent: *
+Disallow: /api/

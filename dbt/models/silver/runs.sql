@@ -98,6 +98,12 @@ select
     case
         when last_record_heart_rates.last_record_heart_rate is not null
             and recovery_events.recovery_heart_rate is not null
+            and last_record_heart_rates.last_record_heart_rate > 0
+            and recovery_events.recovery_heart_rate > 0
+            and recovery_events.recovery_heart_rate < last_record_heart_rates.last_record_heart_rate
+            and (
+                last_record_heart_rates.last_record_heart_rate - recovery_events.recovery_heart_rate
+            ) <= 240
         then last_record_heart_rates.last_record_heart_rate - recovery_events.recovery_heart_rate
     end as garmin_recovery_hr,
     cast(null as double) as resting_hr_7d_avg,

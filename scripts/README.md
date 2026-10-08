@@ -135,6 +135,30 @@ S3 configuration is read from CLI arguments first, then from the repository
 - `AWS_REGION`, defaulting to the AWS SDK/environment default when unset
 - `AWS_PROFILE`, when using an AWS IAM Identity Center profile
 
+## `extract_fit_from_s3.py`
+
+Extracts Garmin FIT files from the raw S3 landing back to the local filesystem.
+This is the reverse of `download_garmin_fit.py --destination s3` and is intended
+for local inspection and exploration; it does not touch the pipeline.
+
+Files are read from `s3://<bucket>/<prefix>/{garmin_activity_id}.fit` and written
+to a local directory with the same filenames. Files already present locally are
+skipped unless `--overwrite` is passed.
+
+```bash
+uv run python scripts/extract_fit_from_s3.py --dry-run
+uv run python scripts/extract_fit_from_s3.py
+uv run python scripts/extract_fit_from_s3.py --limit 10 --overwrite --output-dir ~/Downloads/garmin-fit
+```
+
+S3 configuration is read from CLI arguments first, then from the repository
+`.env` file or shell environment:
+
+- `GARMIN_FIT_S3_BUCKET`
+- `GARMIN_FIT_S3_PREFIX`, defaulting to `garmin/fit`
+- `AWS_REGION`, defaulting to the AWS SDK/environment default when unset
+- `AWS_PROFILE`, when using an AWS IAM Identity Center profile
+
 ## `download_garmin_health.py`
 
 Downloads daily Garmin Connect health JSON payloads for HRV, resting heart rate,
